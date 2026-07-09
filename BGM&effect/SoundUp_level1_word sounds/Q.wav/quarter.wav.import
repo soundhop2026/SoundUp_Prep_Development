@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://ddj1uo715yewn"
+path="res://.godot/imported/quarter.wav-d265f55929f485393d5ce454357ab417.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/Q.wav/quarter.wav"
+dest_files=["res://.godot/imported/quarter.wav-d265f55929f485393d5ce454357ab417.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

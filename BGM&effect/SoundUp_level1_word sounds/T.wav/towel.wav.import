@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bq6ih6jhj87bq"
+path="res://.godot/imported/towel.wav-6d26b73843d625b320badeda06d94d50.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/T.wav/towel.wav"
+dest_files=["res://.godot/imported/towel.wav-6d26b73843d625b320badeda06d94d50.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

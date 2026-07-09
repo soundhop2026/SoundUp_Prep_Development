@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bcd42dtlcj3rp"
+path="res://.godot/imported/kangaroo.wav-b553b0b270146781e72a91181efba2b3.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/K.wav/kangaroo.wav"
+dest_files=["res://.godot/imported/kangaroo.wav-b553b0b270146781e72a91181efba2b3.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,26 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://game2.gd" id="1_game2"]
+[ext_resource type="AudioStream" uid="uid://55ei8hp2a1x" path="res://BGM&effect/SoundUp_feedback/gayageum_correct.wav" id="2_game2"]
+[ext_resource type="AudioStream" uid="uid://dtr7stbe5l75x" path="res://BGM&effect/SoundUp_feedback/gayageum_wrong.wav" id="3_game2"]
+[ext_resource type="AudioStream" uid="uid://7ccfa3vqbged" path="res://BGM&effect/SoundUp_feedback/oops_try_again.wav" id="4_game2"]
+
+[node name="Node2D" type="Node2D"]
+script = ExtResource("1_game2")
+
+[node name="background" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="CorrectSound" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("2_game2")
+
+[node name="WrongSound" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("3_game2")
+
+[node name="OopsSound" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("4_game2")
+
+[node name="WordPlayer" type="AudioStreamPlayer" parent="."]
+
+[node name="VowelPlayer" type="AudioStreamPlayer" parent="."]

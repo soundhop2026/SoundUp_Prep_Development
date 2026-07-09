@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cuv3g4w5dfosg"
+path="res://.godot/imported/car.wav-e0ee7bf6336d5921367ed7e5fdf201d8.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/C_hard.wav/car.wav"
+dest_files=["res://.godot/imported/car.wav-e0ee7bf6336d5921367ed7e5fdf201d8.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

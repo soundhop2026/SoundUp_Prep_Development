@@ -1,0 +1,12 @@
+{
+  "id": "set_4a",
+  "title": "Ending Sound — Find It",
+  "mode": "final_isolation",
+  "rounds": 15,
+  "images_per_round": 1,
+  "choices_count": 3,
+  "autoplay_word": true,
+  "autoplay_count": 3,
+  "allowed_structures": ["CVC", "CCVC", "CVCC"],
+  "distractor_rule": "consonant_not_in_word"
+}

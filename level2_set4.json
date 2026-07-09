@@ -1,0 +1,24 @@
+{
+	"rounds": [
+		{ "word": "box",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/box.wav",   "word_image": "res://SoundUp_level1.5_word_images/box.png",   "correct_vowel": "o", "phonemes": 4, "vowel_pos": 2 },
+		{ "word": "cot",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/cot.wav",   "word_image": "res://SoundUp_level1.5_word_images/cot.png",   "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "dog",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/dog.wav",   "word_image": "res://SoundUp_level1.5_word_images/dog.png",   "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "hop",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hop.wav",   "word_image": "res://SoundUp_level1.5_word_images/hop.png",   "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "jog",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/jog.wav",   "word_image": "res://SoundUp_level1.5_word_images/jog.png",   "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "log",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/log.wav",   "word_image": "res://SoundUp_level1.5_word_images/log.png",   "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "mop",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/mop.wav",   "word_image": "res://SoundUp_level1.5_word_images/mop.png",   "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "pod",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pod.wav",   "word_image": "res://SoundUp_level1.5_word_images/pod.png",   "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "pot",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pot.wav",   "word_image": "res://SoundUp_level1.5_word_images/pot.png",   "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "rod",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/rod.wav",   "word_image": "res://SoundUp_level1.5_word_images/rod.png",   "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "top",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/top.wav",   "word_image": "res://SoundUp_level1.5_word_images/top.png",   "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "clock", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/clock.wav", "word_image": "res://SoundUp_level1.5_word_images/clock.png", "correct_vowel": "o", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "doll",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/doll.wav",  "word_image": "res://SoundUp_level1.5_word_images/doll.png",  "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "drop",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/drop.wav",  "word_image": "res://SoundUp_level1.5_word_images/drop.png",  "correct_vowel": "o", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "frog",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/frog.wav",  "word_image": "res://SoundUp_level1.5_word_images/frog.png",  "correct_vowel": "o", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "pond",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pond.wav",  "word_image": "res://SoundUp_level1.5_word_images/pond.png",  "correct_vowel": "o", "phonemes": 4, "vowel_pos": 2 },
+		{ "word": "stop",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/stop.wav",  "word_image": "res://SoundUp_level1.5_word_images/stop.png",  "correct_vowel": "o", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "frost", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/frost.wav", "word_image": "res://SoundUp_level1.5_word_images/frost.png", "correct_vowel": "o", "phonemes": 5, "vowel_pos": 3 },
+		{ "word": "block", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/block.wav", "word_image": "res://SoundUp_level1.5_word_images/block.png", "correct_vowel": "o", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "stomp", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/stomp.wav", "word_image": "res://SoundUp_level1.5_word_images/stomp.png", "correct_vowel": "o", "phonemes": 5, "vowel_pos": 3 }
+	]
+}

@@ -1,0 +1,17 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://prep_transition.gd" id="1_trans"]
+[ext_resource type="Texture2D" path="res://UI_assets/playbutton.png" id="3_trans"]
+
+[node name="transition" type="Node2D"]
+script = ExtResource("1_trans")
+
+[node name="background" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.65882353, 0.87843137, 0.38823529, 1)
+
+[node name="PlayButtonImage" type="Sprite2D" parent="."]
+position = Vector2(640, 360)
+scale = Vector2(0.3, 0.3)
+texture = ExtResource("3_trans")

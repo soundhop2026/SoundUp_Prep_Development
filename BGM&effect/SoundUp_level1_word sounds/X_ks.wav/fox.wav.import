@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dtxkc4ygegpag"
+path="res://.godot/imported/fox.wav-4f9f874ac9938320ce1315782c9a9cd4.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/X_ks.wav/fox.wav"
+dest_files=["res://.godot/imported/fox.wav-4f9f874ac9938320ce1315782c9a9cd4.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

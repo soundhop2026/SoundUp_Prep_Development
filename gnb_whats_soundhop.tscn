@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://dk5p9rn7wq2xt"]
+
+[ext_resource type="Script" uid="uid://bg4k3s8lv7nyb" path="res://gnb_whats_soundhop.gd" id="1_whats"]
+
+[node name="gnb_whats_soundhop" type="Node2D"]
+script = ExtResource("1_whats")

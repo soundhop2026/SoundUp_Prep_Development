@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\user\\\\Documents\\\\sound-up\" -Recurse)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(extract-text \"C:\\\\Users\\\\user\\\\Desktop\\\\Level1SOUNDUP.docx\")",
+      "Bash(ls \"/mnt/c/Users/user/Documents/sound-up/\")",
+      "PowerShell([System.IO.Directory]::GetDirectories\\(\"C:\\\\Users\\\\user\"\\) | ForEach-Object { Split-Path $_ -Leaf })",
+      "PowerShell(Get-Command ffmpeg -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command ffprobe -ErrorAction SilentlyContinue)",
+      "Bash(sed -i 's/m, s, t, b, k | 3/m, s, t, b, k, v | 3/' \"C:/Users/user/.claude/projects/C--Users-user-Documents-sound-up/memory/level_progression_state.md\")",
+      "Bash(sed -i 's/h, w, y, l, z | 4/h, w, y, l, z, r | 4/' \"C:/Users/user/.claude/projects/C--Users-user-Documents-sound-up/memory/level_progression_state.md\")",
+      "Bash(Get-Item \"C:\\\\Users\\\\user\\\\Documents\\\\sound-up\\\\SoundUp.apk\")",
+      "Bash(Select-Object Name, Length, LastWriteTime)",
+      "Bash(dir \"C:/Users/user/Documents/sound-up/SoundUp_level1_word images/\")",
+      "Bash(grep -c phoneme_audio C:/Users/user/Documents/sound-up/__TRACKED_VAR__.json)"
+    ]
+  }
+}

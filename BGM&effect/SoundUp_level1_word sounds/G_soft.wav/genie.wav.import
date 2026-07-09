@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://o7qn5l0pw7q3"
+path="res://.godot/imported/genie.wav-b8cd75b53c13321b0fed0556cbfa874a.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/G_soft.wav/genie.wav"
+dest_files=["res://.godot/imported/genie.wav-b8cd75b53c13321b0fed0556cbfa874a.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

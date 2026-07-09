@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cb8pr31ufadcy"
+path="res://.godot/imported/horse.wav-2df8d37c52b4947006614780f440a667.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/H.wav/horse.wav"
+dest_files=["res://.godot/imported/horse.wav-2df8d37c52b4947006614780f440a667.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dhg7nnyckjk3v"
+path="res://.godot/imported/seal.wav-67f4cc0ea11dec8ab51d62fc4c6fb6b5.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/S.wav/seal.wav"
+dest_files=["res://.godot/imported/seal.wav-67f4cc0ea11dec8ab51d62fc4c6fb6b5.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

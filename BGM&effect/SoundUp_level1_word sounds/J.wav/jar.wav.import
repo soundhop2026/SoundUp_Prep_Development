@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://r660ngb14i3k"
+path="res://.godot/imported/jar.wav-d473c0ed7a38d9bb026d03c9e2ed32e6.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/J.wav/jar.wav"
+dest_files=["res://.godot/imported/jar.wav-d473c0ed7a38d9bb026d03c9e2ed32e6.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

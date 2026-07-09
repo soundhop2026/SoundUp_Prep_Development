@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dupmi2nc1ooyn"
+path="res://.godot/imported/fan.wav-7dfa15d9b01fe87fe8ac77cc44ff5394.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/F.wav/fan.wav"
+dest_files=["res://.godot/imported/fan.wav-7dfa15d9b01fe87fe8ac77cc44ff5394.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

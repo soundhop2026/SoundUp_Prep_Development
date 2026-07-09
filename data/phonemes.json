@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "note": "All phoneme IDs used in words.json are listed here.",
+  "phonemes": {
+
+    "b":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/B.wav",      "type": "consonant" },
+    "d":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/D.wav",      "type": "consonant" },
+    "f":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/F.wav",      "type": "consonant" },
+    "g":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/G_hard.wav", "type": "consonant" },
+    "h":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/H.wav",      "type": "consonant" },
+    "j":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/J.wav",      "type": "consonant" },
+    "k":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/K.wav",      "type": "consonant" },
+    "l":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/L.wav",      "type": "consonant" },
+    "m":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/M.wav",      "type": "consonant" },
+    "n":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/N.wav",      "type": "consonant" },
+    "ng":      { "audio": "res://BGM&effect/SoundUp_level1_phonemes/ng.wav",     "type": "consonant" },
+    "p":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/P.wav",      "type": "consonant" },
+    "r":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/R.wav",      "type": "consonant" },
+    "s":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/S.wav",      "type": "consonant" },
+    "t":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/T.wav",      "type": "consonant" },
+    "v":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/V.wav",      "type": "consonant" },
+    "w":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/W.wav",      "type": "consonant" },
+    "x_ks":    { "audio": "res://BGM&effect/SoundUp_level1_phonemes/X_ks.wav",   "type": "consonant" },
+    "z":       { "audio": "res://BGM&effect/SoundUp_level1_phonemes/Z.wav",      "type": "consonant" },
+
+    "short_a": { "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/short_a.wav", "type": "vowel" },
+    "short_e": { "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/short_e.wav", "type": "vowel" },
+    "short_i": { "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/short_i.wav", "type": "vowel" },
+    "short_o": { "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/short_o.wav", "type": "vowel" },
+    "short_u": { "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/short_u.wav", "type": "vowel" }
+
+  }
+}

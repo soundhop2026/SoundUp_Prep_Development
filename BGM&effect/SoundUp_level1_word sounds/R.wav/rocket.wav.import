@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://crgx24a3gro5j"
+path="res://.godot/imported/rocket.wav-649c089a3bf6767fe7ec3ac144bdc8bb.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/R.wav/rocket.wav"
+dest_files=["res://.godot/imported/rocket.wav-649c089a3bf6767fe7ec3ac144bdc8bb.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

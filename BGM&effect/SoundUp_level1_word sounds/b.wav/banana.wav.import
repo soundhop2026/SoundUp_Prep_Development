@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://caj7ogb1r0lpm"
+path="res://.godot/imported/banana.wav-7bce64ff1f564d20f4fa8a324bd5daaa.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/b.wav/banana.wav"
+dest_files=["res://.godot/imported/banana.wav-7bce64ff1f564d20f4fa8a324bd5daaa.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

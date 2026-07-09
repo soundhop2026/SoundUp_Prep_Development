@@ -1,0 +1,12 @@
+{
+  "id": "set_5d",
+  "title": "Build the Word — Challenge",
+  "mode": "build_word",
+  "rounds": 20,
+  "images_per_round": 1,
+  "autoplay_word": true,
+  "autoplay_count": 3,
+  "allowed_structures": ["CVC", "CCVC", "CVCC", "CCVCC"],
+  "distractor_count": 1,
+  "distractor_rule": "phoneme_not_in_word"
+}

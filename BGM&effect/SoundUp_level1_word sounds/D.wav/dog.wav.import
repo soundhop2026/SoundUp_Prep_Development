@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bwgvk8hmbrbji"
+path="res://.godot/imported/dog.wav-599520118e49ed6552232ab69f5145ad.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/D.wav/dog.wav"
+dest_files=["res://.godot/imported/dog.wav-599520118e49ed6552232ab69f5145ad.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,11 @@
+{
+  "id": "set_6",
+  "title": "How Many Sounds?",
+  "mode": "sound_count",
+  "rounds": 20,
+  "images_per_round": 1,
+  "autoplay_word": true,
+  "autoplay_count": 3,
+  "allowed_structures": ["CVC", "CCVC", "CVCC", "CCVCC"],
+  "count_options": [3, 4, 5]
+}

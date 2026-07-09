@@ -1,0 +1,24 @@
+{
+	"rounds": [
+		{ "word": "bed",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bed.wav",   "word_image": "res://SoundUp_level1.5_word_images/bed.png",   "correct_vowel": "e", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "hen",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hen.wav",   "word_image": "res://SoundUp_level1.5_word_images/hen.png",   "correct_vowel": "e", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "jet",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/jet.wav",   "word_image": "res://SoundUp_level1.5_word_images/jet.png",   "correct_vowel": "e", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "leg",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/leg.wav",   "word_image": "res://SoundUp_level1.5_word_images/leg.png",   "correct_vowel": "e", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "net",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/net.wav",   "word_image": "res://SoundUp_level1.5_word_images/net.png",   "correct_vowel": "e", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "pen",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pen.wav",   "word_image": "res://SoundUp_level1.5_word_images/pen.png",   "correct_vowel": "e", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "ten",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/ten.wav",   "word_image": "res://SoundUp_level1.5_word_images/ten.png",   "correct_vowel": "e", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "vet",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/vet.wav",   "word_image": "res://SoundUp_level1.5_word_images/vet.png",   "correct_vowel": "e", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "web",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/web.wav",   "word_image": "res://SoundUp_level1.5_word_images/web.png",   "correct_vowel": "e", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "desk",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/desk.wav",  "word_image": "res://SoundUp_level1.5_word_images/desk.png",  "correct_vowel": "e", "phonemes": 4, "vowel_pos": 2 },
+		{ "word": "belt",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/belt.wav",  "word_image": "res://SoundUp_level1.5_word_images/belt.png",  "correct_vowel": "e", "phonemes": 4, "vowel_pos": 2 },
+		{ "word": "tent",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/tent.wav",  "word_image": "res://SoundUp_level1.5_word_images/tent.png",  "correct_vowel": "e", "phonemes": 4, "vowel_pos": 2 },
+		{ "word": "melt",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/melt.wav",  "word_image": "res://SoundUp_level1.5_word_images/melt.png",  "correct_vowel": "e", "phonemes": 4, "vowel_pos": 2 },
+		{ "word": "sled",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/sled.wav",  "word_image": "res://SoundUp_level1.5_word_images/sled.png",  "correct_vowel": "e", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "stem",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/stem.wav",  "word_image": "res://SoundUp_level1.5_word_images/stem.png",  "correct_vowel": "e", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "step",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/step.wav",  "word_image": "res://SoundUp_level1.5_word_images/step.png",  "correct_vowel": "e", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "blend", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/blend.wav", "word_image": "res://SoundUp_level1.5_word_images/blend.png", "correct_vowel": "e", "phonemes": 5, "vowel_pos": 3 },
+		{ "word": "crest", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/crest.wav", "word_image": "res://SoundUp_level1.5_word_images/crest.png", "correct_vowel": "e", "phonemes": 5, "vowel_pos": 3 },
+		{ "word": "bed",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bed.wav",   "word_image": "res://SoundUp_level1.5_word_images/bed.png",   "correct_vowel": "e", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "net",   "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/net.wav",   "word_image": "res://SoundUp_level1.5_word_images/net.png",   "correct_vowel": "e", "phonemes": 3, "vowel_pos": 2 }
+	]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "level1.5",
+  "title": "Sound Builder",
+  "cube_color": "#E8724A",
+  "accuracy_gate": 0.85,
+  "sets": [
+    "res://data/level1.5/set_1a.json",
+    "res://data/level1.5/set_1b.json",
+    "res://data/level1.5/set_2a.json",
+    "res://data/level1.5/set_2b.json",
+    "res://data/level1.5/set_3a.json",
+    "res://data/level1.5/set_3b.json",
+    "res://data/level1.5/set_4a.json",
+    "res://data/level1.5/set_4b.json",
+    "res://data/level1.5/set_5a.json",
+    "res://data/level1.5/set_5b.json",
+    "res://data/level1.5/set_5c.json",
+    "res://data/level1.5/set_5d.json",
+    "res://data/level1.5/set_6.json"
+  ]
+}

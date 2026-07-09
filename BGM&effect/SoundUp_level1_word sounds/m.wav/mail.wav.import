@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cvi507hh7dnfa"
+path="res://.godot/imported/mail.wav-23a07b5322a4b5b4b46cb6a1d1d82c42.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/m.wav/mail.wav"
+dest_files=["res://.godot/imported/mail.wav-23a07b5322a4b5b4b46cb6a1d1d82c42.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

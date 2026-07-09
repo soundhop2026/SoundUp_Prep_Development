@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://drucg5osr2l32"
+path="res://.godot/imported/corn.wav-fa20ccb810d647643c29adcad578fbfd.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/C_hard.wav/corn.wav"
+dest_files=["res://.godot/imported/corn.wav-fa20ccb810d647643c29adcad578fbfd.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

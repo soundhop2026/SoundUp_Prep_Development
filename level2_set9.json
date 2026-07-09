@@ -1,0 +1,229 @@
+{
+	"rounds": [
+		{
+			"target_vowel": "a",
+			"correct_word": "bat", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bat.wav", "correct_image": "res://SoundUp_level1.5_word_images/bat.png",
+			"distractors": [
+				{ "word": "bed",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bed.wav",  "image": "res://SoundUp_level1.5_word_images/bed.png" },
+				{ "word": "hen",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hen.wav",  "image": "res://SoundUp_level1.5_word_images/hen.png" },
+				{ "word": "net",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/net.wav",  "image": "res://SoundUp_level1.5_word_images/net.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "cat", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/cat.wav", "correct_image": "res://SoundUp_level1.5_word_images/cat.png",
+			"distractors": [
+				{ "word": "jet",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/jet.wav",  "image": "res://SoundUp_level1.5_word_images/jet.png" },
+				{ "word": "leg",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/leg.wav",  "image": "res://SoundUp_level1.5_word_images/leg.png" },
+				{ "word": "ten",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/ten.wav",  "image": "res://SoundUp_level1.5_word_images/ten.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "hat", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hat.wav", "correct_image": "res://SoundUp_level1.5_word_images/hat.png",
+			"distractors": [
+				{ "word": "vet",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/vet.wav",  "image": "res://SoundUp_level1.5_word_images/vet.png" },
+				{ "word": "web",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/web.wav",  "image": "res://SoundUp_level1.5_word_images/web.png" },
+				{ "word": "pen",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pen.wav",  "image": "res://SoundUp_level1.5_word_images/pen.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "man", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/man.wav", "correct_image": "res://SoundUp_level1.5_word_images/man.png",
+			"distractors": [
+				{ "word": "bed",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bed.wav",  "image": "res://SoundUp_level1.5_word_images/bed.png" },
+				{ "word": "desk", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/desk.wav", "image": "res://SoundUp_level1.5_word_images/desk.png" },
+				{ "word": "tent", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/tent.wav", "image": "res://SoundUp_level1.5_word_images/tent.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "map", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/map.wav", "correct_image": "res://SoundUp_level1.5_word_images/map.png",
+			"distractors": [
+				{ "word": "belt", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/belt.wav", "image": "res://SoundUp_level1.5_word_images/belt.png" },
+				{ "word": "sled", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/sled.wav", "image": "res://SoundUp_level1.5_word_images/sled.png" },
+				{ "word": "stem", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/stem.wav", "image": "res://SoundUp_level1.5_word_images/stem.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "mat", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/mat.wav", "correct_image": "res://SoundUp_level1.5_word_images/mat.png",
+			"distractors": [
+				{ "word": "net",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/net.wav",  "image": "res://SoundUp_level1.5_word_images/net.png" },
+				{ "word": "hen",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hen.wav",  "image": "res://SoundUp_level1.5_word_images/hen.png" },
+				{ "word": "web",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/web.wav",  "image": "res://SoundUp_level1.5_word_images/web.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "bag", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bag.wav", "correct_image": "res://SoundUp_level1.5_word_images/bag.png",
+			"distractors": [
+				{ "word": "jet",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/jet.wav",  "image": "res://SoundUp_level1.5_word_images/jet.png" },
+				{ "word": "vet",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/vet.wav",  "image": "res://SoundUp_level1.5_word_images/vet.png" },
+				{ "word": "ten",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/ten.wav",  "image": "res://SoundUp_level1.5_word_images/ten.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "can", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/can.wav", "correct_image": "res://SoundUp_level1.5_word_images/can.png",
+			"distractors": [
+				{ "word": "leg",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/leg.wav",  "image": "res://SoundUp_level1.5_word_images/leg.png" },
+				{ "word": "pen",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pen.wav",  "image": "res://SoundUp_level1.5_word_images/pen.png" },
+				{ "word": "desk", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/desk.wav", "image": "res://SoundUp_level1.5_word_images/desk.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "fan", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/fan.wav", "correct_image": "res://SoundUp_level1.5_word_images/fan.png",
+			"distractors": [
+				{ "word": "bed",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bed.wav",  "image": "res://SoundUp_level1.5_word_images/bed.png" },
+				{ "word": "belt", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/belt.wav", "image": "res://SoundUp_level1.5_word_images/belt.png" },
+				{ "word": "melt", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/melt.wav", "image": "res://SoundUp_level1.5_word_images/melt.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "pan", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pan.wav", "correct_image": "res://SoundUp_level1.5_word_images/pan.png",
+			"distractors": [
+				{ "word": "crest", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/crest.wav", "image": "res://SoundUp_level1.5_word_images/crest.png" },
+				{ "word": "step",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/step.wav",  "image": "res://SoundUp_level1.5_word_images/step.png" },
+				{ "word": "blend", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/blend.wav", "image": "res://SoundUp_level1.5_word_images/blend.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "cap", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/cap.wav", "correct_image": "res://SoundUp_level1.5_word_images/cap.png",
+			"distractors": [
+				{ "word": "hen",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hen.wav",  "image": "res://SoundUp_level1.5_word_images/hen.png" },
+				{ "word": "net",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/net.wav",  "image": "res://SoundUp_level1.5_word_images/net.png" },
+				{ "word": "web",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/web.wav",  "image": "res://SoundUp_level1.5_word_images/web.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "van", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/van.wav", "correct_image": "res://SoundUp_level1.5_word_images/van.png",
+			"distractors": [
+				{ "word": "jet",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/jet.wav",  "image": "res://SoundUp_level1.5_word_images/jet.png" },
+				{ "word": "leg",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/leg.wav",  "image": "res://SoundUp_level1.5_word_images/leg.png" },
+				{ "word": "ten",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/ten.wav",  "image": "res://SoundUp_level1.5_word_images/ten.png" }
+			]
+		},
+		{
+			"target_vowel": "a",
+			"correct_word": "rat", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/rat.wav", "correct_image": "res://SoundUp_level1.5_word_images/rat.png",
+			"distractors": [
+				{ "word": "vet",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/vet.wav",  "image": "res://SoundUp_level1.5_word_images/vet.png" },
+				{ "word": "pen",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pen.wav",  "image": "res://SoundUp_level1.5_word_images/pen.png" },
+				{ "word": "desk", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/desk.wav", "image": "res://SoundUp_level1.5_word_images/desk.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "bed", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bed.wav", "correct_image": "res://SoundUp_level1.5_word_images/bed.png",
+			"distractors": [
+				{ "word": "bat",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bat.wav",  "image": "res://SoundUp_level1.5_word_images/bat.png" },
+				{ "word": "cat",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/cat.wav",  "image": "res://SoundUp_level1.5_word_images/cat.png" },
+				{ "word": "hat",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hat.wav",  "image": "res://SoundUp_level1.5_word_images/hat.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "hen", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hen.wav", "correct_image": "res://SoundUp_level1.5_word_images/hen.png",
+			"distractors": [
+				{ "word": "man",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/man.wav",  "image": "res://SoundUp_level1.5_word_images/man.png" },
+				{ "word": "map",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/map.wav",  "image": "res://SoundUp_level1.5_word_images/map.png" },
+				{ "word": "mat",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/mat.wav",  "image": "res://SoundUp_level1.5_word_images/mat.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "jet", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/jet.wav", "correct_image": "res://SoundUp_level1.5_word_images/jet.png",
+			"distractors": [
+				{ "word": "bag",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bag.wav",  "image": "res://SoundUp_level1.5_word_images/bag.png" },
+				{ "word": "can",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/can.wav",  "image": "res://SoundUp_level1.5_word_images/can.png" },
+				{ "word": "fan",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/fan.wav",  "image": "res://SoundUp_level1.5_word_images/fan.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "leg", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/leg.wav", "correct_image": "res://SoundUp_level1.5_word_images/leg.png",
+			"distractors": [
+				{ "word": "pan",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pan.wav",  "image": "res://SoundUp_level1.5_word_images/pan.png" },
+				{ "word": "cap",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/cap.wav",  "image": "res://SoundUp_level1.5_word_images/cap.png" },
+				{ "word": "van",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/van.wav",  "image": "res://SoundUp_level1.5_word_images/van.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "net", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/net.wav", "correct_image": "res://SoundUp_level1.5_word_images/net.png",
+			"distractors": [
+				{ "word": "rat",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/rat.wav",  "image": "res://SoundUp_level1.5_word_images/rat.png" },
+				{ "word": "ram",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/ram.wav",  "image": "res://SoundUp_level1.5_word_images/ram.png" },
+				{ "word": "jam",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/jam.wav",  "image": "res://SoundUp_level1.5_word_images/jam.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "pen", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pen.wav", "correct_image": "res://SoundUp_level1.5_word_images/pen.png",
+			"distractors": [
+				{ "word": "ham",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/ham.wav",  "image": "res://SoundUp_level1.5_word_images/ham.png" },
+				{ "word": "clap", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/clap.wav", "image": "res://SoundUp_level1.5_word_images/clap.png" },
+				{ "word": "flag", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/flag.wav", "image": "res://SoundUp_level1.5_word_images/flag.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "ten", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/ten.wav", "correct_image": "res://SoundUp_level1.5_word_images/ten.png",
+			"distractors": [
+				{ "word": "hand", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hand.wav", "image": "res://SoundUp_level1.5_word_images/hand.png" },
+				{ "word": "trap", "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/trap.wav", "image": "res://SoundUp_level1.5_word_images/trap.png" },
+				{ "word": "bat",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bat.wav",  "image": "res://SoundUp_level1.5_word_images/bat.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "vet", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/vet.wav", "correct_image": "res://SoundUp_level1.5_word_images/vet.png",
+			"distractors": [
+				{ "word": "cat",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/cat.wav",  "image": "res://SoundUp_level1.5_word_images/cat.png" },
+				{ "word": "hat",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hat.wav",  "image": "res://SoundUp_level1.5_word_images/hat.png" },
+				{ "word": "man",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/man.wav",  "image": "res://SoundUp_level1.5_word_images/man.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "web", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/web.wav", "correct_image": "res://SoundUp_level1.5_word_images/web.png",
+			"distractors": [
+				{ "word": "map",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/map.wav",  "image": "res://SoundUp_level1.5_word_images/map.png" },
+				{ "word": "mat",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/mat.wav",  "image": "res://SoundUp_level1.5_word_images/mat.png" },
+				{ "word": "bag",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bag.wav",  "image": "res://SoundUp_level1.5_word_images/bag.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "desk", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/desk.wav", "correct_image": "res://SoundUp_level1.5_word_images/desk.png",
+			"distractors": [
+				{ "word": "can",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/can.wav",  "image": "res://SoundUp_level1.5_word_images/can.png" },
+				{ "word": "fan",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/fan.wav",  "image": "res://SoundUp_level1.5_word_images/fan.png" },
+				{ "word": "pan",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pan.wav",  "image": "res://SoundUp_level1.5_word_images/pan.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "belt", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/belt.wav", "correct_image": "res://SoundUp_level1.5_word_images/belt.png",
+			"distractors": [
+				{ "word": "cap",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/cap.wav",  "image": "res://SoundUp_level1.5_word_images/cap.png" },
+				{ "word": "van",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/van.wav",  "image": "res://SoundUp_level1.5_word_images/van.png" },
+				{ "word": "rat",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/rat.wav",  "image": "res://SoundUp_level1.5_word_images/rat.png" }
+			]
+		},
+		{
+			"target_vowel": "e",
+			"correct_word": "tent", "correct_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/tent.wav", "correct_image": "res://SoundUp_level1.5_word_images/tent.png",
+			"distractors": [
+				{ "word": "ram",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/ram.wav",  "image": "res://SoundUp_level1.5_word_images/ram.png" },
+				{ "word": "jam",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/jam.wav",  "image": "res://SoundUp_level1.5_word_images/jam.png" },
+				{ "word": "ham",  "audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/ham.wav",  "image": "res://SoundUp_level1.5_word_images/ham.png" }
+			]
+		}
+	]
+}

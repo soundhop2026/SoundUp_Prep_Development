@@ -1,0 +1,22 @@
+[gd_scene load_steps=4 format=3 uid="uid://ctkgujxpr7g4g"]
+
+[ext_resource type="Script" uid="uid://ce3gtk7c5gy2j" path="res://title.gd" id="1_kpexm"]
+[ext_resource type="AudioStream" uid="uid://biev6garnkhag" path="res://BGM&effect/SoundUp_bgm/BGM.mp3" id="2_3xoar"]
+[ext_resource type="Texture2D" uid="uid://cqiaewn7jot06" path="res://UI_assets/playbutton.png" id="3_mom7w"]
+
+[node name="title" type="Node2D"]
+script = ExtResource("1_kpexm")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.29412, 0.0, 0.51373, 1)
+
+[node name="BGMPlayer" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("2_3xoar")
+autoplay = true
+
+[node name="PlayButton" type="TextureButton" parent="."]
+offset_right = 907.0
+offset_bottom = 437.0
+texture_normal = ExtResource("3_mom7w")

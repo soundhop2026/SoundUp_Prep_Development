@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://xx3a7fi8k42o"
+path="res://.godot/imported/monkey.wav-af8e940b2dcd4fb3f4b8028a725301ed.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/m.wav/monkey.wav"
+dest_files=["res://.godot/imported/monkey.wav-af8e940b2dcd4fb3f4b8028a725301ed.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

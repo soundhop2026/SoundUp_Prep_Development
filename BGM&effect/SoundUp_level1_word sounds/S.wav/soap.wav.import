@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://6pdyic1nt15c"
+path="res://.godot/imported/soap.wav-d5874191b66a1ec5ddd5bb9fb52c9ad4.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/S.wav/soap.wav"
+dest_files=["res://.godot/imported/soap.wav-d5874191b66a1ec5ddd5bb9fb52c9ad4.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

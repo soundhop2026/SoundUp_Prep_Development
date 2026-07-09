@@ -1,0 +1,24 @@
+{
+	"rounds": [
+		{ "word": "bat",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bat.wav",  "word_image": "res://SoundUp_level1.5_word_images/bat.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "cat",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/cat.wav",  "word_image": "res://SoundUp_level1.5_word_images/cat.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "hat",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hat.wav",  "word_image": "res://SoundUp_level1.5_word_images/hat.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "man",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/man.wav",  "word_image": "res://SoundUp_level1.5_word_images/man.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "map",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/map.wav",  "word_image": "res://SoundUp_level1.5_word_images/map.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "mat",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/mat.wav",  "word_image": "res://SoundUp_level1.5_word_images/mat.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "bag",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bag.wav",  "word_image": "res://SoundUp_level1.5_word_images/bag.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "can",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/can.wav",  "word_image": "res://SoundUp_level1.5_word_images/can.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "fan",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/fan.wav",  "word_image": "res://SoundUp_level1.5_word_images/fan.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "pan",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pan.wav",  "word_image": "res://SoundUp_level1.5_word_images/pan.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "cap",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/cap.wav",  "word_image": "res://SoundUp_level1.5_word_images/cap.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "van",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/van.wav",  "word_image": "res://SoundUp_level1.5_word_images/van.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "rat",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/rat.wav",  "word_image": "res://SoundUp_level1.5_word_images/rat.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "ram",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/ram.wav",  "word_image": "res://SoundUp_level1.5_word_images/ram.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "jam",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/jam.wav",  "word_image": "res://SoundUp_level1.5_word_images/jam.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "ham",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/ham.wav",  "word_image": "res://SoundUp_level1.5_word_images/ham.png",  "correct_vowel": "a", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "clap", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/clap.wav", "word_image": "res://SoundUp_level1.5_word_images/clap.png", "correct_vowel": "a", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "flag", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/flag.wav", "word_image": "res://SoundUp_level1.5_word_images/flag.png", "correct_vowel": "a", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "hand", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hand.wav", "word_image": "res://SoundUp_level1.5_word_images/hand.png", "correct_vowel": "a", "phonemes": 4, "vowel_pos": 2 },
+		{ "word": "trap", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/trap.wav", "word_image": "res://SoundUp_level1.5_word_images/trap.png", "correct_vowel": "a", "phonemes": 4, "vowel_pos": 3 }
+	]
+}

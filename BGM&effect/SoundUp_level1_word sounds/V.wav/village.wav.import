@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://8kj1js1r6l12"
+path="res://.godot/imported/village.wav-cbf7b3437abbe20cd59bf0b927ec5245.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/V.wav/village.wav"
+dest_files=["res://.godot/imported/village.wav-cbf7b3437abbe20cd59bf0b927ec5245.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

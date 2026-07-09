@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cgg4va3d2oy61"
+path="res://.godot/imported/bicycle.wav-ca8f6a7f2564a44aff7fb9a678645d0a.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/b.wav/bicycle.wav"
+dest_files=["res://.godot/imported/bicycle.wav-ca8f6a7f2564a44aff7fb9a678645d0a.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

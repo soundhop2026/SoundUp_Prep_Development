@@ -1,0 +1,56 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://game15.gd" id="1_g15sc"]
+[ext_resource type="AudioStream" uid="uid://55ei8hp2a1x" path="res://BGM&effect/SoundUp_feedback/gayageum_correct.wav" id="2_g15sc"]
+[ext_resource type="AudioStream" uid="uid://dtr7stbe5l75x" path="res://BGM&effect/SoundUp_feedback/gayageum_wrong.wav" id="3_g15sc"]
+[ext_resource type="AudioStream" uid="uid://7ccfa3vqbged" path="res://BGM&effect/SoundUp_feedback/oops_try_again.wav" id="4_g15sc"]
+[ext_resource type="Texture2D" path="res://UI_assets/handsigns/pointed.png" id="5_g15sc"]
+
+[node name="Node2D" type="Node2D"]
+script = ExtResource("1_g15sc")
+
+[node name="BG" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="ImgBtn1" type="TextureButton" parent="."]
+visible = false
+
+[node name="ImgBtn2" type="TextureButton" parent="."]
+visible = false
+
+[node name="ImgBtn3" type="TextureButton" parent="."]
+visible = false
+
+[node name="CubeRow" type="Node2D" parent="."]
+position = Vector2(0, 345)
+
+[node name="ChoiceRow" type="Node2D" parent="."]
+position = Vector2(0, 515)
+
+[node name="CountArea" type="Node2D" parent="."]
+position = Vector2(0, 350)
+
+[node name="Count3Btn" type="Button" parent="CountArea"]
+
+[node name="Count4Btn" type="Button" parent="CountArea"]
+
+[node name="Count5Btn" type="Button" parent="CountArea"]
+
+[node name="WordPlayer" type="AudioStreamPlayer" parent="."]
+
+[node name="PhonemePlayer" type="AudioStreamPlayer" parent="."]
+
+[node name="CorrectSound" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("2_g15sc")
+
+[node name="WrongSound" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("3_g15sc")
+
+[node name="OopsSound" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("4_g15sc")
+
+[node name="PointedHand" type="Sprite2D" parent="."]
+visible = false
+scale = Vector2(0.08, 0.08)
+texture = ExtResource("5_g15sc")

@@ -1,0 +1,11 @@
+{
+  "id": "set_1a",
+  "title": "Beginning Sound — Match",
+  "mode": "initial_identification",
+  "rounds": 15,
+  "images_per_round": 3,
+  "choices_count": 3,
+  "autoplay_word": false,
+  "allowed_structures": ["CVC", "CCVC", "CVCC"],
+  "distractor_rule": "different_initial_consonant"
+}

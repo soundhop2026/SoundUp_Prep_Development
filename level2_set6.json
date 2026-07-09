@@ -1,0 +1,24 @@
+{
+	"rounds": [
+		{ "word": "box",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/box.wav",  "word_image": "res://SoundUp_level1.5_word_images/box.png",  "correct_vowel": "o", "phonemes": 4, "vowel_pos": 2 },
+		{ "word": "bug",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bug.wav",  "word_image": "res://SoundUp_level1.5_word_images/bug.png",  "correct_vowel": "u", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "dog",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/dog.wav",  "word_image": "res://SoundUp_level1.5_word_images/dog.png",  "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "cup",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/cup.wav",  "word_image": "res://SoundUp_level1.5_word_images/cup.png",  "correct_vowel": "u", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "hop",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hop.wav",  "word_image": "res://SoundUp_level1.5_word_images/hop.png",  "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "gum",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/gum.wav",  "word_image": "res://SoundUp_level1.5_word_images/gum.png",  "correct_vowel": "u", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "log",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/log.wav",  "word_image": "res://SoundUp_level1.5_word_images/log.png",  "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "jug",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/jug.wav",  "word_image": "res://SoundUp_level1.5_word_images/jug.png",  "correct_vowel": "u", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "mop",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/mop.wav",  "word_image": "res://SoundUp_level1.5_word_images/mop.png",  "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "mud",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/mud.wav",  "word_image": "res://SoundUp_level1.5_word_images/mud.png",  "correct_vowel": "u", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "pot",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pot.wav",  "word_image": "res://SoundUp_level1.5_word_images/pot.png",  "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "nut",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/nut.wav",  "word_image": "res://SoundUp_level1.5_word_images/nut.png",  "correct_vowel": "u", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "top",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/top.wav",  "word_image": "res://SoundUp_level1.5_word_images/top.png",  "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "rug",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/rug.wav",  "word_image": "res://SoundUp_level1.5_word_images/rug.png",  "correct_vowel": "u", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "frog", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/frog.wav", "word_image": "res://SoundUp_level1.5_word_images/frog.png", "correct_vowel": "o", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "sun",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/sun.wav",  "word_image": "res://SoundUp_level1.5_word_images/sun.png",  "correct_vowel": "u", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "drop", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/drop.wav", "word_image": "res://SoundUp_level1.5_word_images/drop.png", "correct_vowel": "o", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "tub",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/tub.wav",  "word_image": "res://SoundUp_level1.5_word_images/tub.png",  "correct_vowel": "u", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "cot",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/cot.wav",  "word_image": "res://SoundUp_level1.5_word_images/cot.png",  "correct_vowel": "o", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "hug",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hug.wav",  "word_image": "res://SoundUp_level1.5_word_images/hug.png",  "correct_vowel": "u", "phonemes": 3, "vowel_pos": 2 }
+	]
+}

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cjg1eaf02v1c8"
+path="res://.godot/imported/zebra.wav-ec8491a66f0f887734199c88007ee621.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/Z.wav/zebra.wav"
+dest_files=["res://.godot/imported/zebra.wav-ec8491a66f0f887734199c88007ee621.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

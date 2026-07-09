@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://d5biimqli7mh"
+path="res://.godot/imported/helicopter.wav-fec8e50df4d2cf01e3e2ca9d65f4d4cd.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/H.wav/helicopter.wav"
+dest_files=["res://.godot/imported/helicopter.wav-fec8e50df4d2cf01e3e2ca9d65f4d4cd.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

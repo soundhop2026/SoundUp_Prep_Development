@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://c8mslqq3h5clc"
+path="res://.godot/imported/bear.wav-fcb79ba0269e4134c14c56c0c4246a36.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/b.wav/bear.wav"
+dest_files=["res://.godot/imported/bear.wav-fcb79ba0269e4134c14c56c0c4246a36.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

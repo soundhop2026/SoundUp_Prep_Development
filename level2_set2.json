@@ -1,0 +1,24 @@
+{
+	"rounds": [
+		{ "word": "bin",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/bin.wav",  "word_image": "res://SoundUp_level1.5_word_images/bin.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "dig",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/dig.wav",  "word_image": "res://SoundUp_level1.5_word_images/dig.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "hit",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/hit.wav",  "word_image": "res://SoundUp_level1.5_word_images/hit.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "kid",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/kid.wav",  "word_image": "res://SoundUp_level1.5_word_images/kid.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "lip",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/lip.wav",  "word_image": "res://SoundUp_level1.5_word_images/lip.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "pig",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pig.wav",  "word_image": "res://SoundUp_level1.5_word_images/pig.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "pin",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/pin.wav",  "word_image": "res://SoundUp_level1.5_word_images/pin.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "sit",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/sit.wav",  "word_image": "res://SoundUp_level1.5_word_images/sit.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "wig",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/wig.wav",  "word_image": "res://SoundUp_level1.5_word_images/wig.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "win",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/win.wav",  "word_image": "res://SoundUp_level1.5_word_images/win.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "zip",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/zip.wav",  "word_image": "res://SoundUp_level1.5_word_images/zip.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "six",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/six.wav",  "word_image": "res://SoundUp_level1.5_word_images/six.png",  "correct_vowel": "i", "phonemes": 4, "vowel_pos": 2 },
+		{ "word": "fix",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/fix.wav",  "word_image": "res://SoundUp_level1.5_word_images/fix.png",  "correct_vowel": "i", "phonemes": 4, "vowel_pos": 2 },
+		{ "word": "lid",  "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/lid.wav",  "word_image": "res://SoundUp_level1.5_word_images/lid.png",  "correct_vowel": "i", "phonemes": 3, "vowel_pos": 2 },
+		{ "word": "clip", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/clip.wav", "word_image": "res://SoundUp_level1.5_word_images/clip.png", "correct_vowel": "i", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "drip", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/drip.wav", "word_image": "res://SoundUp_level1.5_word_images/drip.png", "correct_vowel": "i", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "skip", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/skip.wav", "word_image": "res://SoundUp_level1.5_word_images/skip.png", "correct_vowel": "i", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "slip", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/slip.wav", "word_image": "res://SoundUp_level1.5_word_images/slip.png", "correct_vowel": "i", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "spin", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/spin.wav", "word_image": "res://SoundUp_level1.5_word_images/spin.png", "correct_vowel": "i", "phonemes": 4, "vowel_pos": 3 },
+		{ "word": "trip", "word_audio": "res://BGM&effect/SoundUp_level1.5_word_sounds/trip.wav", "word_image": "res://SoundUp_level1.5_word_images/trip.png", "correct_vowel": "i", "phonemes": 4, "vowel_pos": 3 }
+	]
+}

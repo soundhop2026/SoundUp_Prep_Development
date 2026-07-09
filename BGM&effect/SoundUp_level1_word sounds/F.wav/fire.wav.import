@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bhxw5j77ncv5m"
+path="res://.godot/imported/fire.wav-dce4f6ae8ce4b4f7d9bbc2ca2db919cf.sample"
+
+[deps]
+
+source_file="res://BGM&effect/SoundUp_level1_word sounds/F.wav/fire.wav"
+dest_files=["res://.godot/imported/fire.wav-dce4f6ae8ce4b4f7d9bbc2ca2db919cf.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

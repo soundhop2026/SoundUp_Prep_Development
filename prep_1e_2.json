@@ -1,0 +1,184 @@
+{
+    "rounds":  [
+                   {
+                       "phoneme_audio":  "res://BGM&effect/SoundUp_level1_phonemes/K.wav",
+                       "correct_slot":  1,
+                       "choices":  [
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/K/key.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/K.wav/key.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/Q/quilt.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/Q.wav/quilt.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/W/wolf.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/W.wav/wolf.wav"
+                                       }
+                                   ]
+                   },
+                   {
+                       "phoneme_audio":  "res://BGM&effect/SoundUp_level1_phonemes/S.wav",
+                       "correct_slot":  2,
+                       "choices":  [
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/W/wave.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/W.wav/wave.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/S/star.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/S.wav/star.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/X-ks/fox.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/X_ks.wav/fox.wav"
+                                       }
+                                   ]
+                   },
+                   {
+                       "phoneme_audio":  "res://BGM&effect/SoundUp_level1_phonemes/Q.wav",
+                       "correct_slot":  3,
+                       "choices":  [
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/W/worm.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/W.wav/worm.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/X-ks/ax.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/X_ks.wav/ax.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/Q/quiet.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/Q.wav/quiet.wav"
+                                       }
+                                   ]
+                   },
+                   {
+                       "phoneme_audio":  "res://BGM&effect/SoundUp_level1_phonemes/W.wav",
+                       "correct_slot":  1,
+                       "choices":  [
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/W/window.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/W.wav/window.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/Q/queen.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/Q.wav/queen.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/S/snake.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/S.wav/snake.wav"
+                                       }
+                                   ]
+                   },
+                   {
+                       "phoneme_audio":  "res://BGM&effect/SoundUp_level1_phonemes/X_ks.wav",
+                       "correct_slot":  2,
+                       "choices":  [
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/K/king.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/K.wav/king.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/X-ks/box.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/X_ks.wav/box.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/Q/quail.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/Q.wav/quail.wav"
+                                       }
+                                   ]
+                   },
+                   {
+                       "phoneme_audio":  "res://BGM&effect/SoundUp_level1_phonemes/Q.wav",
+                       "correct_slot":  3,
+                       "choices":  [
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/W/wig.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/W.wav/wig.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/S/sun.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/S.wav/sun.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/Q/quack.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/Q.wav/quack.wav"
+                                       }
+                                   ]
+                   },
+                   {
+                       "phoneme_audio":  "res://BGM&effect/SoundUp_level1_phonemes/X_ks.wav",
+                       "correct_slot":  1,
+                       "choices":  [
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/X-ks/taxi.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/X_ks.wav/taxi.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/W/wall.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/W.wav/wall.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/K/kangaroo.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/K.wav/kangaroo.wav"
+                                       }
+                                   ]
+                   },
+                   {
+                       "phoneme_audio":  "res://BGM&effect/SoundUp_level1_phonemes/W.wav",
+                       "correct_slot":  2,
+                       "choices":  [
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/K/kid.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/K.wav/kid.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/W/web.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/W.wav/web.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/Q/quarter.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/Q.wav/quarter.wav"
+                                       }
+                                   ]
+                   },
+                   {
+                       "phoneme_audio":  "res://BGM&effect/SoundUp_level1_phonemes/K.wav",
+                       "correct_slot":  3,
+                       "choices":  [
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/X-ks/mix.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/X_ks.wav/mix.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/S/seal.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/S.wav/seal.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/K/king.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/K.wav/king.wav"
+                                       }
+                                   ]
+                   },
+                   {
+                       "phoneme_audio":  "res://BGM&effect/SoundUp_level1_phonemes/S.wav",
+                       "correct_slot":  1,
+                       "choices":  [
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/S/sand.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/S.wav/sand.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/X-ks/ox.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/X_ks.wav/ox.wav"
+                                       },
+                                       {
+                                           "image":  "res://SoundUp_level1_word images/W/wolf.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/W.wav/wolf.wav"
+                                       }
+                                   ]
+                   }
+               ]
+}

@@ -67,8 +67,9 @@ var _for_l2  : bool = false
 func _ready() -> void:
 	_for_l15                    = Level15Progress.active
 	_for_l2                     = Level2Progress.active
-	$background.size            = Vector2(1280, 720)
+	$background.size            = get_viewport_rect().size
 	$background.position        = Vector2(0, 0)
+	$background.mouse_filter    = Control.MOUSE_FILTER_IGNORE
 	if _for_l2:
 		$background.color = Color(0.478, 0.549, 0.180, 1.0)   # #7A8C2E — Level 2
 	elif _for_l15:
@@ -197,9 +198,10 @@ func _play_track_2() -> void:
 
 func _flash(alpha: float = 0.45, duration: float = 0.12) -> void:
 	var rect := ColorRect.new()
-	rect.color   = Color(1.0, 1.0, 1.0, alpha)
-	rect.size    = Vector2(1280, 720)
-	rect.z_index = 20
+	rect.color        = Color(1.0, 1.0, 1.0, alpha)
+	rect.size         = get_viewport_rect().size
+	rect.z_index      = 20
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(rect)
 	var t := create_tween()
 	t.tween_property(rect, "color:a", 0.0, duration)
@@ -428,8 +430,8 @@ func _play_transition() -> void:
 			else:
 				SaveManager.set_level2_completed()
 				Level2Progress.reset()
-				LevelTransition.next_scene = "res://game2.tscn"
-				LevelTransition.level_name = "Amazing!"
+				LevelTransition.next_level_id = "level25"
+				LevelTransition.level_name    = "Level 2.5"
 				get_tree().change_scene_to_file("res://level_transition.tscn")
 		else:
 			Level2Progress.is_retry = true

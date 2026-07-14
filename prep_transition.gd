@@ -54,8 +54,9 @@ func _create_info_labels() -> void:
 
 func _ready() -> void:
 	$background.color           = Color("#A8E063")
-	$background.size            = Vector2(1280, 720)
+	$background.size            = get_viewport_rect().size
 	$background.position        = Vector2(0, 0)
+	$background.mouse_filter    = Control.MOUSE_FILTER_IGNORE
 	$PlayButtonImage.position   = Vector2(640, 290)
 	$PlayButtonImage.scale      = Vector2(BASE_SCALE, BASE_SCALE)
 	$PlayButtonImage.modulate   = Color(1.0, 1.0, 1.0, 1.0)
@@ -145,20 +146,9 @@ func _play_transition() -> void:
 
 	$PlayButtonImage.position.y = base_y
 
-	# ── Fade to green before routing ──────────────────────────────────────────
-	var overlay := ColorRect.new()
-	overlay.color        = Color("#A8E063")
-	overlay.size         = Vector2(1280, 720)
-	overlay.z_index      = 30
-	overlay.modulate.a   = 0.0
-	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(overlay)
-	var fade := create_tween()
-	fade.tween_property(overlay, "modulate:a", 1.0, 0.5)
-	await fade.finished
-
 	if not passed:
 		PrepLevelProgress.is_retry = true
+		await _exit_play_button()
 		get_tree().change_scene_to_file("res://prep_game.tscn")
 		return
 
@@ -171,16 +161,26 @@ func _play_transition() -> void:
 		await _dance_all_earned_cubes(earned)
 		await get_tree().create_timer(0.3).timeout
 
+	await _exit_play_button()
+
 	if PrepLevelProgress.has_next():
 		PrepLevelProgress.advance()
 		get_tree().change_scene_to_file("res://prep_game.tscn")
 	else:
-		await get_tree().create_timer(0.2).timeout
 		SaveManager.set_prep_completed()
 		PrepLevelProgress.reset()
 		LevelTransition.next_level_id = "level1"
 		LevelTransition.level_name    = "Level 1"
 		get_tree().change_scene_to_file("res://level_transition.tscn")
+
+# ─── PlayButton exit (shrink + fade) ─────────────────────────────────────────
+
+func _exit_play_button() -> void:
+	var t := create_tween()
+	t.set_parallel(true)
+	t.tween_property($PlayButtonImage, "scale",      Vector2(0.0, 0.0), 0.30).set_ease(Tween.EASE_IN)
+	t.tween_property($PlayButtonImage, "modulate:a", 0.0,               0.30)
+	await t.finished
 
 # ─── All earned cubes dance together ─────────────────────────────────────────
 

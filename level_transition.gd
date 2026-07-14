@@ -40,9 +40,10 @@ var _font         : Font              = null
 
 # ─── Ready ────────────────────────────────────────────────────────────────────
 func _ready() -> void:
-	$background.color    = BG_COLOR
-	$background.size     = Vector2(1280, 720)
-	$background.position = Vector2(0, 0)
+	$background.color        = BG_COLOR
+	$background.size         = get_viewport_rect().size
+	$background.position     = Vector2(0, 0)
+	$background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var font_path := "res://UI_assets/210 연필스케치R.ttf"
 	if ResourceLoader.exists(font_path):

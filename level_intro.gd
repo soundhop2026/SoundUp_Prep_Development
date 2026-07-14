@@ -87,9 +87,10 @@ func _ready() -> void:
 
 	# Background
 	var bg := ColorRect.new()
-	bg.color    = bg_col
-	bg.size     = get_viewport_rect().size
-	bg.position = Vector2.ZERO
+	bg.color        = bg_col
+	bg.size         = get_viewport_rect().size
+	bg.position     = Vector2.ZERO
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
 	# Title — centered

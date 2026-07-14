@@ -164,10 +164,12 @@ func _build_header() -> void:
 	var level_names : Array[String] = ["Prep", "Level 1", "Level 1.5", "Level 2", "Level 2.5"]
 	var cur : String = level_names[_current_level_index()]
 
+	var vp_w : float = get_viewport_rect().size.x
+
 	# Purple background
 	var bar := ColorRect.new()
 	bar.color        = PURPLE
-	bar.size         = Vector2(1280, HDR_TOP)
+	bar.size         = Vector2(vp_w, HDR_TOP)
 	bar.position     = Vector2.ZERO
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bar)
@@ -176,7 +178,7 @@ func _build_header() -> void:
 	var title := Label.new()
 	title.text                 = "Where am I"
 	title.position             = Vector2(120, 8)
-	title.size                 = Vector2(1280 - 240, 42)
+	title.size                 = Vector2(vp_w - 240, 42)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 28)
 	title.add_theme_color_override("font_color", AMBER)
@@ -187,7 +189,7 @@ func _build_header() -> void:
 	var summary := Label.new()
 	summary.text                 = "%d sets done  ·  %d cubes  ·  now: %s" % [total_done, cubes, cur]
 	summary.position             = Vector2(0, 64)
-	summary.size                 = Vector2(1280, 40)
+	summary.size                 = Vector2(vp_w, 40)
 	summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	summary.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
 	summary.add_theme_font_size_override("font_size", 16)
@@ -220,7 +222,7 @@ void fragment() { vec4 t = texture(TEXTURE, UV); COLOR = vec4(c.rgb, t.a); }"""
 func _build_scroll_area() -> void:
 	_scroll = ScrollContainer.new()
 	_scroll.position               = Vector2(0, HDR_TOP)
-	_scroll.size                   = Vector2(1280, get_viewport_rect().size.y - HDR_TOP)
+	_scroll.size                   = Vector2(get_viewport_rect().size.x, get_viewport_rect().size.y - HDR_TOP)
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_AUTO
 	_scroll.scroll_deadzone        = 8
@@ -241,8 +243,9 @@ func _add_level_section(vbox: VBoxContainer, ld: Dictionary, li: int) -> void:
 	var done_count : int = ld["done"]
 
 	# ── Header button ──────────────────────────────────────────────────────────
+	var vp_w : float = get_viewport_rect().size.x
 	var hdr := Button.new()
-	hdr.custom_minimum_size   = Vector2(1280, HDR_H)
+	hdr.custom_minimum_size   = Vector2(vp_w, HDR_H)
 	hdr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hdr.clip_text             = false
 	hdr.alignment             = HORIZONTAL_ALIGNMENT_LEFT
@@ -282,7 +285,7 @@ func _add_level_section(vbox: VBoxContainer, ld: Dictionary, li: int) -> void:
 		var prog := Label.new()
 		prog.text                 = right_txt
 		prog.size                 = Vector2(200, HDR_H)
-		prog.position             = Vector2(1280 - 216, 0)
+		prog.position             = Vector2(vp_w - 216, 0)
 		prog.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		prog.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
 		prog.add_theme_font_size_override("font_size", 17)
@@ -299,7 +302,7 @@ func _add_level_section(vbox: VBoxContainer, ld: Dictionary, li: int) -> void:
 		var n_rows  : int   = int(ceil(display_count / 2.0))
 		var rows_h  : float = n_rows * ROW_STEP + 16.0
 		rows = Control.new()
-		rows.custom_minimum_size   = Vector2(1280, rows_h)
+		rows.custom_minimum_size   = Vector2(vp_w, rows_h)
 		rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		rows.visible               = false
 		vbox.add_child(rows)
@@ -323,13 +326,14 @@ func _fill_set_rows(parent: Control, ld: Dictionary, done_count: int) -> void:
 	var display_count : int   = ld["total"] if ld.get("show_all", false) else done_count
 	var visible_sets  : Array = sets.slice(0, display_count)
 
+	var page_pad : float = (get_viewport_rect().size.x - CELL_W * 2.0 - CELL_GAP) / 2.0
 	for pair in range(int(ceil(visible_sets.size() / 2.0))):
 		var row_y : float = 8.0 + pair * ROW_STEP
 		for side in range(2):
 			var idx : int = pair * 2 + side
 			if idx >= visible_sets.size():
 				break
-			var cell_x : float = PAGE_PAD + side * (CELL_W + CELL_GAP)
+			var cell_x : float = page_pad + side * (CELL_W + CELL_GAP)
 			_make_completed_cell(parent, visible_sets[idx], ld, cell_x, row_y, idx < done_count)
 
 

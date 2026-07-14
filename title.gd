@@ -19,10 +19,10 @@ const ARC_MAX_DEG : float   =  36.0
 const FACE_CENTER_Y : float = 250.0
 const BTN_SCALE     : float = 0.90
 
-const WORD_TEXTS : Array[String] = ["Start", "with", "Sound"]
-const WORD_W     : Array[float]  = [78.0, 60.0, 80.0]
-const WORD_X     : Array[float]  = [495.0, 585.0, 657.0]
-const WORDS_Y    : float         = 400.0
+const WORD_TEXTS    : Array[String] = ["Start", "with", "Sound"]
+const WORD_W        : Array[float]  = [78.0, 60.0, 80.0]
+const WORD_X_OFFSET : Array[float]  = [-145.0, -55.0, 17.0]  # offsets from viewport centre
+const WORDS_Y       : float         = 400.0
 
 const FLY_OUT : Array[Vector2] = [
 	Vector2(-900.0,  -80.0),
@@ -38,6 +38,7 @@ const FLY_OUT : Array[Vector2] = [
 # ─── State ────────────────────────────────────────────────────────────────────
 var _letters : Array[Label] = []
 var _words   : Array[Label] = []
+var _word_x  : Array[float] = []
 var _font    : Font         = null
 var _pressed        : bool         = false
 var _can_press      : bool         = false
@@ -59,6 +60,10 @@ func _ready() -> void:
 	$ColorRect.color    = BG_COLOR
 	$ColorRect.size     = get_viewport_rect().size
 	$ColorRect.position = Vector2(0, 0)
+
+	var vp_cx : float = get_viewport_rect().size.x / 2.0
+	for off in WORD_X_OFFSET:
+		_word_x.append(vp_cx + off)
 
 	_create_gnb_entry()
 
@@ -105,7 +110,7 @@ func _on_dev_prep_pressed() -> void:
 func _create_dev_l2_button() -> void:
 	_dev_l2_btn          = Button.new()
 	_dev_l2_btn.size     = Vector2(60, 60)
-	_dev_l2_btn.position = Vector2(1220, 660)
+	_dev_l2_btn.position = Vector2(get_viewport_rect().size.x - 60, get_viewport_rect().size.y - 60)
 	_dev_l2_btn.flat     = true
 	_dev_l2_btn.text     = ""
 	_dev_l2_btn.z_index  = 10
@@ -173,7 +178,7 @@ func _create_words() -> void:
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
 		lbl.size                 = Vector2(WORD_W[i], 34.0)
-		lbl.position             = Vector2(WORD_X[i], WORDS_Y)
+		lbl.position             = Vector2(_word_x[i], WORDS_Y)
 		lbl.modulate.a           = 0.0
 		lbl.z_index              = 3
 		if _font:
@@ -236,7 +241,7 @@ func _animate_in() -> void:
 	await get_tree().create_timer(0.85).timeout
 
 	for i in range(WORD_TEXTS.size()):
-		_words[i].position   = Vector2(WORD_X[i], 830.0)
+		_words[i].position   = Vector2(_word_x[i], 830.0)
 		_words[i].modulate.a = 1.0
 		var t := create_tween()
 		t.tween_property(_words[i], "position:y", WORDS_Y, 0.50) \
@@ -275,7 +280,7 @@ func _create_choice_buttons() -> void:
 	const GOLD   : Color = Color("#FFB703")
 	const RADIUS : int   = 18
 
-	var start_x : float = (1280.0 - BTN_W * 2.0 - GAP) / 2.0
+	var start_x : float = (get_viewport_rect().size.x - BTN_W * 2.0 - GAP) / 2.0
 
 	for i in range(2):
 		var btn := Button.new()
@@ -325,7 +330,7 @@ func _create_gnb_entry() -> void:
 	_gnb_btn             = Button.new()
 	_gnb_btn.text        = ""
 	_gnb_btn.size        = Vector2(BTN_W, BTN_H)
-	_gnb_btn.position    = Vector2(1280.0 - BTN_W - 20.0, 20.0)
+	_gnb_btn.position    = Vector2(get_viewport_rect().size.x - BTN_W - 20.0, 20.0)
 	_gnb_btn.z_index     = 10
 	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
 
@@ -389,7 +394,7 @@ func _animate_out_then_route(choice: String) -> void:
 		t.tween_property(_letters[i], "modulate:a", 0.0, 0.45)
 		await get_tree().create_timer(0.55).timeout
 
-	var slide_x : Array[float] = [-280.0, -280.0, 1480.0]
+	var slide_x : Array[float] = [-280.0, -280.0, get_viewport_rect().size.x + 300.0]
 	for i in range(WORD_TEXTS.size()):
 		var t := create_tween()
 		t.tween_property(_words[i], "position:x", slide_x[i], 0.55) \

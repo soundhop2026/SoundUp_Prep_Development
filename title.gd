@@ -11,18 +11,18 @@ const SUBTITLE_SIZE : int           = 25
 const LETTER_W      : float         = 64.0
 const LETTER_H      : float         = 88.0
 
-const ARC_CENTER  : Vector2 = Vector2(618.0, 400.0)
+const ARC_CENTER  : Vector2 = Vector2(618.0, 450.0)
 const ARC_RADIUS  : float   = 300.0
 const ARC_MIN_DEG : float   = -36.0
 const ARC_MAX_DEG : float   =  36.0
 
-const FACE_CENTER_Y : float = 250.0
+const FACE_CENTER_Y : float = 300.0
 const BTN_SCALE     : float = 0.90
 
 const WORD_TEXTS    : Array[String] = ["Start", "with", "Sound"]
 const WORD_W        : Array[float]  = [78.0, 60.0, 80.0]
 const WORD_X_OFFSET : Array[float]  = [-145.0, -55.0, 17.0]  # offsets from viewport centre
-const WORDS_Y       : float         = 400.0
+const WORDS_Y       : float         = 450.0
 
 const FLY_OUT : Array[Vector2] = [
 	Vector2(-900.0,  -80.0),
@@ -50,6 +50,7 @@ var _sway_tween     : Tween        = null
 var _dev_prep_btn   : Button       = null
 var _dev_l2_btn     : Button       = null
 var _gnb_btn        : Button       = null
+var _vp_cx          : float        = 640.0   # true horizontal centre of the viewport
 
 # ─── Setup ────────────────────────────────────────────────────────────────────
 func _input(event: InputEvent) -> void:
@@ -57,19 +58,20 @@ func _input(event: InputEvent) -> void:
 		get_tree().quit()
 
 func _ready() -> void:
+	SceneBackground.set_color(BG_COLOR)
 	$ColorRect.color    = BG_COLOR
 	$ColorRect.size     = get_viewport_rect().size
 	$ColorRect.position = Vector2(0, 0)
 
-	var vp_cx : float = get_viewport_rect().size.x / 2.0
+	_vp_cx = get_viewport_rect().size.x / 2.0
 	for off in WORD_X_OFFSET:
-		_word_x.append(vp_cx + off)
+		_word_x.append(_vp_cx + off)
 
 	_create_gnb_entry()
 
 	$PlayButton.scale    = Vector2(BTN_SCALE, BTN_SCALE)
 	$PlayButton.position = Vector2(
-		640.0 - 907.0 * BTN_SCALE * 0.5,
+		_vp_cx - 907.0 * BTN_SCALE * 0.5,
 		FACE_CENTER_Y - 437.0 * BTN_SCALE * 0.5
 	)
 	_apply_shader($PlayButton, FACE_COLOR)
@@ -143,7 +145,7 @@ func _letter_final_pos(idx: int) -> Vector2:
 	var t   : float = float(idx) / float(LETTERS.size() - 1)
 	var deg : float = ARC_MIN_DEG + t * (ARC_MAX_DEG - ARC_MIN_DEG)
 	var rad : float = deg_to_rad(deg)
-	var cx  : float = ARC_CENTER.x + ARC_RADIUS * sin(rad)
+	var cx  : float = (_vp_cx - 22.0) + ARC_RADIUS * sin(rad)
 	var cy  : float = ARC_CENTER.y - ARC_RADIUS * cos(rad)
 	return Vector2(cx - LETTER_W * 0.5, cy - LETTER_H * 0.5)
 
@@ -268,14 +270,14 @@ func _stop_sway() -> void:
 	if _sway_tween != null:
 		_sway_tween.kill()
 		_sway_tween = null
-	$PlayButton.position.x = 640.0 - 907.0 * BTN_SCALE * 0.5
+	$PlayButton.position.x = _vp_cx - 907.0 * BTN_SCALE * 0.5
 
 # ─── Choice buttons (shown when path_chosen == false) ────────────────────────
 func _create_choice_buttons() -> void:
 	const BTN_W  : float = 250.0
 	const BTN_H  : float =  58.0
 	const GAP    : float =  50.0
-	const BTN_Y  : float = 475.0
+	const BTN_Y  : float = 525.0
 	const PURPLE : Color = Color("#4B0083")
 	const GOLD   : Color = Color("#FFB703")
 	const RADIUS : int   = 18

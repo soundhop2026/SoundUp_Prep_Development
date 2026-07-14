@@ -32,6 +32,7 @@ var _round_cubes        : Array[ColorRect] = []
 var _total_set_rounds   : int              = 0
 
 func _ready() -> void:
+	SceneBackground.set_color(Color("#A8E063"))
 	$background.color    = Color("#A8E063")
 	$background.size         = get_viewport_rect().size
 	$background.position     = Vector2(0, 0)

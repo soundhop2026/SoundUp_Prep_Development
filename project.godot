@@ -18,6 +18,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 SaveManager="*res://save_manager.gd"
+SceneBackground="*res://scene_background.gd"
 
 [display]
 

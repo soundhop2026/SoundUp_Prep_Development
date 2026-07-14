@@ -176,6 +176,7 @@ var _drag_pos         : Vector2 = Vector2.ZERO
 # ════════════════════════════════════════════════════════════════════════════
 
 func _ready() -> void:
+	SceneBackground.set_color(BG_COLOR)
 	_bg.size         = get_viewport_rect().size
 	_bg.position     = Vector2.ZERO
 	_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE

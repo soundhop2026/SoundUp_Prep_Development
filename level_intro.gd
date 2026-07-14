@@ -84,6 +84,7 @@ func _ready() -> void:
 
 	var bg_col  : Color = Color(d["bg_color"])
 	var txt_col : Color = Color(d["txt_color"])
+	SceneBackground.set_color(bg_col)
 
 	# Background
 	var bg := ColorRect.new()

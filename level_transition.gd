@@ -16,18 +16,18 @@ const GOLD_COLOR   : Color = Color("#FFB703")
 const PURPLE_COLOR : Color = Color("#4B0083")
 
 # ─── Face ─────────────────────────────────────────────────────────────────────
-const FACE_SCALE  : float   = 0.585
-const FACE_CENTER : Vector2 = Vector2(640.0, 265.0)
+const FACE_SCALE  : float   = 0.90                  # matches Title Scene PlayButton scale
+const FACE_CENTER : Vector2 = Vector2(640.0, 300.0) # matches Title Scene FACE_CENTER_Y
 
 # ─── Crown ────────────────────────────────────────────────────────────────────
-const CROWN_SCALE   : float = 0.189
+const CROWN_SCALE   : float = 0.291  # scaled with face: 0.189 × (0.90 / 0.585)
 const CROWN_X       : float = 615.0
 const CROWN_START_Y : float = -300.0
-const CROWN_LAND_Y  : float = 160.0
+const CROWN_LAND_Y  : float = 126.0  # recalculated: same offset below face-top as before
 const CROWN_TILT    : float = 1.0     # slight clockwise tilt
 
 # ─── Layout ───────────────────────────────────────────────────────────────────
-const LEVEL1_Y      : float = 355.0   # top of "Level 1" label
+const LEVEL1_Y      : float = 515.0   # top of "Level 1" label — below enlarged face
 const LEVEL1_H      : float = 68.0
 
 
@@ -40,6 +40,7 @@ var _font         : Font              = null
 
 # ─── Ready ────────────────────────────────────────────────────────────────────
 func _ready() -> void:
+	SceneBackground.set_color(BG_COLOR)
 	$background.color        = BG_COLOR
 	$background.size         = get_viewport_rect().size
 	$background.position     = Vector2(0, 0)
@@ -103,8 +104,10 @@ func _setup_label_level1() -> void:
 
 # ─── Music ────────────────────────────────────────────────────────────────────
 func _start_music() -> void:
+	var stream := (load("res://BGM&effect/SoundUp_level_transition_bgm.wav") as AudioStreamWAV).duplicate() as AudioStreamWAV
+	stream.loop_mode        = AudioStreamWAV.LOOP_FORWARD
 	_music_player           = AudioStreamPlayer.new()
-	_music_player.stream    = load("res://BGM&effect/SoundUp_level_transition_bgm.wav")
+	_music_player.stream    = stream
 	_music_player.volume_db = 0.0
 	add_child(_music_player)
 	_music_player.play()
@@ -121,26 +124,33 @@ func _play_sequence() -> void:
 	_start_music()
 	_descend_crown()
 
-	# 2s–6s: wait for crown to land
-	await get_tree().create_timer(_t(4.0)).timeout
+	# 2s–7s: wait for crown to land (5s descent, +25% from original 4s)
+	await get_tree().create_timer(_t(5.0)).timeout
 
-	# 6s–10s: celebration
+	# 7s–7.8s: brief hold so the player can enjoy the crown landing
+	await get_tree().create_timer(_t(0.8)).timeout
+
+	# 7.8s–11.8s: celebration
 	await _celebrate()
 
-	# 10s–13s: still with crown — let the player admire
+	# 11.8s–14.8s: still with crown — let the player admire
 	await get_tree().create_timer(_t(3.0)).timeout
 
-	# Wait for music to finish (skipped in debug mode)
+	# Fade out looping music then advance
 	if not DEBUG_FAST and _music_player != null and _music_player.playing:
-		await _music_player.finished
+		var fade := create_tween()
+		fade.tween_property(_music_player, "volume_db", -40.0, 0.5)
+		await fade.finished
+	if _music_player != null:
+		_music_player.stop()
 
 	# Auto-advance to Level Intro
 	LevelIntroState.level_id = next_level_id
 	get_tree().change_scene_to_file("res://level_intro.tscn")
 
-# ─── Crown descent (2s–6s) ────────────────────────────────────────────────────
+# ─── Crown descent (2s–7s) ────────────────────────────────────────────────────
 func _descend_crown() -> void:
-	var dur : float = _t(4.0)
+	var dur : float = _t(5.0)
 	var t := create_tween()
 	t.tween_property(_crown, "position:y", CROWN_LAND_Y, dur) \
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)

@@ -53,6 +53,7 @@ func _create_info_labels() -> void:
 # ─── Setup ────────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
+	SceneBackground.set_color(Color("#A8E063"))
 	$background.color           = Color("#A8E063")
 	$background.size            = get_viewport_rect().size
 	$background.position        = Vector2(0, 0)

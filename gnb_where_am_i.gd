@@ -36,6 +36,7 @@ signal close_requested
 
 # ─────────────────────────────────────────────────────────────────────────────
 func _ready() -> void:
+	SceneBackground.set_color(CREAM)
 	if ResourceLoader.exists(FONT_PATH):
 		_font = load(FONT_PATH)
 	if ResourceLoader.exists(LOUIS_PATH):

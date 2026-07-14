@@ -70,6 +70,7 @@ var _eval_btn_tween : Tween = null
 
 # ─── Ready ────────────────────────────────────────────────────────────────────
 func _ready() -> void:
+	SceneBackground.set_color(BG_COLOR)
 	$background.color    = BG_COLOR
 	$background.size         = get_viewport_rect().size
 	$background.position     = Vector2.ZERO

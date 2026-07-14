@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://0yojax4w1uhx"
-path="res://.godot/imported/robot.png-951c02f70392b5be52bea71bbd307dc1.ctex"
+uid="uid://bwff0t2yo4efu"
+path="res://.godot/imported/girl.png-a62cac73c5d28775a1d2d47d830ea544.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://SoundUp_level1_word images/R/robot.png"
-dest_files=["res://.godot/imported/robot.png-951c02f70392b5be52bea71bbd307dc1.ctex"]
+source_file="res://SoundUp_level1_word images/G-hard/girl.png"
+dest_files=["res://.godot/imported/girl.png-a62cac73c5d28775a1d2d47d830ea544.ctex"]
 
 [params]
 

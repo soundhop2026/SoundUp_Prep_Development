@@ -45,8 +45,9 @@ const SQUASH_X    : float = 0.88   # BASE × 1.10
 const SQUASH_Y    : float = 0.72   # BASE × 0.90
 const LAND_X      : float = 0.72   # BASE × 0.90
 const LAND_Y      : float = 0.88   # BASE × 1.10
-const BOUNCE_UP   : float = -180.0
-const BOUNCE_LAND : float =  25.0
+const BOUNCE_UP    : float = -180.0
+const BOUNCE_LAND  : float =  25.0
+const SHAKE_MARGIN : float =  32.0   # background extends ±32 px on all sides to cover max shake of 16 px
 
 var _stars        : Array[Sprite2D] = []
 var _star_scale   : float = 1.0
@@ -67,8 +68,9 @@ var _for_l2  : bool = false
 func _ready() -> void:
 	_for_l15                    = Level15Progress.active
 	_for_l2                     = Level2Progress.active
-	$background.size            = get_viewport_rect().size
-	$background.position        = Vector2(0, 0)
+	var _vp := get_viewport_rect().size
+	$background.size            = _vp + Vector2(SHAKE_MARGIN * 2.0, SHAKE_MARGIN * 2.0)
+	$background.position        = Vector2(-SHAKE_MARGIN, -SHAKE_MARGIN)
 	$background.mouse_filter    = Control.MOUSE_FILTER_IGNORE
 	if _for_l2:
 		$background.color = Color(0.478, 0.549, 0.180, 1.0)   # #7A8C2E — Level 2
@@ -76,6 +78,7 @@ func _ready() -> void:
 		$background.color = Color(0.659, 0.227, 0.133, 1.0)   # #A83A22 — Level 1.5
 	else:
 		$background.color = Color(0.431, 0.710, 1.0, 1.0)     # sky blue — Level 1
+	SceneBackground.set_color($background.color)
 	$PlayButtonImage.position   = Vector2(640, 290)
 	$PlayButtonImage.scale      = Vector2(BASE_SCALE, BASE_SCALE)
 	$PlayButtonImage.modulate   = Color(1.0, 1.0, 1.0, 1.0)

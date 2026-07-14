@@ -15,6 +15,7 @@ const CARD_L_X : float = (1280.0 - CARD_W * 3.0 - CARD_GAP * 2.0) * 0.5  # ≈ 1
 var _font : Font = null
 
 func _ready() -> void:
+	SceneBackground.set_color(CREAM)
 	if ResourceLoader.exists(FONT_PATH):
 		_font = load(FONT_PATH)
 

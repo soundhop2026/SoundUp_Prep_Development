@@ -21,8 +21,11 @@ var _total_set_rounds   : int              = 0
 var _btn_base_pos       : Array[Vector2]   = []
 var _is_ending_set      : bool             = false
 var _eval_tween         : Tween            = null
+var _g_cubes            : Array            = []   # [[ColorRect_rect, ColorRect_sq], ...]
+
 
 func _ready() -> void:
+	SceneBackground.set_color(Color(0.431, 0.710, 1.0, 1.0))
 	$background.size         = get_viewport_rect().size
 	$background.position     = Vector2(0, 0)
 	$background.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -210,6 +213,7 @@ func _start_round() -> void:
 	hint_playing          = false
 	_round_hint_used      = false
 	$EvalPlayButton.visible = false
+	_clear_g_cubes()
 	$ListenSound.stop()
 	$ListenVoice.stop()
 	_hint_voice_active          = false
@@ -227,6 +231,8 @@ func _start_round() -> void:
 		_btn_base_pos.append(btn.position)
 		var wa : String = choice.get("word_audio", "")
 		get_node("WordSound%d" % (i + 1)).stream = load(wa) if wa != "" else null
+	if _is_ending_set:
+		_create_g_cubes()
 
 func _advance_round() -> void:
 	round_index += 1
@@ -274,7 +280,11 @@ func _on_listen_pressed() -> void:
 	idle_time               = 0.0
 	hint_playing            = false
 	if _is_ending_set:
-		_run_ending_sequence.call_deferred()
+		if phase == "wait_image":
+			$ListenSound.play()
+			result_locked = false
+		else:
+			_run_ending_sequence.call_deferred()
 		return
 	$ListenSound.play()
 	phase         = "wait_image"
@@ -350,25 +360,32 @@ func _run_ending_sequence() -> void:
 	$ListenSound.play()
 	await $ListenSound.finished
 	await get_tree().create_timer(0.35).timeout
-	$ListenSound.play()
-	await $ListenSound.finished
-	await get_tree().create_timer(0.4).timeout
+
 	$EvalPlayButton.position = Vector2(1050, 280)
 	$EvalPlayButton.visible  = true
 	_start_eval_pulse()
+
 	var n : int = rounds[round_index]["choices"].size()
-	for i in range(n):
-		var btn : TextureButton     = get_node("ImageButton%d" % (i + 1))
-		var snd : AudioStreamPlayer = get_node("WordSound%d" % (i + 1))
-		if snd.stream == null:
-			continue
-		_bounce_image(btn, i)
-		snd.play()
-		await snd.finished
-		await get_tree().create_timer(0.5).timeout
+	for _pass in range(2):
+		for i in range(n):
+			var btn : TextureButton     = get_node("ImageButton%d" % (i + 1))
+			var snd : AudioStreamPlayer = get_node("WordSound%d" % (i + 1))
+			if snd.stream == null:
+				continue
+			_bounce_image(btn, i)
+			if i < _g_cubes.size():
+				_g_cubes[i][1].color = G_CUBE_LIT
+			snd.play()
+			await snd.finished
+			if i < _g_cubes.size():
+				_g_cubes[i][1].color = G_CUBE_DIM
+			await get_tree().create_timer(0.4).timeout
+		if _pass == 0:
+			await get_tree().create_timer(0.6).timeout   # breath between the two passes
+
 	_stop_eval_pulse()
-	$EvalPlayButton.visible = false
 	_restore_btn_positions()
+	$EvalPlayButton.visible = false
 	phase         = "wait_image"
 	result_locked = false
 
@@ -397,3 +414,43 @@ func _stop_eval_pulse() -> void:
 		_eval_tween.kill()
 		_eval_tween = null
 	$EvalPlayButton.position = Vector2(1050, 280)
+
+# ─── Set G word-structure cubes ──────────────────────────────────────────────
+
+const G_RECT_W   : float = 44.0   # wider block = word body (everything before ending)
+const G_RECT_H   : float = 22.0
+const G_SQ_SIZE  : float = 22.0   # square block = ending sound
+const G_CUBE_GAP : float = 6.0    # gap between rect and square
+const G_OFFSET   : float = 120.0  # horizontal distance from picture center to cube start
+const G_CUBE_DIM : Color = Color(1.0, 1.0, 1.0, 0.30)
+const G_CUBE_LIT : Color = Color(1.0, 1.0, 1.0, 0.92)
+
+func _create_g_cubes() -> void:
+	var n : int = rounds[round_index]["choices"].size()
+	for i in range(n):
+		var cx : float = _btn_centers[i].x + G_OFFSET
+		var cy : float = _btn_centers[i].y - G_RECT_H * 0.5
+
+		var rect := ColorRect.new()
+		rect.size         = Vector2(G_RECT_W, G_RECT_H)
+		rect.color        = G_CUBE_DIM
+		rect.position     = Vector2(cx, cy)
+		rect.z_index      = 3
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(rect)
+
+		var sq := ColorRect.new()
+		sq.size         = Vector2(G_SQ_SIZE, G_SQ_SIZE)
+		sq.color        = G_CUBE_DIM
+		sq.position     = Vector2(cx + G_RECT_W + G_CUBE_GAP, _btn_centers[i].y - G_SQ_SIZE * 0.5)
+		sq.z_index      = 3
+		sq.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(sq)
+
+		_g_cubes.append([rect, sq])
+
+func _clear_g_cubes() -> void:
+	for pair in _g_cubes:
+		for node in pair:
+			node.queue_free()
+	_g_cubes.clear()

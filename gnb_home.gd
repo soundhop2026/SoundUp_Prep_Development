@@ -8,6 +8,7 @@ const FONT_PATH : String = "res://UI_assets/210 연필스케치R.ttf"
 var _font : Font = null
 
 func _ready() -> void:
+	SceneBackground.set_color(AMBER)
 	if ResourceLoader.exists(FONT_PATH):
 		_font = load(FONT_PATH)
 

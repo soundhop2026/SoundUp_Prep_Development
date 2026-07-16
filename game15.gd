@@ -276,9 +276,9 @@ func _setup_eval_button() -> void:
 	_eval_btn.texture_normal      = load(EVAL_BTN_TEX) as Texture2D
 	_eval_btn.ignore_texture_size = true
 	_eval_btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	_eval_btn.custom_minimum_size = Vector2(150.0, 75.0)
-	_eval_btn.size                = Vector2(150.0, 75.0)
-	_eval_btn.pivot_offset        = Vector2(75.0, 37.5)   # centre for scale animation
+	_eval_btn.custom_minimum_size = Vector2(195.0, 98.0)
+	_eval_btn.size                = Vector2(195.0, 98.0)
+	_eval_btn.pivot_offset        = Vector2(97.5, 49.0)   # centre for scale animation
 	_eval_btn.z_index             = 10
 	_eval_btn.visible             = false
 	_eval_btn.pressed.connect(_on_eval_play_pressed)
@@ -688,19 +688,22 @@ func _id_image_listen_walk(words: Array, gen: int) -> void:
 	_hand.rotation_degrees = -30.0
 	_hand.visible          = true
 	var img_btns : Array = [_img1, _img2, _img3]
-	for i in range(words.size()):
-		if _id_phase != "image_listen" or _id_gen != gen:
-			return
-		var btn     : TextureButton = img_btns[i]
-		var pulse_t : Tween         = create_tween().set_loops()
-		pulse_t.tween_property(btn, "scale", Vector2(1.08, 1.08), 0.18).set_trans(Tween.TRANS_SINE)
-		pulse_t.tween_property(btn, "scale", Vector2(1.0,  1.0),  0.18).set_trans(Tween.TRANS_SINE)
-		_play_word(words[i])
-		await _word_player.finished
-		pulse_t.kill()
-		btn.scale = Vector2(1.0, 1.0)
-		if i < words.size() - 1:
-			await get_tree().create_timer(0.3).timeout
+	for _pass in range(2):
+		for i in range(words.size()):
+			if _id_phase != "image_listen" or _id_gen != gen:
+				return
+			var btn     : TextureButton = img_btns[i]
+			var pulse_t : Tween         = create_tween().set_loops()
+			pulse_t.tween_property(btn, "scale", Vector2(1.08, 1.08), 0.18).set_trans(Tween.TRANS_SINE)
+			pulse_t.tween_property(btn, "scale", Vector2(1.0,  1.0),  0.18).set_trans(Tween.TRANS_SINE)
+			_play_word(words[i])
+			await _word_player.finished
+			pulse_t.kill()
+			btn.scale = Vector2(1.0, 1.0)
+			if i < words.size() - 1:
+				await get_tree().create_timer(0.5).timeout
+		if _pass == 0:
+			await get_tree().create_timer(0.7).timeout
 	if _id_phase != "image_listen" or _id_gen != gen:
 		return
 	_hand.visible     = false
@@ -773,10 +776,13 @@ func _iso_word_listen(word_key: String, gen: int) -> void:
 	_hand.visible          = true
 	if _id_phase != "image_listen" or _id_gen != gen:
 		return
-	_play_word(word_key)
-	await _word_player.finished
-	if _id_phase != "image_listen" or _id_gen != gen:
-		return
+	for _pass in range(2):
+		_play_word(word_key)
+		await _word_player.finished
+		if _id_phase != "image_listen" or _id_gen != gen:
+			return
+		if _pass == 0:
+			await get_tree().create_timer(0.5).timeout
 	_hand.visible     = false
 	_eval_btn.visible = true
 	_start_eval_pulse()
@@ -812,10 +818,13 @@ func _setup_build_word() -> void:
 
 
 func _play_word_then_show_eval(word_key: String, gen: int) -> void:
-	_play_word(word_key)
-	await _word_player.finished
-	if _bw_phase != "word_listen" or _bw_gen != gen:
-		return
+	for _pass in range(2):
+		_play_word(word_key)
+		await _word_player.finished
+		if _bw_phase != "word_listen" or _bw_gen != gen:
+			return
+		if _pass == 0:
+			await get_tree().create_timer(0.5).timeout
 	await get_tree().create_timer(EVAL_DELAY).timeout
 	if _bw_phase == "word_listen" and _bw_gen == gen:
 		_eval_btn.visible = true

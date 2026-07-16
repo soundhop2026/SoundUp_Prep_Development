@@ -49,6 +49,7 @@ var _level1_btn     : Button       = null
 var _sway_tween     : Tween        = null
 var _dev_prep_btn   : Button       = null
 var _dev_l2_btn     : Button       = null
+var _dev_l15_btn    : Button       = null
 var _gnb_btn        : Button       = null
 var _vp_cx          : float        = 640.0   # true horizontal centre of the viewport
 
@@ -89,6 +90,7 @@ func _ready() -> void:
 	_create_words()
 	_create_dev_prep_button()
 	_create_dev_l2_button()
+	_create_dev_l15_button()
 	_animate_in()
 
 func _create_dev_prep_button() -> void:
@@ -108,6 +110,22 @@ func _on_dev_prep_pressed() -> void:
 	PrepLevelProgress.current_index = 0
 	PrepLevelProgress.is_retry      = false
 	get_tree().change_scene_to_file("res://prep_game.tscn")
+
+func _create_dev_l15_button() -> void:
+	_dev_l15_btn          = Button.new()
+	_dev_l15_btn.size     = Vector2(60, 60)
+	_dev_l15_btn.position = Vector2(0, get_viewport_rect().size.y - 60)
+	_dev_l15_btn.flat     = true
+	_dev_l15_btn.text     = ""
+	_dev_l15_btn.z_index  = 10
+	_dev_l15_btn.modulate = Color(1, 1, 1, 0)
+	_dev_l15_btn.pressed.connect(_on_dev_l15_pressed)
+	add_child(_dev_l15_btn)
+
+func _on_dev_l15_pressed() -> void:
+	Level15Progress.current_index = 12
+	Level15Progress.is_retry      = false
+	get_tree().change_scene_to_file("res://game15.tscn")
 
 func _create_dev_l2_button() -> void:
 	_dev_l2_btn          = Button.new()

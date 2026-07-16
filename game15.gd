@@ -86,6 +86,7 @@ const EVAL_BTN_TEX       : String = "res://UI_assets/playbutton.png"
 
 # Sound-count layout
 const SC_CUBE_SIZE       : float  = 56.0
+const SC_SPREAD_GAP      : float  = 14.0   # gap between cubes while dragging
 const SC_DROP_W          : float  = 320.0
 const SC_DROP_H          : float  = 70.0
 const SC_DROP_Y          : float  = 355.0
@@ -970,6 +971,20 @@ func _make_sc_cube() -> Panel:
 	return panel
 
 
+func _spread_sc_cluster(cluster: Panel) -> void:
+	for j in range(cluster.get_child_count()):
+		var t := create_tween()
+		t.tween_property(cluster.get_child(j), "position:x",
+			j * (SC_CUBE_SIZE + SC_SPREAD_GAP), 0.18).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SPRING)
+
+
+func _unspread_sc_cluster(cluster: Panel) -> void:
+	for j in range(cluster.get_child_count()):
+		var t := create_tween()
+		t.tween_property(cluster.get_child(j), "position:x",
+			j * SC_CUBE_SIZE, 0.15).set_ease(Tween.EASE_OUT)
+
+
 func _sc_try_start_drag(pos: Vector2) -> void:
 	if _sc_dragging:
 		return
@@ -987,6 +1002,7 @@ func _sc_try_start_drag(pos: Vector2) -> void:
 			jelly.tween_property(cluster, "scale", Vector2(1.12, 0.82), 0.08).set_ease(Tween.EASE_OUT)
 			jelly.tween_property(cluster, "scale", Vector2(0.94, 1.10), 0.08).set_ease(Tween.EASE_OUT)
 			jelly.tween_property(cluster, "scale", Vector2(1.0,  1.0),  0.08).set_ease(Tween.EASE_IN_OUT)
+			_spread_sc_cluster(cluster)
 			return
 
 
@@ -1006,6 +1022,7 @@ func _sc_end_drag() -> void:
 			return
 
 	cluster.scale = Vector2(1.0, 1.0)
+	_unspread_sc_cluster(cluster)
 	var t := create_tween()
 	t.tween_property(cluster, "position", _sc_orig_pos, 0.3).set_trans(Tween.TRANS_SPRING)
 
@@ -1021,9 +1038,10 @@ func _handle_sc_drop(count: int, cluster: Panel) -> void:
 			_sc_blink_tween = null
 		if _sc_drop_target != null:
 			_sc_drop_target.modulate.a = 1.0
+			_unspread_sc_cluster(cluster)
 			var snap := create_tween()
 			snap.tween_property(cluster, "position",
-				_sc_drop_target.position + (_sc_drop_target.size - cluster.size) / 2.0, 0.12)
+				_sc_drop_target.position + (_sc_drop_target.size - cluster.size) / 2.0, 0.15)
 			await snap.finished
 			var compress := create_tween()
 			compress.tween_property(cluster, "scale", Vector2(1.15, 0.80), 0.09).set_ease(Tween.EASE_OUT)

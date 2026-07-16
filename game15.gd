@@ -1178,7 +1178,7 @@ func _make_cube_panel(highlighted: bool) -> Panel:
 
 
 func _fill_cube(idx: int) -> void:
-	if idx >= _cube_nodes.size():
+	if idx < 0 or idx >= _cube_nodes.size():
 		return
 	if _cube_shake_tween != null:
 		_cube_shake_tween.kill()

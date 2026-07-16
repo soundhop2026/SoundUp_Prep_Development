@@ -161,7 +161,7 @@ var _bw_drag_phoneme    : String  = ""
 var _bw_drag_choice_idx : int     = -1
 
 # ── Isolation word-structure cubes ───────────────────────────────────────────
-var _iso_sq_node : Panel = null   # the square cube that bobs during word play
+var _iso_sq_node : ColorRect = null   # the square cube that bobs during word play
 
 # ── Identification phase ───────────────────────────────────────────────────────
 var _id_phase         : String        = ""    # "image_listen"|"phoneme_listen"|"choose"

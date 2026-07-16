@@ -44,7 +44,7 @@ func _ready() -> void:
 	# Listen bar is visual only in Prep — child does not press it
 	$ListenButton.position = Vector2(100, 60)
 	$ListenButton.size     = Vector2(980, 80)
-	$ListenButton.text     = "👂 LISTEN"
+	$ListenButton.text     = "👂"
 	$ListenButton.pressed.connect(_on_listen_ignored)
 
 	$PointedHand.visible = false

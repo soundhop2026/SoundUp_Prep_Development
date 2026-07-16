@@ -33,7 +33,7 @@ func _ready() -> void:
 	_round_bg_color        = Color(0.431, 0.710, 1.0, 1.0)
 	$ListenButton.position = Vector2(100, 60)
 	$ListenButton.size     = Vector2(980, 80)
-	$ListenButton.text     = "👂 LISTEN"
+	$ListenButton.text     = "👂"
 	$PointedHand.visible   = false
 	$PointedHand.scale     = Vector2(0.08, 0.08)
 	$PointedHand.z_index   = 5
@@ -282,11 +282,13 @@ func _on_listen_pressed() -> void:
 	if _is_ending_set:
 		if phase == "wait_image":
 			$ListenSound.play()
+			_bob_listen_bar()
 			result_locked = false
 		else:
 			_run_ending_sequence.call_deferred()
 		return
 	$ListenSound.play()
+	_bob_listen_bar()
 	phase         = "wait_image"
 	result_locked = false
 
@@ -358,6 +360,7 @@ func _play_listen_hint() -> void:
 func _run_ending_sequence() -> void:
 	phase = "ending_sequence"
 	$ListenSound.play()
+	_bob_listen_bar()
 	await $ListenSound.finished
 	await get_tree().create_timer(0.35).timeout
 
@@ -454,3 +457,13 @@ func _clear_g_cubes() -> void:
 		for node in pair:
 			node.queue_free()
 	_g_cubes.clear()
+
+func _bob_listen_bar() -> void:
+	var base : Vector2 = $ListenButton.position
+	await get_tree().create_timer(0.05).timeout
+	while $ListenSound.playing:
+		var t := create_tween()
+		t.tween_property($ListenButton, "position", base + Vector2(0, -8), 0.06).set_ease(Tween.EASE_OUT)
+		t.tween_property($ListenButton, "position", base,                  0.06).set_ease(Tween.EASE_IN)
+		await t.finished
+	$ListenButton.position = base

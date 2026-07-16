@@ -1157,6 +1157,18 @@ func _bob_iso_square() -> void:
 		_iso_sq_node.color    = ISO_CUBE_DIM
 
 
+func _celebrate_iso_square() -> void:
+	if not is_instance_valid(_iso_sq_node):
+		return
+	_iso_sq_node.color = ISO_CUBE_LIT
+	var base : Vector2 = _iso_sq_node.position
+	var t := create_tween()
+	t.tween_property(_iso_sq_node, "position", base + Vector2(0, -12), 0.10).set_ease(Tween.EASE_OUT)
+	t.tween_property(_iso_sq_node, "position", base,                   0.10).set_ease(Tween.EASE_IN)
+	t.tween_property(_iso_sq_node, "position", base + Vector2(0, -6),  0.07).set_ease(Tween.EASE_OUT)
+	t.tween_property(_iso_sq_node, "position", base,                   0.07).set_ease(Tween.EASE_IN)
+
+
 func _make_cube_panel(highlighted: bool) -> Panel:
 	var panel := Panel.new()
 	panel.custom_minimum_size = Vector2(CUBE_SIZE, CUBE_SIZE)
@@ -1466,6 +1478,7 @@ func _handle_single_answer(phoneme_id: String, idx: int) -> void:
 		_fill_cube(cube_idx)
 
 		_correct_snd.play()
+		_celebrate_iso_square()
 		_blend_round_cube()
 		await _correct_snd.finished
 		await get_tree().create_timer(0.4).timeout

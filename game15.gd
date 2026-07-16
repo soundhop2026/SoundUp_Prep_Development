@@ -909,11 +909,6 @@ func _create_sc_drop_target() -> Panel:
 	panel.mouse_filter        = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
 	style.bg_color                   = CUBE_EMPTY
-	style.border_color               = CUBE_BORDER
-	style.border_width_left          = int(CUBE_BORDER_W)
-	style.border_width_right         = int(CUBE_BORDER_W)
-	style.border_width_top           = int(CUBE_BORDER_W)
-	style.border_width_bottom        = int(CUBE_BORDER_W)
 	style.corner_radius_top_left     = int(CUBE_CORNER)
 	style.corner_radius_top_right    = int(CUBE_CORNER)
 	style.corner_radius_bottom_left  = int(CUBE_CORNER)
@@ -967,11 +962,6 @@ func _make_sc_cube() -> Panel:
 	panel.mouse_filter        = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
 	style.bg_color                   = CUBE_EMPTY
-	style.border_color               = CUBE_BORDER
-	style.border_width_left          = int(CUBE_BORDER_W)
-	style.border_width_right         = int(CUBE_BORDER_W)
-	style.border_width_top           = int(CUBE_BORDER_W)
-	style.border_width_bottom        = int(CUBE_BORDER_W)
 	style.corner_radius_top_left     = int(CUBE_CORNER)
 	style.corner_radius_top_right    = int(CUBE_CORNER)
 	style.corner_radius_bottom_left  = int(CUBE_CORNER)
@@ -1067,11 +1057,6 @@ func _handle_sc_drop(count: int, cluster: Panel) -> void:
 func _set_panel_color(panel: Panel, col: Color) -> void:
 	var style := StyleBoxFlat.new()
 	style.bg_color                   = col
-	style.border_color               = CUBE_BORDER
-	style.border_width_left          = int(CUBE_BORDER_W)
-	style.border_width_right         = int(CUBE_BORDER_W)
-	style.border_width_top           = int(CUBE_BORDER_W)
-	style.border_width_bottom        = int(CUBE_BORDER_W)
 	style.corner_radius_top_left     = int(CUBE_CORNER)
 	style.corner_radius_top_right    = int(CUBE_CORNER)
 	style.corner_radius_bottom_left  = int(CUBE_CORNER)

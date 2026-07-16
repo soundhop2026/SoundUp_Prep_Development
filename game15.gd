@@ -983,6 +983,10 @@ func _sc_try_start_drag(pos: Vector2) -> void:
 			_sc_drag_offset  = cluster.position - pos
 			_sc_orig_pos     = cluster.position
 			_drag_pos        = pos
+			var jelly := create_tween()
+			jelly.tween_property(cluster, "scale", Vector2(1.12, 0.82), 0.08).set_ease(Tween.EASE_OUT)
+			jelly.tween_property(cluster, "scale", Vector2(0.94, 1.10), 0.08).set_ease(Tween.EASE_OUT)
+			jelly.tween_property(cluster, "scale", Vector2(1.0,  1.0),  0.08).set_ease(Tween.EASE_IN_OUT)
 			return
 
 
@@ -1001,8 +1005,9 @@ func _sc_end_drag() -> void:
 			_handle_sc_drop(cluster.get_child_count(), cluster)
 			return
 
+	cluster.scale = Vector2(1.0, 1.0)
 	var t := create_tween()
-	t.tween_property(cluster, "position", _sc_orig_pos, 0.3).set_trans(Tween.TRANS_SINE)
+	t.tween_property(cluster, "position", _sc_orig_pos, 0.3).set_trans(Tween.TRANS_SPRING)
 
 
 func _handle_sc_drop(count: int, cluster: Panel) -> void:
@@ -1018,11 +1023,15 @@ func _handle_sc_drop(count: int, cluster: Panel) -> void:
 			_sc_drop_target.modulate.a = 1.0
 			var snap := create_tween()
 			snap.tween_property(cluster, "position",
-				_sc_drop_target.position + (_sc_drop_target.size - cluster.size) / 2.0, 0.15)
+				_sc_drop_target.position + (_sc_drop_target.size - cluster.size) / 2.0, 0.12)
 			await snap.finished
-			# cluster fades into rectangle; rectangle flashes filled then settles
+			var compress := create_tween()
+			compress.tween_property(cluster, "scale", Vector2(1.15, 0.80), 0.09).set_ease(Tween.EASE_OUT)
+			compress.tween_property(cluster, "scale", Vector2(0.92, 1.12), 0.09).set_ease(Tween.EASE_OUT)
+			compress.tween_property(cluster, "scale", Vector2(1.0,  1.0),  0.09).set_ease(Tween.EASE_IN_OUT)
+			await compress.finished
 			var merge := create_tween()
-			merge.tween_property(cluster, "modulate:a", 0.0, 0.35).set_trans(Tween.TRANS_SINE)
+			merge.tween_property(cluster, "modulate:a", 0.0, 0.25).set_trans(Tween.TRANS_SINE)
 			_set_panel_color(_sc_drop_target, CUBE_FILLED)
 			var settle := create_tween()
 			settle.tween_interval(0.2)

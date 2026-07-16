@@ -646,6 +646,7 @@ func _clear_dynamic_nodes() -> void:
 		c.queue_free()
 	_cube_nodes.clear()
 	_choice_nodes.clear()
+	_iso_sq_node = null
 	if _sc_blink_tween != null:
 		_sc_blink_tween.kill()
 		_sc_blink_tween = null
@@ -1139,17 +1140,19 @@ func _make_iso_rect(w: float, h: float) -> ColorRect:
 
 
 func _bob_iso_square() -> void:
-	if _iso_sq_node == null:
+	if not is_instance_valid(_iso_sq_node):
 		return
 	var base : Vector2 = _iso_sq_node.position
 	_iso_sq_node.color = ISO_CUBE_LIT
 	await get_tree().create_timer(0.05).timeout
 	while _word_player.playing:
+		if not is_instance_valid(_iso_sq_node):
+			return
 		var t := create_tween()
 		t.tween_property(_iso_sq_node, "position", base + Vector2(0, -10), 0.10).set_ease(Tween.EASE_OUT)
 		t.tween_property(_iso_sq_node, "position", base,                   0.10).set_ease(Tween.EASE_IN)
 		await t.finished
-	if _iso_sq_node != null:
+	if is_instance_valid(_iso_sq_node):
 		_iso_sq_node.position = base
 		_iso_sq_node.color    = ISO_CUBE_DIM
 

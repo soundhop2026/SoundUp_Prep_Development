@@ -57,6 +57,14 @@ const CUBE_BORDER  := Color("#E8724A")
 const CUBE_BORDER_INACTIVE := Color("#C4B8A8")
 const CUBE_BORDER_W := 3.0
 
+# Isolation word-structure cubes (white alpha, no border — same style as Set G)
+const ISO_SQ_SIZE  : float = 60.0
+const ISO_RECT_W   : float = 120.0
+const ISO_RECT_H   : float = 60.0
+const ISO_CUBE_GAP : float = 10.0
+const ISO_CUBE_DIM : Color = Color(1.0, 1.0, 1.0, 0.30)
+const ISO_CUBE_LIT : Color = Color(1.0, 1.0, 1.0, 0.92)
+
 # Choice layout
 const CHOICE_SIZE  := 96.0
 const CHOICE_GAP   := 22.0
@@ -151,6 +159,9 @@ var _bw_dragging        : bool    = false
 var _bw_drag_ghost      : Panel   = null
 var _bw_drag_phoneme    : String  = ""
 var _bw_drag_choice_idx : int     = -1
+
+# ── Isolation word-structure cubes ───────────────────────────────────────────
+var _iso_sq_node : Panel = null   # the square cube that bobs during word play
 
 # ── Identification phase ───────────────────────────────────────────────────────
 var _id_phase         : String        = ""    # "image_listen"|"phoneme_listen"|"choose"
@@ -671,9 +682,7 @@ func _setup_identification() -> void:
 		btn.position            = IMG_CENTERS_TRIPLE[i] - Vector2(IMG_SZ_TRIPLE, IMG_SZ_TRIPLE) / 2.0
 		btn.visible             = true
 
-	var n_cubes      : int = 3
-	var highlight_idx : int = 0 if position == "initial" else n_cubes - 1
-	_create_cubes(n_cubes, [highlight_idx])
+	_create_iso_cubes(position)
 
 	_create_choices(rd["choices"])
 
@@ -757,11 +766,7 @@ func _setup_isolation() -> void:
 	_id_gen  += 1
 
 	_show_single_image(word["image"])
-
-	var n_cubes      : int = word["phonemes"].size()
-	var highlight_idx : int = 0 if position == "initial" else n_cubes - 1
-	_create_cubes(n_cubes, [highlight_idx])
-
+	_create_iso_cubes(position)
 	_create_choices(rd["choices"])
 
 	_eval_btn.position = Vector2(1050.0, 355.0)
@@ -778,6 +783,7 @@ func _iso_word_listen(word_key: String, gen: int) -> void:
 		return
 	for _pass in range(2):
 		_play_word(word_key)
+		_bob_iso_square()
 		await _word_player.finished
 		if _id_phase != "image_listen" or _id_gen != gen:
 			return
@@ -1100,6 +1106,52 @@ func _create_cubes(count: int, highlighted: Array) -> void:
 
 		if is_hi:
 			_cube_shake_tween = _shake_node(panel)
+
+
+func _create_iso_cubes(position: String) -> void:
+	_iso_sq_node = null
+	_cube_row.visible = true
+	var total_w : float = ISO_SQ_SIZE + ISO_CUBE_GAP + ISO_RECT_W
+	var start_x : float = (CANVAS_W - total_w) / 2.0
+	var center_y : float = (ISO_SQ_SIZE - ISO_RECT_H) / 2.0
+
+	var sq   := _make_iso_rect(ISO_SQ_SIZE,  ISO_SQ_SIZE)
+	var rect := _make_iso_rect(ISO_RECT_W,   ISO_RECT_H)
+
+	if position == "initial":
+		sq.position   = Vector2(start_x, 0.0)
+		rect.position = Vector2(start_x + ISO_SQ_SIZE + ISO_CUBE_GAP, center_y)
+	else:
+		rect.position = Vector2(start_x, center_y)
+		sq.position   = Vector2(start_x + ISO_RECT_W + ISO_CUBE_GAP, 0.0)
+
+	_cube_row.add_child(sq)
+	_cube_row.add_child(rect)
+	_iso_sq_node = sq
+
+
+func _make_iso_rect(w: float, h: float) -> ColorRect:
+	var cr := ColorRect.new()
+	cr.size         = Vector2(w, h)
+	cr.color        = ISO_CUBE_DIM
+	cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return cr
+
+
+func _bob_iso_square() -> void:
+	if _iso_sq_node == null:
+		return
+	var base : Vector2 = _iso_sq_node.position
+	_iso_sq_node.color = ISO_CUBE_LIT
+	await get_tree().create_timer(0.05).timeout
+	while _word_player.playing:
+		var t := create_tween()
+		t.tween_property(_iso_sq_node, "position", base + Vector2(0, -10), 0.10).set_ease(Tween.EASE_OUT)
+		t.tween_property(_iso_sq_node, "position", base,                   0.10).set_ease(Tween.EASE_IN)
+		await t.finished
+	if _iso_sq_node != null:
+		_iso_sq_node.position = base
+		_iso_sq_node.color    = ISO_CUBE_DIM
 
 
 func _make_cube_panel(highlighted: bool) -> Panel:

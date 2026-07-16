@@ -123,7 +123,7 @@ func _create_dev_l15_button() -> void:
 	add_child(_dev_l15_btn)
 
 func _on_dev_l15_pressed() -> void:
-	Level15Progress.current_index = 6
+	Level15Progress.current_index = 12
 	Level15Progress.is_retry      = false
 	get_tree().change_scene_to_file("res://game15.tscn")
 

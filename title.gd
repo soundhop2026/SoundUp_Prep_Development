@@ -79,6 +79,8 @@ func _ready() -> void:
 	_apply_shader($PlayButton, FACE_COLOR)
 	$PlayButton.pressed.connect(_on_play_pressed)
 
+	$BGMPlayer.finished.connect(_on_bgm_finished)
+
 	var font_path : String = "res://UI_assets/210 연필스케치R.ttf"
 	if ResourceLoader.exists(font_path):
 		_font = load(font_path)
@@ -417,6 +419,10 @@ func _on_play_pressed() -> void:
 	$PlayButton.pressed.disconnect(_on_play_pressed)
 	_animate_out_then_route("")
 
+# ─── BGM looping ──────────────────────────────────────────────────────────────
+func _on_bgm_finished() -> void:
+	$BGMPlayer.play()
+
 # ─── Exit animation + routing ─────────────────────────────────────────────────
 func _animate_out_then_route(choice: String) -> void:
 	_stop_sway()
@@ -424,6 +430,10 @@ func _animate_out_then_route(choice: String) -> void:
 		_prep_btn.disabled   = true
 	if _level1_btn:
 		_level1_btn.disabled = true
+
+	var bgm_fade := create_tween()
+	bgm_fade.tween_property($BGMPlayer, "volume_db", -40.0, 1.0)
+	bgm_fade.tween_callback($BGMPlayer.stop)
 
 	for i in range(LETTERS.size()):
 		var t := create_tween()

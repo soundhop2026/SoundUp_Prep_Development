@@ -392,8 +392,8 @@
                       "word_audio":  "res://BGM\u0026effect/SoundUp_level1_word sounds/S.wav/sand.wav"
                     },
                     {
-                      "image":  "res://SoundUp_level1_word images/X-ks/six.png",
-                      "word_audio":  "res://BGM\u0026effect/SoundUp_level1_word sounds/X_ks.wav/six.wav"
+                      "image":  "res://SoundUp_level1_word images/Q/queen.png",
+                      "word_audio":  "res://BGM\u0026effect/SoundUp_level1_word sounds/Q.wav/queen.wav"
                     }
                   ]
           }

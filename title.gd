@@ -19,9 +19,9 @@ const ARC_MAX_DEG : float   =  36.0
 const FACE_CENTER_Y : float = 300.0
 const BTN_SCALE     : float = 0.90
 
-const WORD_TEXTS    : Array[String] = ["Start", "with", "Sound"]
-const WORD_W        : Array[float]  = [78.0, 60.0, 80.0]
-const WORD_X_OFFSET : Array[float]  = [-145.0, -55.0, 17.0]  # offsets from viewport centre
+const WORD_TEXTS    : Array[String] = ["Start", "with", "the", "Sound"]
+const WORD_W        : Array[float]  = [78.0, 60.0, 48.0, 80.0]
+const WORD_X_OFFSET : Array[float]  = [-175.0, -85.0, -13.0, 47.0]  # offsets from viewport centre
 const WORDS_Y       : float         = 450.0
 
 const FLY_OUT : Array[Vector2] = [
@@ -40,6 +40,7 @@ var _letters : Array[Label] = []
 var _words   : Array[Label] = []
 var _word_x  : Array[float] = []
 var _font    : Font         = null
+var _mono_font : Font       = null
 var _pressed        : bool         = false
 var _can_press      : bool         = false
 var _letter_landing : Array[bool]  = []
@@ -82,16 +83,35 @@ func _ready() -> void:
 	if ResourceLoader.exists(font_path):
 		_font = load(font_path)
 
+	var mono_font_path : String = "res://UI_assets/JetBrainsMono-Regular.ttf"
+	if ResourceLoader.exists(mono_font_path):
+		_mono_font = load(mono_font_path)
+
 	for _i in range(LETTERS.size()):
 		_letter_landing.append(false)
 		_drift_tweens.append(null)
 
 	_create_letters()
 	_create_words()
+	_create_copyright_label()
 	_create_dev_prep_button()
 	_create_dev_l2_button()
 	_create_dev_l15_button()
 	_animate_in()
+
+func _create_copyright_label() -> void:
+	const BOTTOM_MARGIN : float = 50.0   # distance from the bottom of the screen
+
+	var lbl := Label.new()
+	lbl.text                 = "© 2026 Acron Inc. All rights reserved."
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.position             = Vector2(-24.0, get_viewport_rect().size.y - BOTTOM_MARGIN)
+	lbl.size                 = Vector2(get_viewport_rect().size.x, 20.0)
+	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_color_override("font_color", LOGO_COLOR)
+	if _mono_font:
+		lbl.add_theme_font_override("font", _mono_font)
+	add_child(lbl)
 
 func _create_dev_prep_button() -> void:
 	_dev_prep_btn          = Button.new()
@@ -414,7 +434,7 @@ func _animate_out_then_route(choice: String) -> void:
 		t.tween_property(_letters[i], "modulate:a", 0.0, 0.45)
 		await get_tree().create_timer(0.55).timeout
 
-	var slide_x : Array[float] = [-280.0, -280.0, get_viewport_rect().size.x + 300.0]
+	var slide_x : Array[float] = [-280.0, -280.0, -280.0, get_viewport_rect().size.x + 300.0]
 	for i in range(WORD_TEXTS.size()):
 		var t := create_tween()
 		t.tween_property(_words[i], "position:x", slide_x[i], 0.55) \

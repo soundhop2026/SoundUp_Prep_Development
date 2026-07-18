@@ -708,6 +708,7 @@ func _id_image_listen_walk(words: Array, gen: int) -> void:
 			pulse_t.tween_property(btn, "scale", Vector2(1.08, 1.08), 0.18).set_trans(Tween.TRANS_SINE)
 			pulse_t.tween_property(btn, "scale", Vector2(1.0,  1.0),  0.18).set_trans(Tween.TRANS_SINE)
 			_play_word(words[i])
+			_bob_iso_square()
 			await _word_player.finished
 			pulse_t.kill()
 			btn.scale = Vector2(1.0, 1.0)
@@ -742,8 +743,13 @@ func _id_guided_phoneme_walk(gen: int) -> void:
 			await t.finished
 		if _id_phase != "phoneme_listen" or _id_gen != gen:
 			return
-		_play_phoneme(phonemes[i])
-		await _phoneme_player.finished
+		for _rep in range(2):
+			if _id_phase != "phoneme_listen" or _id_gen != gen:
+				return
+			_play_phoneme(phonemes[i])
+			await _phoneme_player.finished
+			if _rep == 0:
+				await get_tree().create_timer(0.3).timeout
 		if i < phonemes.size() - 1:
 			await get_tree().create_timer(0.2).timeout
 	if _id_phase == "phoneme_listen" and _id_gen == gen:
@@ -1346,7 +1352,6 @@ func _bw_cancel_drag() -> void:
 func _create_gnb_flag() -> void:
 	const BTN_W  : float = 72.0
 	const BTN_H  : float = 56.0
-	const AMBER  : Color = Color("#FFB703")
 
 	_gnb_btn              = Button.new()
 	_gnb_btn.text         = ""
@@ -1360,11 +1365,13 @@ func _create_gnb_flag() -> void:
 		_gnb_btn.add_theme_stylebox_override(s, blank)
 
 	var pill := Panel.new()
-	pill.size         = Vector2(56.0, 44.0)
-	pill.position     = Vector2(8.0, 6.0)
+	pill.size         = Vector2(50.0, 52.0)
+	pill.position     = (Vector2(BTN_W, BTN_H) - pill.size) / 2.0
 	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ps := StyleBoxFlat.new()
-	ps.bg_color                   = Color(0.0, 0.0, 0.0, 0.4)
+	var pill_color := Color("#4B0082")
+	pill_color.a                  = 0.4
+	ps.bg_color                   = pill_color
 	ps.corner_radius_top_left     = 14
 	ps.corner_radius_top_right    = 14
 	ps.corner_radius_bottom_left  = 14
@@ -1372,19 +1379,14 @@ func _create_gnb_flag() -> void:
 	pill.add_theme_stylebox_override("panel", ps)
 	_gnb_btn.add_child(pill)
 
-	var pole := ColorRect.new()
-	pole.color        = AMBER
-	pole.size         = Vector2(4.0, 36.0)
-	pole.position     = Vector2(24.0, 10.0)
-	pole.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_gnb_btn.add_child(pole)
-
-	var flag := ColorRect.new()
-	flag.color        = AMBER
-	flag.size         = Vector2(22.0, 16.0)
-	flag.position     = Vector2(28.0, 10.0)
-	flag.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_gnb_btn.add_child(flag)
+	var flag_icon := TextureRect.new()
+	flag_icon.texture      = load("res://UI_assets/flag.png") as Texture2D
+	flag_icon.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
+	flag_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	flag_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flag_icon.size         = Vector2(42, 47)
+	flag_icon.position     = (Vector2(BTN_W, BTN_H) - flag_icon.size) / 2.0
+	_gnb_btn.add_child(flag_icon)
 
 	_gnb_btn.pressed.connect(_on_gnb_flag_pressed)
 	add_child(_gnb_btn)

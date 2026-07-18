@@ -30,6 +30,7 @@ var _local_total        : int   = 0       # rounds completed this set
 var _local_wrong        : int   = 0       # wrong rounds this set
 var _round_cubes        : Array[ColorRect] = []
 var _total_set_rounds   : int              = 0
+var _gnb_btn            : Button           = null
 
 func _ready() -> void:
 	SceneBackground.set_color(Color("#A8E063"))
@@ -44,8 +45,10 @@ func _ready() -> void:
 	# Listen bar is visual only in Prep — child does not press it
 	$ListenButton.position = Vector2(100, 60)
 	$ListenButton.size     = Vector2(980, 80)
-	$ListenButton.text     = "👂"
+	$ListenButton.text     = ""
+	_add_ear_icon()
 	$ListenButton.pressed.connect(_on_listen_ignored)
+	_create_gnb_flag()
 
 	$PointedHand.visible = false
 	$PointedHand.scale   = Vector2(0.08, 0.08)
@@ -65,6 +68,71 @@ func _ready() -> void:
 
 func _on_listen_ignored() -> void:
 	pass   # visual only
+
+func _create_gnb_flag() -> void:
+	const BTN_W  : float = 72.0
+	const BTN_H  : float = 56.0
+
+	_gnb_btn              = Button.new()
+	_gnb_btn.text         = ""
+	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
+	_gnb_btn.position     = Vector2(1280.0 - BTN_W - 20.0, 20.0)
+	_gnb_btn.z_index      = 10
+	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+
+	var blank := StyleBoxEmpty.new()
+	for s in ["normal", "hover", "pressed", "focus"]:
+		_gnb_btn.add_theme_stylebox_override(s, blank)
+
+	var pill := Panel.new()
+	pill.size         = Vector2(50.0, 52.0)
+	pill.position     = (Vector2(BTN_W, BTN_H) - pill.size) / 2.0
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ps := StyleBoxFlat.new()
+	var pill_color := Color("#4B0082")
+	pill_color.a                  = 0.4
+	ps.bg_color                   = pill_color
+	ps.corner_radius_top_left     = 14
+	ps.corner_radius_top_right    = 14
+	ps.corner_radius_bottom_left  = 14
+	ps.corner_radius_bottom_right = 14
+	pill.add_theme_stylebox_override("panel", ps)
+	_gnb_btn.add_child(pill)
+
+	var flag_icon := TextureRect.new()
+	flag_icon.texture      = load("res://UI_assets/flag.png") as Texture2D
+	flag_icon.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
+	flag_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	flag_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flag_icon.size         = Vector2(42, 47)
+	flag_icon.position     = (Vector2(BTN_W, BTN_H) - flag_icon.size) / 2.0
+	_gnb_btn.add_child(flag_icon)
+
+	_gnb_btn.pressed.connect(_on_gnb_flag_pressed)
+	add_child(_gnb_btn)
+
+
+func _on_gnb_flag_pressed() -> void:
+	if get_node_or_null("GNBOverlay") != null:
+		return
+	var overlay := CanvasLayer.new()
+	overlay.layer = 100
+	overlay.name  = "GNBOverlay"
+	var wai : Node = load("res://gnb_where_am_i.tscn").instantiate()
+	wai.set("is_overlay", true)
+	wai.connect("close_requested", func(): overlay.queue_free())
+	overlay.add_child(wai)
+	add_child(overlay)
+
+func _add_ear_icon() -> void:
+	var icon := TextureRect.new()
+	icon.texture      = load("res://UI_assets/ear.png") as Texture2D
+	icon.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.size         = Vector2(58, 64)
+	icon.position     = ($ListenButton.size - icon.size) / 2.0
+	$ListenButton.add_child(icon)
 
 # ─── Round loading ────────────────────────────────────────────────────────────
 

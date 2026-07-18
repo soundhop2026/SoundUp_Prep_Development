@@ -29,6 +29,9 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		get_tree().quit()
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F11:
+		var w := get_window()
+		w.mode = Window.MODE_WINDOWED if w.mode == Window.MODE_FULLSCREEN else Window.MODE_FULLSCREEN
 
 # --- Public API ---
 

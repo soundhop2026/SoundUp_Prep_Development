@@ -702,8 +702,16 @@ func _on_header_tapped(li: int, hdr: Button, rows: Control) -> void:
 	var expanding : bool = not _expanded_flags[li]
 	_expanded_flags[li]  = expanding
 	rows.visible         = expanding
+	# rows' contents were built while hidden, so its true size may never have
+	# been computed. Force it (and everything above it) to resort now that
+	# it's visible, plus one more deferred pass once this frame settles —
+	# otherwise the ScrollContainer above can end up with a stale, too-short
+	# scroll range and the bottom of the content becomes unreachable.
+	if rows is Container:
+		(rows as Container).queue_sort()
 	if _vbox:
 		_vbox.queue_sort()
+		_vbox.call_deferred("queue_sort")
 	var icon : String = "▼" if expanding else "▶"
 	hdr.text = "     " + icon + "  " + _levels[li]["label"]
 

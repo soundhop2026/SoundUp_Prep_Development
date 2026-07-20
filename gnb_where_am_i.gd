@@ -1,13 +1,14 @@
 extends Node2D
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
-const PURPLE   : Color = Color("#4B0082")
-const AMBER    : Color = Color("#FFB703")
-const CREAM    : Color = Color("#EDE4D3")
-const WHITE    : Color = Color("#FFFFFF")
-const D_AMBER  : Color = Color("#B8631A")   # completed level header
-const GRAY_H   : Color = Color("#AAAAAA")   # in-progress / locked header
-const BROWN    : Color = Color("#7A5A2A")   # phoneme text
+const PURPLE     : Color = Color("#4B0082")
+const PURPLE_TINT: Color = Color("#E8DCF5")   # selected Set Group tile
+const AMBER      : Color = Color("#FFB703")
+const CREAM      : Color = Color("#EDE4D3")
+const WHITE      : Color = Color("#FFFFFF")
+const D_AMBER    : Color = Color("#B8631A")   # completed level header
+const GRAY_H     : Color = Color("#AAAAAA")   # in-progress / locked header
+const BROWN      : Color = Color("#7A5A2A")   # phoneme text
 
 const FONT_PATH  : String = "res://UI_assets/210 연필스케치R.ttf"
 const LOUIS_PATH : String = "res://louisfaces/happylouis3-Photoroom.png"
@@ -21,20 +22,26 @@ const PAGE_PAD     : float = 52.0   # (1280 - 580*2 - 16) / 2 = 52 — balanced 
 const ROW_STEP     : float = 76.0   # CELL_H + 8 gap
 const HDR_H        : float = 46.0
 const HDR_TOP      : float = 116.0  # scroll area starts here (after purple header)
-const GROUP_CARD_H : float = 60.0   # Set Group card height (Prep/Level 1/Level 1.5)
+
+# Set Group grid (Prep / Level 1 / Level 1.5)
+const GRID_COLS     : int   = 3
+const GRID_TILE_H   : float = 76.0
+const GRID_GAP      : float = 16.0
+const PANEL_CARD_H  : float = 150.0  # Set intro card height
 
 # ─── State ────────────────────────────────────────────────────────────────────
 var _font             : Font           = null
 var _louis_tex        : Texture2D      = null
-var _levels           : Array          = []
+var _levels            : Array          = []
 var _rows_containers  : Array[Control] = []
 var _expanded_flags   : Array[bool]    = []
 
-# Set Group accordion state (Prep / Level 1 / Level 1.5 only — one entry per
-# level, empty arrays / -1 for levels that stay flat, e.g. Level 2).
-var _group_headers    : Array = []   # per level: Array[Button]
-var _group_bodies     : Array = []   # per level: Array[Control]
-var _expanded_group   : Array[int] = []   # per level: expanded group index, -1 = none
+# Set Group grid + intro panel state (Prep / Level 1 / Level 1.5 only — empty
+# entries for levels that stay flat, e.g. Level 2).
+var _group_tiles      : Array = []   # per level: Array[Button]
+var _group_panels     : Array = []   # per level: the fixed detail-panel VBoxContainer (or null)
+var _selected_group    : Array[int] = []   # per level: selected tile index, -1 = none
+var _group_ctx         : Array = []   # per level: { groups, done_counts, ld }
 
 var is_overlay        : bool           = false
 var _vbox             : VBoxContainer  = null
@@ -82,23 +89,23 @@ func _build_level_meta() -> void:
 		{ "id": "prep",    "label": "Prep",      "done": prep_done, "total": 26,
 		  "locked": false,   "sets": _prep_sets(),    "pfn": func(i): PrepLevelProgress.current_index = i,
 		  "show_all": SaveManager.is_chose_level1_path(), "color": Color("#A8E063"), "txt_color": PURPLE,
-		  "grouped": true },
+		  "grouped": true, "group_meta": _prep_group_meta() },
 		{ "id": "level1",  "label": "Level 1",   "done": l1_done,  "total": 17,
 		  "locked": l1_lock, "sets": _level1_sets(),  "pfn": func(i): LevelProgress.current_index = i,
 		  "show_all": false, "color": Color("#6EB5FF"), "txt_color": PURPLE,
-		  "grouped": true },
+		  "grouped": true, "group_meta": _level1_group_meta() },
 		{ "id": "level15", "label": "Level 1.5", "done": l15_done, "total": 13,
 		  "locked": l15_lock, "sets": _level15_sets(), "pfn": func(i): Level15Progress.current_index = i,
 		  "show_all": false, "color": Color("#A83A22"), "txt_color": Color("#EDE4D3"),
-		  "grouped": true },
+		  "grouped": true, "group_meta": _level15_group_meta() },
 		{ "id": "level2",  "label": "Level 2",   "done": l2_done,  "total": 12,
 		  "locked": l2_lock, "sets": _level2_sets(),  "pfn": func(i): Level2Progress.current_index = i,
 		  "show_all": false, "color": Color("#8DB33A"), "txt_color": PURPLE,
-		  "grouped": false },
+		  "grouped": false, "group_meta": {} },
 		{ "id": "level25", "label": "Level 2.5", "done": 0, "total": 19,
 		  "locked": l25_lock, "sets": [], "pfn": func(_i): pass,
 		  "show_all": false, "color": Color("#7B68EE"), "txt_color": Color("#EDE4D3"),
-		  "grouped": false },
+		  "grouped": false, "group_meta": {} },
 	]
 
 
@@ -163,6 +170,44 @@ func _level2_sets() -> Array:
 			"key": "level2_" + lbl,
 			"scene": sc })
 	return out
+
+
+# ─── Set Group intro metadata (draft copy — wording TBD with product) ─────────
+# Each entry: { title, goal, skills }. "title" mirrors the existing phoneme
+# summary; "goal" and "skills" are new, first-pass copy to get the UI working —
+# not final wording.
+func _prep_group_meta() -> Dictionary:
+	return {
+		"A": { "title": "m  s  t  b  v  k", "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
+		"B": { "title": "n  f  p  d  g  j", "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
+		"C": { "title": "h  w  y  l  z  r", "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
+		"D": { "title": "contrast pairs",   "goal": "Tell two similar sounds apart.",                "skills": "Sound Discrimination" },
+		"E": { "title": "q  x  s  k",       "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
+		"F": { "title": "all sounds mixed", "goal": "Practice every sound together.",               "skills": "Mixed Review" },
+	}
+
+
+func _level1_group_meta() -> Dictionary:
+	return {
+		"A": { "title": "m  s  t  b  k  v",     "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
+		"B": { "title": "n  f  p  d  g  j",     "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
+		"C": { "title": "h  w  y  l  z  r",     "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
+		"D": { "title": "contrast pairs",       "goal": "Tell two similar sounds apart.",                "skills": "Sound Discrimination" },
+		"E": { "title": "c-soft  g-soft  x  q", "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
+		"F": { "title": "all 21 mixed",         "goal": "Practice every sound together.",               "skills": "Mixed Review" },
+		"G": { "title": "ending sounds",        "goal": "Find the sound at the end of the word.",       "skills": "Ending Sounds" },
+	}
+
+
+func _level15_group_meta() -> Dictionary:
+	return {
+		"A": { "title": "initial phoneme ID", "goal": "Find the sound at the start of the word.",   "skills": "Beginning Sounds" },
+		"B": { "title": "final phoneme ID",   "goal": "Find the sound at the end of the word.",     "skills": "Ending Sounds" },
+		"C": { "title": "initial isolation",  "goal": "Pull out the very first sound in the word.", "skills": "Sound Isolation" },
+		"D": { "title": "final isolation",    "goal": "Pull out the very last sound in the word.",  "skills": "Sound Isolation" },
+		"E": { "title": "build the word",     "goal": "Build a word one sound at a time.",          "skills": "Word Building" },
+		"F": { "title": "sound count",        "goal": "Count how many sounds are in the word.",     "skills": "Sound Counting" },
+	}
 
 
 # ─── Static header (purple bar with title + summary) ──────────────────────────
@@ -312,21 +357,23 @@ func _add_level_section(vbox: VBoxContainer, ld: Dictionary, li: int) -> void:
 	var display_count : int = ld["total"] if ld.get("show_all", false) else done_count
 	var rows : Control = null
 
-	_group_headers.append([])
-	_group_bodies.append([])
-	_expanded_group.append(-1)
+	_group_tiles.append([])
+	_group_panels.append(null)
+	_selected_group.append(-1)
+	_group_ctx.append({})
 
 	if not is_locked and display_count > 0:
 		if ld.get("grouped", false):
-			# Two-level accordion: this container holds one Set Group card
-			# per group; each group's individual sets stay hidden until
-			# that group card is tapped (see _fill_group_cards()).
+			# Set Group grid: tiles never move once built. Tapping a tile
+			# only updates the fixed intro panel below the grid — the grid
+			# itself never reflows, so every group stays reachable no matter
+			# which one's intro is currently showing.
 			rows = VBoxContainer.new()
 			rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			rows.add_theme_constant_override("separation", 10)
+			rows.add_theme_constant_override("separation", 14)
 			rows.visible = false
 			vbox.add_child(rows)
-			_fill_group_cards(rows, ld, li, done_count)
+			_fill_group_grid(rows, ld, li, done_count)
 		else:
 			# Flat single-level list (Level 2: every set is already its own
 			# standalone item, no natural sub-grouping).
@@ -363,119 +410,172 @@ func _group_sets(sets: Array) -> Array:
 	return groups
 
 
-func _fill_group_cards(vbox: VBoxContainer, ld: Dictionary, li: int, done_count: int) -> void:
-	var groups        : Array = _group_sets(ld["sets"])
-	var running_index : int   = 0   # position in the flat sets list, to derive per-group done counts
+func _fill_group_grid(vbox: VBoxContainer, ld: Dictionary, li: int, done_count: int) -> void:
+	var groups : Array = _group_sets(ld["sets"])
+
+	var done_counts : Array = []
+	var running_index : int = 0
+	for group in groups:
+		var gd : int = 0
+		for _s in group["sets"]:
+			if running_index < done_count:
+				gd += 1
+			running_index += 1
+		done_counts.append(gd)
+
+	_group_ctx[li] = { "groups": groups, "done": done_counts, "ld": ld }
+
+	# ── Grid of Set Group tiles — fixed positions, never reflow ─────────────
+	var vp_w   : float = get_viewport_rect().size.x
+	var n_rows : int   = int(ceil(groups.size() / float(GRID_COLS)))
+	var tile_w : float = (vp_w - PAGE_PAD * 2.0 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS
+	var grid_h : float = n_rows * GRID_TILE_H + max(0, n_rows - 1) * GRID_GAP
+
+	var grid := Control.new()
+	grid.custom_minimum_size   = Vector2(vp_w, grid_h)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(grid)
 
 	for gi in range(groups.size()):
-		var group      : Dictionary = groups[gi]
-		var group_sets : Array      = group["sets"]
-		var group_done : int        = 0
-		for _s in group_sets:
-			if running_index < done_count:
-				group_done += 1
-			running_index += 1
+		var group : Dictionary = groups[gi]
+		var row : int = gi / GRID_COLS
+		var col : int = gi % GRID_COLS
+		var tx  : float = PAGE_PAD + col * (tile_w + GRID_GAP)
+		var ty  : float = row * (GRID_TILE_H + GRID_GAP)
+		var tile := _make_group_tile(group["letter"], done_counts[gi], group["sets"].size(), tile_w)
+		tile.position = Vector2(tx, ty)
+		grid.add_child(tile)
+		_group_tiles[li].append(tile)
+		tile.pressed.connect(_on_tile_tapped.bind(li, gi))
 
-		var block := VBoxContainer.new()
-		block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		block.add_theme_constant_override("separation", 6)
-		vbox.add_child(block)
+	# ── Fixed Set intro panel, sits below the grid ──────────────────────────
+	var panel := VBoxContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_theme_constant_override("separation", 8)
+	vbox.add_child(panel)
+	_group_panels[li] = panel
 
-		var phonemes : String = group_sets[0].get("phonemes", "")
-		var hdr := _make_group_header(group["letter"], phonemes, group_sets.size(), group_done)
-		block.add_child(hdr)
-
-		var body : Control = Control.new()
-		var n_rows : int   = int(ceil(group_sets.size() / 2.0))
-		var body_h : float = n_rows * ROW_STEP + 16.0
-		body.custom_minimum_size   = Vector2(get_viewport_rect().size.x, body_h)
-		body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		body.visible               = false
-		block.add_child(body)
-		_render_set_cells(body, group_sets, ld, group_done)
-
-		_group_headers[li].append(hdr)
-		_group_bodies[li].append(body)
-
-		hdr.pressed.connect(_on_group_tapped.bind(li, gi, hdr, body))
+	if groups.size() > 0:
+		_on_tile_tapped(li, 0)
 
 
-func _make_group_header(letter: String, phonemes: String, total_in_group: int, done_in_group: int) -> Button:
-	var vp_w : float = get_viewport_rect().size.x
-	var hdr := Button.new()
-	hdr.custom_minimum_size   = Vector2(vp_w, GROUP_CARD_H)
-	hdr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hdr.clip_text             = false
-	hdr.alignment             = HORIZONTAL_ALIGNMENT_LEFT
-	hdr.set_meta("letter", letter)
-	hdr.set_meta("phonemes", phonemes)
-	hdr.set_meta("total", total_in_group)
-	hdr.set_meta("done", done_in_group)
+func _make_group_tile(letter: String, done: int, total: int, width: float) -> Button:
+	var tile := Button.new()
+	tile.custom_minimum_size = Vector2(width, GRID_TILE_H)
+	tile.size                = Vector2(width, GRID_TILE_H)
+	tile.text                = ""
 
-	if _font: hdr.add_theme_font_override("font", _font)
-	hdr.add_theme_font_size_override("font_size", 19)
-	hdr.add_theme_color_override("font_color",         PURPLE)
-	hdr.add_theme_color_override("font_hover_color",   PURPLE)
-	hdr.add_theme_color_override("font_pressed_color", PURPLE)
-	hdr.add_theme_color_override("font_focus_color",   PURPLE)
+	_style_tile(tile, false)
 
+	var is_done : bool = done >= total
+	var letter_lbl := Label.new()
+	letter_lbl.text                 = letter
+	letter_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	letter_lbl.position             = Vector2(0, 6)
+	letter_lbl.size                 = Vector2(width, 34)
+	letter_lbl.add_theme_font_size_override("font_size", 26)
+	letter_lbl.add_theme_color_override("font_color", PURPLE)
+	letter_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if _font: letter_lbl.add_theme_font_override("font", _font)
+	tile.add_child(letter_lbl)
+
+	var prog_lbl := Label.new()
+	prog_lbl.text                 = "%d / %d%s" % [done, total, "  ✓" if is_done else ""]
+	prog_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prog_lbl.position             = Vector2(0, 44)
+	prog_lbl.size                 = Vector2(width, 24)
+	prog_lbl.add_theme_font_size_override("font_size", 14)
+	prog_lbl.add_theme_color_override("font_color", BROWN)
+	prog_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if _font: prog_lbl.add_theme_font_override("font", _font)
+	tile.add_child(prog_lbl)
+
+	return tile
+
+
+func _style_tile(tile: Button, selected: bool) -> void:
 	var style := StyleBoxFlat.new()
-	style.bg_color                   = WHITE
+	style.bg_color                   = PURPLE_TINT if selected else WHITE
 	style.border_color               = PURPLE
-	style.border_width_top           = 2
-	style.border_width_bottom        = 2
-	style.border_width_left          = 2
-	style.border_width_right         = 2
-	style.corner_radius_top_left     = 14
-	style.corner_radius_top_right    = 14
-	style.corner_radius_bottom_left  = 14
-	style.corner_radius_bottom_right = 14
-	hdr.add_theme_stylebox_override("normal",  style)
-	hdr.add_theme_stylebox_override("hover",   style)
-	hdr.add_theme_stylebox_override("pressed", style)
-	hdr.add_theme_stylebox_override("focus",   style)
-
-	hdr.text = _group_header_text(hdr, false)
-
-	var prog := Label.new()
-	prog.text                 = "%d / %d%s" % [done_in_group, total_in_group, "  ✓" if done_in_group >= total_in_group else ""]
-	prog.size                 = Vector2(200, GROUP_CARD_H)
-	prog.position             = Vector2(vp_w - 216, 0)
-	prog.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	prog.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	prog.add_theme_font_size_override("font_size", 16)
-	prog.add_theme_color_override("font_color", PURPLE)
-	if _font: prog.add_theme_font_override("font", _font)
-	prog.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	prog.z_index      = 1
-	hdr.add_child(prog)
-
-	return hdr
+	style.border_width_top           = 4 if selected else 2
+	style.border_width_bottom        = 4 if selected else 2
+	style.border_width_left          = 4 if selected else 2
+	style.border_width_right         = 4 if selected else 2
+	style.corner_radius_top_left     = 16
+	style.corner_radius_top_right    = 16
+	style.corner_radius_bottom_left  = 16
+	style.corner_radius_bottom_right = 16
+	tile.add_theme_stylebox_override("normal",  style)
+	tile.add_theme_stylebox_override("hover",   style)
+	tile.add_theme_stylebox_override("pressed", style)
+	tile.add_theme_stylebox_override("focus",   style)
 
 
-func _group_header_text(hdr: Button, expanding: bool) -> String:
-	var icon     : String = "▼" if expanding else "▶"
-	var letter   : String = hdr.get_meta("letter")
-	var phonemes : String = hdr.get_meta("phonemes")
-	return "          %s  Set %s   —   %s" % [icon, letter, phonemes]
+func _on_tile_tapped(li: int, gi: int) -> void:
+	var prev : int = _selected_group[li]
+	if prev != -1 and prev < _group_tiles[li].size():
+		_style_tile(_group_tiles[li][prev], false)
+	_selected_group[li] = gi
+	_style_tile(_group_tiles[li][gi], true)
+
+	var ctx         : Dictionary = _group_ctx[li]
+	var groups      : Array      = ctx["groups"]
+	var done_counts : Array      = ctx["done"]
+	var ld          : Dictionary = ctx["ld"]
+
+	var group       : Dictionary = groups[gi]
+	var group_done  : int        = done_counts[gi]
+	var group_total : int        = group["sets"].size()
+	var meta        : Dictionary = ld.get("group_meta", {}).get(group["letter"], {})
+
+	_render_group_panel(_group_panels[li], group, group_done, group_total, meta, ld)
 
 
-func _on_group_tapped(li: int, gi: int, hdr: Button, body: Control) -> void:
-	var currently_expanded : int = _expanded_group[li]
+# ─── Set intro panel (Title / Learning Goal / Skills / Progress) ─────────────
+func _render_group_panel(panel: VBoxContainer, group: Dictionary, group_done: int,
+		group_total: int, meta: Dictionary, ld: Dictionary) -> void:
+	for c in panel.get_children():
+		c.queue_free()
 
-	if currently_expanded == gi:
-		body.visible         = false
-		_expanded_group[li]  = -1
-		hdr.text              = _group_header_text(hdr, false)
-	else:
-		if currently_expanded != -1:
-			var prev_hdr  : Button  = _group_headers[li][currently_expanded]
-			var prev_body : Control = _group_bodies[li][currently_expanded]
-			prev_body.visible = false
-			prev_hdr.text      = _group_header_text(prev_hdr, false)
-		body.visible         = true
-		_expanded_group[li] = gi
-		hdr.text              = _group_header_text(hdr, true)
+	var vp_w   : float   = get_viewport_rect().size.x
+	var letter : String  = group["letter"]
+	var title  : String  = meta.get("title", "")
+	var goal   : String  = meta.get("goal", "")
+	var skills : String  = meta.get("skills", "")
+	var is_done : bool   = group_done >= group_total
+
+	var card := Panel.new()
+	card.custom_minimum_size   = Vector2(vp_w, PANEL_CARD_H)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var sty := StyleBoxFlat.new()
+	sty.bg_color                   = WHITE
+	sty.border_color               = PURPLE
+	sty.border_width_top           = 2
+	sty.border_width_bottom        = 2
+	sty.border_width_left          = 2
+	sty.border_width_right         = 2
+	sty.corner_radius_top_left     = 16
+	sty.corner_radius_top_right    = 16
+	sty.corner_radius_bottom_left  = 16
+	sty.corner_radius_bottom_right = 16
+	card.add_theme_stylebox_override("panel", sty)
+	panel.add_child(card)
+
+	_panel_label(card, "Set %s" % letter, Vector2(24, 12), Vector2(500, 30), 22, PURPLE)
+	_panel_label(card, "%d / %d%s" % [group_done, group_total, "  ✓" if is_done else ""],
+		Vector2(vp_w - PAGE_PAD * 2.0 - 168, 16), Vector2(168, 26), 16, PURPLE,
+		HORIZONTAL_ALIGNMENT_RIGHT)
+	_panel_label(card, title, Vector2(24, 46), Vector2(vp_w - 48, 22), 15, BROWN)
+	_panel_label(card, "Learning Goal:  %s" % goal, Vector2(24, 76), Vector2(vp_w - 48, 22), 15, PURPLE)
+	_panel_label(card, "Skills:  %s" % skills, Vector2(24, 102), Vector2(vp_w - 48, 22), 14, BROWN)
+
+	var sets_area := Control.new()
+	var n_rows : int   = int(ceil(group["sets"].size() / 2.0))
+	var area_h : float = n_rows * ROW_STEP + 16.0
+	sets_area.custom_minimum_size   = Vector2(vp_w, area_h)
+	sets_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.add_child(sets_area)
+	_render_set_cells(sets_area, group["sets"], ld, group_done)
 
 	if _vbox:
 		_vbox.queue_sort()
@@ -490,7 +590,7 @@ func _fill_set_rows(parent: Control, ld: Dictionary, done_count: int) -> void:
 
 
 # Shared low-level cell grid renderer — used both for Level 2's flat list and
-# for a single Set Group's individual sets once that group is expanded.
+# for a single Set Group's individual sets, shown in the intro panel.
 func _render_set_cells(parent: Control, cell_sets: Array, ld: Dictionary, local_done: int) -> void:
 	var page_pad : float = (get_viewport_rect().size.x - CELL_W * 2.0 - CELL_GAP) / 2.0
 	for pair in range(int(ceil(cell_sets.size() / 2.0))):
@@ -574,12 +674,13 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 
 
 func _panel_label(parent: Control, text: String, pos: Vector2, sz: Vector2,
-		fsize: int, col: Color) -> void:
+		fsize: int, col: Color, halign: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> void:
 	var lbl := Label.new()
-	lbl.text         = text
-	lbl.position     = pos
-	lbl.size         = sz
-	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.text                 = text
+	lbl.position             = pos
+	lbl.size                 = sz
+	lbl.horizontal_alignment = halign
+	lbl.mouse_filter         = Control.MOUSE_FILTER_IGNORE
 	lbl.add_theme_font_size_override("font_size", fsize)
 	lbl.add_theme_color_override("font_color", col)
 	if _font: lbl.add_theme_font_override("font", _font)
@@ -597,8 +698,6 @@ func _on_header_tapped(li: int, hdr: Button, rows: Control) -> void:
 		_vbox.queue_sort()
 	var icon : String = "▼" if expanding else "▶"
 	hdr.text = "     " + icon + "  " + _levels[li]["label"]
-
-
 
 
 # ─── Replay launch ────────────────────────────────────────────────────────────

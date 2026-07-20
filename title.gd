@@ -119,7 +119,7 @@ func _create_debug_menu_button() -> void:
 	_debug_btn.size         = Vector2(200, 70)
 	_debug_btn.position     = Vector2(
 		(get_viewport_rect().size.x - 200.0) / 2.0,
-		get_viewport_rect().size.y - 120.0
+		get_viewport_rect().size.y - 190.0
 	)
 	_debug_btn.z_index      = 10
 	_debug_btn.add_theme_font_size_override("font_size", 22)

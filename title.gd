@@ -116,10 +116,13 @@ func _create_debug_menu_button() -> void:
 		return
 	_debug_btn              = Button.new()
 	_debug_btn.text         = "DEBUG"
-	_debug_btn.size         = Vector2(90, 36)
-	_debug_btn.position     = Vector2(16, get_viewport_rect().size.y - 50)
+	_debug_btn.size         = Vector2(200, 70)
+	_debug_btn.position     = Vector2(
+		(get_viewport_rect().size.x - 200.0) / 2.0,
+		get_viewport_rect().size.y - 120.0
+	)
 	_debug_btn.z_index      = 10
-	_debug_btn.add_theme_font_size_override("font_size", 14)
+	_debug_btn.add_theme_font_size_override("font_size", 22)
 	_debug_btn.add_theme_color_override("font_color", Color("#FFFFFF"))
 	var style := StyleBoxFlat.new()
 	style.bg_color                   = Color("#E0334D")

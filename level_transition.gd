@@ -104,13 +104,16 @@ func _setup_label_level1() -> void:
 
 # ─── Music ────────────────────────────────────────────────────────────────────
 func _start_music() -> void:
-	var stream := (load("res://BGM&effect/SoundUp_level_transition_bgm.wav") as AudioStreamWAV).duplicate() as AudioStreamWAV
-	stream.loop_mode        = AudioStreamWAV.LOOP_FORWARD
 	_music_player           = AudioStreamPlayer.new()
-	_music_player.stream    = stream
+	_music_player.stream    = load("res://BGM&effect/SoundUp_level_transition_bgm.wav")
 	_music_player.volume_db = 0.0
+	_music_player.finished.connect(_on_music_finished)
 	add_child(_music_player)
 	_music_player.play()
+
+func _on_music_finished() -> void:
+	if _music_player != null:
+		_music_player.play()
 
 # ─── Main sequence ────────────────────────────────────────────────────────────
 func _t(seconds: float) -> float:

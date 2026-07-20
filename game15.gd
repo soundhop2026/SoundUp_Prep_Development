@@ -59,7 +59,7 @@ const CUBE_BORDER_W := 3.0
 
 # Isolation word-structure cubes (white alpha, no border — same style as Set G)
 const ISO_SQ_SIZE  : float = 60.0
-const ISO_RECT_W   : float = 120.0
+const ISO_RECT_W   : float = 180.0  # 3:1 vs ISO_SQ_SIZE — matches Set G's word-body/ending ratio
 const ISO_RECT_H   : float = 60.0
 const ISO_CUBE_GAP : float = 10.0
 const ISO_CUBE_DIM : Color = Color(1.0, 1.0, 1.0, 0.30)

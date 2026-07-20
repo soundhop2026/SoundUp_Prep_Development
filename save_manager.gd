@@ -6,22 +6,25 @@ extends Node
 
 const SAVE_PATH := "user://soundup_save.json"
 
-var _data : Dictionary = {
-	"prep_completed"      : false,
-	"prep_set_index"      : 0,
-	"level1_completed"    : false,
-	"level1_set_index"    : 0,
-	"level1_cubes_earned" : 0,
-	"level15_completed"   : false,
-	"level15_set_index"   : 0,
-	"level15_cubes_earned": 0,
-	"level2_completed"    : false,
-	"level2_set_index"    : 0,
-	"level2_cubes_earned" : 0,
-	"path_chosen"         : false,
-	"chose_level1_path"   : false,
-	"review_counts"       : {},
-}
+var _data : Dictionary = _default_data()
+
+static func _default_data() -> Dictionary:
+	return {
+		"prep_completed"      : false,
+		"prep_set_index"      : 0,
+		"level1_completed"    : false,
+		"level1_set_index"    : 0,
+		"level1_cubes_earned" : 0,
+		"level15_completed"   : false,
+		"level15_set_index"   : 0,
+		"level15_cubes_earned": 0,
+		"level2_completed"    : false,
+		"level2_set_index"    : 0,
+		"level2_cubes_earned" : 0,
+		"path_chosen"         : false,
+		"chose_level1_path"   : false,
+		"review_counts"       : {},
+	}
 
 func _ready() -> void:
 	load_game()
@@ -134,6 +137,29 @@ func is_chose_level1_path() -> bool:
 
 func set_chose_level1_path() -> void:
 	_data["chose_level1_path"] = true
+	save_game()
+
+# --- Debug utilities (QA only — see debug_config.gd) ---
+
+func reset_progress() -> void:
+	var keep_path_chosen       : bool       = _data.get("path_chosen", false)
+	var keep_chose_level1_path : bool       = _data.get("chose_level1_path", false)
+	var keep_review_counts     : Dictionary = _data.get("review_counts", {})
+	_data                       = _default_data()
+	_data["path_chosen"]       = keep_path_chosen
+	_data["chose_level1_path"] = keep_chose_level1_path
+	_data["review_counts"]     = keep_review_counts
+	save_game()
+
+func unlock_all_levels() -> void:
+	_data["prep_completed"]    = true
+	_data["level1_completed"]  = true
+	_data["level15_completed"] = true
+	_data["level2_completed"]  = true
+	save_game()
+
+func clear_all_data() -> void:
+	_data = _default_data()
 	save_game()
 
 # --- File I/O ---

@@ -48,9 +48,7 @@ var _drift_tweens   : Array        = []
 var _prep_btn       : Button       = null
 var _level1_btn     : Button       = null
 var _sway_tween     : Tween        = null
-var _dev_prep_btn   : Button       = null
-var _dev_l2_btn     : Button       = null
-var _dev_l15_btn    : Button       = null
+var _debug_btn      : Button       = null
 var _gnb_btn        : Button       = null
 var _vp_cx          : float        = 640.0   # true horizontal centre of the viewport
 
@@ -96,9 +94,7 @@ func _ready() -> void:
 	_create_letters()
 	_create_words()
 	_create_copyright_label()
-	_create_dev_prep_button()
-	_create_dev_l2_button()
-	_create_dev_l15_button()
+	_create_debug_menu_button()
 	_animate_in()
 
 func _create_copyright_label() -> void:
@@ -115,55 +111,31 @@ func _create_copyright_label() -> void:
 		lbl.add_theme_font_override("font", _mono_font)
 	add_child(lbl)
 
-func _create_dev_prep_button() -> void:
-	_dev_prep_btn          = Button.new()
-	_dev_prep_btn.size     = Vector2(60, 60)
-	_dev_prep_btn.position = Vector2(0, 0)
-	_dev_prep_btn.flat     = true
-	_dev_prep_btn.text     = ""
-	_dev_prep_btn.z_index  = 10
-	_dev_prep_btn.modulate = Color(1, 1, 1, 0)   # fully invisible
-	_dev_prep_btn.pressed.connect(_on_dev_prep_pressed)
-	add_child(_dev_prep_btn)
+func _create_debug_menu_button() -> void:
+	if not DebugConfig.DEBUG_MODE:
+		return
+	_debug_btn              = Button.new()
+	_debug_btn.text         = "DEBUG"
+	_debug_btn.size         = Vector2(90, 36)
+	_debug_btn.position     = Vector2(16, get_viewport_rect().size.y - 50)
+	_debug_btn.z_index      = 10
+	_debug_btn.add_theme_font_size_override("font_size", 14)
+	_debug_btn.add_theme_color_override("font_color", Color("#FFFFFF"))
+	var style := StyleBoxFlat.new()
+	style.bg_color                   = Color("#E0334D")
+	style.corner_radius_top_left     = 8
+	style.corner_radius_top_right    = 8
+	style.corner_radius_bottom_left  = 8
+	style.corner_radius_bottom_right = 8
+	_debug_btn.add_theme_stylebox_override("normal",  style)
+	_debug_btn.add_theme_stylebox_override("hover",   style)
+	_debug_btn.add_theme_stylebox_override("pressed", style)
+	_debug_btn.add_theme_stylebox_override("focus",   style)
+	_debug_btn.pressed.connect(_on_debug_menu_pressed)
+	add_child(_debug_btn)
 
-func _on_dev_prep_pressed() -> void:
-	SaveManager.set_prep_set_index(0)
-	SaveManager._data["prep_completed"] = false
-	PrepLevelProgress.current_index = 0
-	PrepLevelProgress.is_retry      = false
-	get_tree().change_scene_to_file("res://prep_game.tscn")
-
-func _create_dev_l15_button() -> void:
-	_dev_l15_btn          = Button.new()
-	_dev_l15_btn.size     = Vector2(60, 60)
-	_dev_l15_btn.position = Vector2(0, get_viewport_rect().size.y - 60)
-	_dev_l15_btn.flat     = true
-	_dev_l15_btn.text     = ""
-	_dev_l15_btn.z_index  = 10
-	_dev_l15_btn.modulate = Color(1, 1, 1, 0)
-	_dev_l15_btn.pressed.connect(_on_dev_l15_pressed)
-	add_child(_dev_l15_btn)
-
-func _on_dev_l15_pressed() -> void:
-	Level15Progress.current_index = 12
-	Level15Progress.is_retry      = false
-	get_tree().change_scene_to_file("res://game15.tscn")
-
-func _create_dev_l2_button() -> void:
-	_dev_l2_btn          = Button.new()
-	_dev_l2_btn.size     = Vector2(60, 60)
-	_dev_l2_btn.position = Vector2(get_viewport_rect().size.x - 60, get_viewport_rect().size.y - 60)
-	_dev_l2_btn.flat     = true
-	_dev_l2_btn.text     = ""
-	_dev_l2_btn.z_index  = 10
-	_dev_l2_btn.modulate = Color(1, 1, 1, 0)
-	_dev_l2_btn.pressed.connect(_on_dev_l2_pressed)
-	add_child(_dev_l2_btn)
-
-func _on_dev_l2_pressed() -> void:
-	Level2Progress.current_index = 8
-	Level2Progress.active        = true
-	get_tree().change_scene_to_file("res://game25.tscn")
+func _on_debug_menu_pressed() -> void:
+	get_tree().change_scene_to_file("res://debug_menu.tscn")
 
 func _apply_shader(node: CanvasItem, color: Color) -> void:
 	var shader := Shader.new()

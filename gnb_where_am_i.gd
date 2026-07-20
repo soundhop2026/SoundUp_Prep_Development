@@ -27,7 +27,7 @@ const HDR_TOP      : float = 116.0  # scroll area starts here (after purple head
 const GRID_COLS     : int   = 3
 const GRID_TILE_H   : float = 76.0
 const GRID_GAP      : float = 16.0
-const PANEL_CARD_H  : float = 150.0  # Set intro card height
+const PANEL_CARD_H  : float = 138.0  # Set intro card height
 
 # ─── State ────────────────────────────────────────────────────────────────────
 var _font             : Font           = null
@@ -173,40 +173,40 @@ func _level2_sets() -> Array:
 
 
 # ─── Set Group intro metadata (draft copy — wording TBD with product) ─────────
-# Each entry: { title, goal, skills }. "title" mirrors the existing phoneme
-# summary; "goal" and "skills" are new, first-pass copy to get the UI working —
-# not final wording.
+# Each entry: { title, goal }. "title" mirrors the existing phoneme
+# summary; "goal" is new, first-pass copy to get the UI working — not final
+# wording.
 func _prep_group_meta() -> Dictionary:
 	return {
-		"A": { "title": "m  s  t  b  v  k", "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
-		"B": { "title": "n  f  p  d  g  j", "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
-		"C": { "title": "h  w  y  l  z  r", "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
-		"D": { "title": "contrast pairs",   "goal": "Tell two similar sounds apart.",                "skills": "Sound Discrimination" },
-		"E": { "title": "q  x  s  k",       "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
-		"F": { "title": "all sounds mixed", "goal": "Practice every sound together.",               "skills": "Mixed Review" },
+		"A": { "title": "m  s  t  b  v  k", "goal": "Find the picture that starts with the sound." },
+		"B": { "title": "n  f  p  d  g  j", "goal": "Find the picture that starts with the sound." },
+		"C": { "title": "h  w  y  l  z  r", "goal": "Find the picture that starts with the sound." },
+		"D": { "title": "contrast pairs",   "goal": "Tell two similar sounds apart." },
+		"E": { "title": "q  x  s  k",       "goal": "Find the picture that starts with the sound." },
+		"F": { "title": "all sounds mixed", "goal": "Practice every sound together." },
 	}
 
 
 func _level1_group_meta() -> Dictionary:
 	return {
-		"A": { "title": "m  s  t  b  k  v",     "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
-		"B": { "title": "n  f  p  d  g  j",     "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
-		"C": { "title": "h  w  y  l  z  r",     "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
-		"D": { "title": "contrast pairs",       "goal": "Tell two similar sounds apart.",                "skills": "Sound Discrimination" },
-		"E": { "title": "c-soft  g-soft  x  q", "goal": "Find the picture that starts with the sound.", "skills": "Beginning Sounds" },
-		"F": { "title": "all 21 mixed",         "goal": "Practice every sound together.",               "skills": "Mixed Review" },
-		"G": { "title": "ending sounds",        "goal": "Find the sound at the end of the word.",       "skills": "Ending Sounds" },
+		"A": { "title": "m  s  t  b  k  v",     "goal": "Find the picture that starts with the sound." },
+		"B": { "title": "n  f  p  d  g  j",     "goal": "Find the picture that starts with the sound." },
+		"C": { "title": "h  w  y  l  z  r",     "goal": "Find the picture that starts with the sound." },
+		"D": { "title": "contrast pairs",       "goal": "Tell two similar sounds apart." },
+		"E": { "title": "c-soft  g-soft  x  q", "goal": "Find the picture that starts with the sound." },
+		"F": { "title": "all 21 mixed",         "goal": "Practice every sound together." },
+		"G": { "title": "ending sounds",        "goal": "Find the sound at the end of the word." },
 	}
 
 
 func _level15_group_meta() -> Dictionary:
 	return {
-		"A": { "title": "initial phoneme ID", "goal": "Find the sound at the start of the word.",   "skills": "Beginning Sounds" },
-		"B": { "title": "final phoneme ID",   "goal": "Find the sound at the end of the word.",     "skills": "Ending Sounds" },
-		"C": { "title": "initial isolation",  "goal": "Pull out the very first sound in the word.", "skills": "Sound Isolation" },
-		"D": { "title": "final isolation",    "goal": "Pull out the very last sound in the word.",  "skills": "Sound Isolation" },
-		"E": { "title": "build the word",     "goal": "Build a word one sound at a time.",          "skills": "Word Building" },
-		"F": { "title": "sound count",        "goal": "Count how many sounds are in the word.",     "skills": "Sound Counting" },
+		"A": { "title": "initial phoneme ID", "goal": "Find the sound at the start of the word." },
+		"B": { "title": "final phoneme ID",   "goal": "Find the sound at the end of the word." },
+		"C": { "title": "initial isolation",  "goal": "Pull out the very first sound in the word." },
+		"D": { "title": "final isolation",    "goal": "Pull out the very last sound in the word." },
+		"E": { "title": "build the word",     "goal": "Build a word one sound at a time." },
+		"F": { "title": "sound count",        "goal": "Count how many sounds are in the word." },
 	}
 
 
@@ -531,7 +531,7 @@ func _on_tile_tapped(li: int, gi: int) -> void:
 	_render_group_panel(_group_panels[li], group, group_done, group_total, meta, ld)
 
 
-# ─── Set intro panel (Title / Learning Goal / Skills / Progress) ─────────────
+# ─── Set intro panel (Set name / Title / Learning Goal / Progress) ────────────
 func _render_group_panel(panel: VBoxContainer, group: Dictionary, group_done: int,
 		group_total: int, meta: Dictionary, ld: Dictionary) -> void:
 	for c in panel.get_children():
@@ -541,8 +541,6 @@ func _render_group_panel(panel: VBoxContainer, group: Dictionary, group_done: in
 	var letter : String  = group["letter"]
 	var title  : String  = meta.get("title", "")
 	var goal   : String  = meta.get("goal", "")
-	var skills : String  = meta.get("skills", "")
-	var is_done : bool   = group_done >= group_total
 
 	var card := Panel.new()
 	card.custom_minimum_size   = Vector2(vp_w, PANEL_CARD_H)
@@ -561,13 +559,12 @@ func _render_group_panel(panel: VBoxContainer, group: Dictionary, group_done: in
 	card.add_theme_stylebox_override("panel", sty)
 	panel.add_child(card)
 
-	_panel_label(card, "Set %s" % letter, Vector2(24, 12), Vector2(500, 30), 22, PURPLE)
-	_panel_label(card, "%d / %d%s" % [group_done, group_total, "  ✓" if is_done else ""],
-		Vector2(vp_w - PAGE_PAD * 2.0 - 168, 16), Vector2(168, 26), 16, PURPLE,
-		HORIZONTAL_ALIGNMENT_RIGHT)
-	_panel_label(card, title, Vector2(24, 46), Vector2(vp_w - 48, 22), 15, BROWN)
-	_panel_label(card, "Learning Goal:  %s" % goal, Vector2(24, 76), Vector2(vp_w - 48, 22), 15, PURPLE)
-	_panel_label(card, "Skills:  %s" % skills, Vector2(24, 102), Vector2(vp_w - 48, 22), 14, BROWN)
+	# Four stacked lines: Set name, phoneme title, learning goal, progress.
+	_panel_label(card, "Set %s" % letter, Vector2(24, 12), Vector2(vp_w - 48, 30), 22, PURPLE)
+	_panel_label(card, title, Vector2(24, 46), Vector2(vp_w - 48, 24), 16, BROWN)
+	_panel_label(card, goal,  Vector2(24, 74), Vector2(vp_w - 48, 24), 16, PURPLE)
+	_panel_label(card, "%d / %d Completed" % [group_done, group_total],
+		Vector2(24, 102), Vector2(vp_w - 48, 22), 14, BROWN)
 
 	var sets_area := Control.new()
 	var n_rows : int   = int(ceil(group["sets"].size() / 2.0))

@@ -427,7 +427,7 @@ func _stop_eval_pulse() -> void:
 
 # ─── Set G word-structure cubes ──────────────────────────────────────────────
 
-const G_RECT_W   : float = 44.0   # wider block = word body (everything before ending)
+const G_RECT_W   : float = 66.0   # wider block = word body (everything before ending) — 3:1 vs ending square
 const G_RECT_H   : float = 22.0
 const G_SQ_SIZE  : float = 22.0   # square block = ending sound
 const G_CUBE_GAP : float = 6.0    # gap between rect and square

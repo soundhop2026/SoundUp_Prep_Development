@@ -534,8 +534,12 @@ func _on_tile_tapped(li: int, gi: int) -> void:
 # ─── Set intro panel (Set name / Title / Learning Goal / Progress) ────────────
 func _render_group_panel(panel: VBoxContainer, group: Dictionary, group_done: int,
 		group_total: int, meta: Dictionary, ld: Dictionary) -> void:
+	# Immediate removal, not queue_free() — otherwise the old and new cards
+	# can briefly coexist as siblings in the same frame, and the container
+	# chain above can compute its height from the stale, larger child set.
 	for c in panel.get_children():
-		c.queue_free()
+		panel.remove_child(c)
+		c.free()
 
 	var vp_w   : float   = get_viewport_rect().size.x
 	var letter : String  = group["letter"]
@@ -574,6 +578,13 @@ func _render_group_panel(panel: VBoxContainer, group: Dictionary, group_done: in
 	panel.add_child(sets_area)
 	_render_set_cells(sets_area, group["sets"], ld, group_done)
 
+	# Force a resort at every level in the chain — a plain Control's
+	# custom_minimum_size change doesn't always reliably bubble all the way
+	# up through nested VBoxContainers on its own.
+	panel.queue_sort()
+	var rows_container : Container = panel.get_parent() as Container
+	if rows_container:
+		rows_container.queue_sort()
 	if _vbox:
 		_vbox.queue_sort()
 

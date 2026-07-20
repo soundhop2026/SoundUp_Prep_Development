@@ -17,17 +17,23 @@ const PURPLE_COLOR : Color = Color("#4B0083")
 
 # ─── Face ─────────────────────────────────────────────────────────────────────
 const FACE_SCALE  : float   = 0.90                  # matches Title Scene PlayButton scale
-const FACE_CENTER : Vector2 = Vector2(640.0, 300.0) # matches Title Scene FACE_CENTER_Y
+const FACE_CENTER : Vector2 = Vector2(640.0, 400.0) # shifted down 100px from title's FACE_CENTER_Y — see crown note below
 
 # ─── Crown ────────────────────────────────────────────────────────────────────
 const CROWN_SCALE   : float = 0.291  # scaled with face: 0.189 × (0.90 / 0.585)
 const CROWN_X       : float = 615.0
 const CROWN_START_Y : float = -300.0
-const CROWN_LAND_Y  : float = 126.0  # recalculated: same offset below face-top as before
+# The crown PNG's visible art sits in the upper portion of its 2000x2000 canvas
+# (lots of empty space below, since the white background is keyed out at
+# runtime), so Sprite2D's texture-center pivot sits well below the actual
+# crown graphic. At the original CROWN_LAND_Y=126 the crown was cropped by
+# the top of the screen even at rest, and worse during the celebration
+# bounce. Shifted the whole face+crown+label group down 100px to fix it.
+const CROWN_LAND_Y  : float = 226.0
 const CROWN_TILT    : float = 1.0     # slight clockwise tilt
 
 # ─── Layout ───────────────────────────────────────────────────────────────────
-const LEVEL1_Y      : float = 515.0   # top of "Level 1" label — below enlarged face
+const LEVEL1_Y      : float = 615.0   # top of "Level 1" label — below enlarged face
 const LEVEL1_H      : float = 68.0
 
 
@@ -136,13 +142,13 @@ func _play_sequence() -> void:
 	# 7.8s–11.8s: celebration
 	await _celebrate()
 
-	# 11.8s–14.8s: still with crown — let the player admire
-	await get_tree().create_timer(_t(3.0)).timeout
+	# 11.8s–16.8s: still with crown — let the player admire
+	await get_tree().create_timer(_t(5.0)).timeout
 
 	# Fade out looping music then advance
 	if not DEBUG_FAST and _music_player != null and _music_player.playing:
 		var fade := create_tween()
-		fade.tween_property(_music_player, "volume_db", -40.0, 0.5)
+		fade.tween_property(_music_player, "volume_db", -40.0, 2.0)
 		await fade.finished
 	if _music_player != null:
 		_music_player.stop()

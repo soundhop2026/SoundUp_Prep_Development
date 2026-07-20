@@ -1272,6 +1272,8 @@ func _create_choices(phoneme_ids: Array) -> void:
 func _bw_try_start_drag(pos: Vector2) -> bool:
 	for i in range(_choice_nodes.size()):
 		var btn       : TextureButton = _choice_nodes[i]
+		if btn.disabled:
+			continue
 		var tile_rect := Rect2(_choice_row.position + btn.position, btn.size)
 		if tile_rect.has_point(pos):
 			_bw_drag_choice_idx = i
@@ -1326,10 +1328,11 @@ func _bw_end_drag(pos: Vector2) -> void:
 		var cube      : Panel   = _cube_nodes[_build_index]
 		var cube_rect := Rect2(_cube_row.position + cube.position, cube.size)
 		if cube_rect.has_point(pos):
-			var ph := _bw_drag_phoneme
+			var ph         := _bw_drag_phoneme
+			var choice_idx := _bw_drag_choice_idx
 			_bw_drag_phoneme    = ""
 			_bw_drag_choice_idx = -1
-			_handle_build_tap(ph)
+			_handle_build_tap(ph, choice_idx)
 			return
 
 	_bw_drag_phoneme    = ""
@@ -1523,7 +1526,7 @@ func _on_eval_play_pressed() -> void:
 	pass   # eval btn is visual only — auto-play triggered programmatically
 
 
-func _handle_build_tap(ph_id: String) -> void:
+func _handle_build_tap(ph_id: String, choice_idx: int) -> void:
 	if _result_locked or _bw_phase != "build":
 		return
 	var expected : String = _current_round["phonemes"][_build_index]
@@ -1531,6 +1534,10 @@ func _handle_build_tap(ph_id: String) -> void:
 		_fill_cube(_build_index)
 		_build_index += 1
 		_correct_snd.play()
+		if choice_idx >= 0 and choice_idx < _choice_nodes.size():
+			var used_btn : TextureButton = _choice_nodes[choice_idx]
+			used_btn.disabled   = true
+			used_btn.modulate.a = 0.35
 		if _build_index >= _current_round["phonemes"].size():
 			_result_locked = true
 			_hand.visible  = false

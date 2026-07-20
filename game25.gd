@@ -89,6 +89,8 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _start_drag(pos: Vector2) -> void:
+	if _dragging:
+		return
 	_dragging        = true
 	var panel        := Panel.new()
 	panel.size       = Vector2(CUBE_SIZE, CUBE_SIZE)

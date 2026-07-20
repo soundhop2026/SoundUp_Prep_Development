@@ -388,6 +388,8 @@ func _vowel_walk(gen: int) -> void:
 func _start_drag(slot: int) -> void:
 	if result_locked or phase != "wait_answer":
 		return
+	if _dragging:
+		return
 	_dragging  = true
 	_drag_slot = slot
 	_drag_pos  = get_viewport().get_mouse_position()

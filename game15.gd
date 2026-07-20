@@ -1270,6 +1270,8 @@ func _create_choices(phoneme_ids: Array) -> void:
 # ── Build-word drag helpers ───────────────────────────────────────────────────
 
 func _bw_try_start_drag(pos: Vector2) -> bool:
+	if _bw_dragging:
+		return false
 	for i in range(_choice_nodes.size()):
 		var btn       : TextureButton = _choice_nodes[i]
 		if btn.disabled:

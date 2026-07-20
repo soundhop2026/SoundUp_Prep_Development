@@ -2,50 +2,71 @@ extends Node2D
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
 const PURPLE     : Color = Color("#4B0082")
-const PURPLE_TINT: Color = Color("#E8DCF5")   # selected Set Group tile
+const PURPLE_TINT: Color = Color("#E8DCF5")   # completed tile tint
 const AMBER      : Color = Color("#FFB703")
 const CREAM      : Color = Color("#EDE4D3")
 const WHITE      : Color = Color("#FFFFFF")
-const D_AMBER    : Color = Color("#B8631A")   # completed level header
-const GRAY_H     : Color = Color("#AAAAAA")   # in-progress / locked header
-const BROWN      : Color = Color("#7A5A2A")   # phoneme text
+const GRAY_H     : Color = Color("#AAAAAA")   # locked level tile
+const BROWN      : Color = Color("#7A5A2A")   # phoneme / secondary text
 
 const FONT_PATH  : String = "res://UI_assets/210 연필스케치R.ttf"
 const LOUIS_PATH : String = "res://louisfaces/happylouis3-Photoroom.png"
 
 # ─── Layout ───────────────────────────────────────────────────────────────────
-# Symmetric: PAGE_PAD*2 + CELL_W*2 + CELL_GAP = 1280
-const CELL_W       : float = 580.0
-const CELL_H       : float = 68.0   # enlarged — fewer sets shown per screen now
-const CELL_GAP     : float = 16.0
-const PAGE_PAD     : float = 52.0   # (1280 - 580*2 - 16) / 2 = 52 — balanced margins
-const ROW_STEP     : float = 76.0   # CELL_H + 8 gap
-const HDR_H        : float = 46.0
-const HDR_TOP      : float = 116.0  # scroll area starts here (after purple header)
+# Three screens (Levels -> Set Groups -> Set detail), each a full-content swap
+# rather than a nested accordion. Every screen is sized to fit within one
+# viewport's worth of content in its worst case (see per-screen comments
+# below) so none of them need to scroll.
+const HDR_TOP   : float = 100.0   # shorter bar, more room for content
+const PAGE_PAD  : float = 60.0
+const TILE_GAP  : float = 24.0
+const TOP_PAD   : float = 40.0    # breathing room between header and first row
 
-# Set Group grid (Prep / Level 1 / Level 1.5)
-const GRID_COLS     : int   = 3
-const GRID_TILE_H   : float = 76.0
-const GRID_GAP      : float = 16.0
-const PANEL_CARD_H  : float = 138.0  # Set intro card height
+# Screen 1 — Levels grid. Tile height is computed at runtime from the
+# level count (see _lvl_tile_metrics()) and clamped to this range, so the
+# grid keeps fitting one screen — no scrolling — as more Levels are added
+# later (2 cols scales comfortably to ~10 Levels this way: 5 rows at the
+# clamped minimum height still fit inside the body height).
+const LVL_TILE_MIN_H : float = 84.0
+const LVL_TILE_MAX_H : float = 150.0
+
+# Screen 2 — Set Group grid (worst case Level 1: 7 groups, 2 cols -> 4 rows:
+# TOP_PAD 40 + 4*116 + 3*24 = 576, within the 620px body height).
+const GRP_TILE_H : float = 116.0
+
+# Ungrouped levels (Level 2, Level 2.5, ...) with more than CHUNK_MAX sets
+# get an auto-generated "Sets A–F" chunk-selection screen instead of ever
+# shrinking the final Set list below its comfortable size — every Set list
+# a child actually taps into stays at the full, large size, and a Level
+# with even more Sets later just gets more chunk tiles, not smaller ones.
+const CHUNK_MAX : int = 6
+
+# Screen 3 — individual Set cards. Row height is computed at runtime from
+# how many cards need to fit in the available area (see _cell_metrics()) and
+# clamped to this range — same technique as the Levels grid. A single Set
+# Group tops out at 6 sets today (3 rows, comfortably fits at the max size),
+# but Level 2's flat, ungrouped list shows up to 12 at once (6 rows), which
+# needs the smaller end of the range to avoid overflowing the screen.
+const CELL_W           : float = 572.0
+const CELL_GAP          : float = 16.0
+const CELL_ROW_STEP_MIN : float = 74.0
+const CELL_ROW_STEP_MAX : float = 108.0
 
 # ─── State ────────────────────────────────────────────────────────────────────
-var _font             : Font           = null
-var _louis_tex        : Texture2D      = null
-var _levels            : Array          = []
-var _rows_containers  : Array[Control] = []
-var _expanded_flags   : Array[bool]    = []
+var _font      : Font      = null
+var _louis_tex : Texture2D = null
+var _levels    : Array     = []
 
-# Set Group grid + intro panel state (Prep / Level 1 / Level 1.5 only — empty
-# entries for levels that stay flat, e.g. Level 2).
-var _group_tiles      : Array = []   # per level: Array[Button]
-var _group_panels     : Array = []   # per level: the fixed detail-panel VBoxContainer (or null)
-var _selected_group    : Array[int] = []   # per level: selected tile index, -1 = none
-var _group_ctx         : Array = []   # per level: { groups, done_counts, ld }
+var _page      : String = "levels"   # "levels" | "groups" | "chunks" | "sets"
+var _sel_level : int    = -1
+var _sel_group : int    = -1
+var _sel_chunk : int    = -1
 
-var is_overlay        : bool           = false
-var _vbox             : VBoxContainer  = null
-var _scroll            : ScrollContainer = null
+var _content   : Control = null
+var _title_lbl : Label   = null
+var _sub_lbl   : Label   = null
+
+var is_overlay : bool = false
 signal close_requested
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -65,9 +86,16 @@ func _ready() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	_build_header()       # purple bar: title + summary
-	_build_back_button()  # overlaid on header, z_index=10
-	_build_scroll_area()  # all sections start collapsed
+	_build_header_bar()
+	_build_back_button()
+
+	_content = Control.new()
+	_content.position             = Vector2(0, HDR_TOP)
+	_content.size                 = Vector2(get_viewport_rect().size.x, get_viewport_rect().size.y - HDR_TOP)
+	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	add_child(_content)
+
+	_show_levels_page()
 
 
 # ─── Level metadata ───────────────────────────────────────────────────────────
@@ -86,23 +114,23 @@ func _build_level_meta() -> void:
 	var l25_lock : bool = l2_lock  or not SaveManager.is_level2_completed()
 
 	_levels = [
-		{ "id": "prep",    "label": "Prep",      "done": prep_done, "total": 26,
+		{ "id": "prep",    "label": "Prep Level","tagline": "Consonant Sounds", "done": prep_done, "total": 26,
 		  "locked": false,   "sets": _prep_sets(),    "pfn": func(i): PrepLevelProgress.current_index = i,
 		  "show_all": SaveManager.is_chose_level1_path(), "color": Color("#A8E063"), "txt_color": PURPLE,
 		  "grouped": true, "group_meta": _prep_group_meta() },
-		{ "id": "level1",  "label": "Level 1",   "done": l1_done,  "total": 17,
+		{ "id": "level1",  "label": "Level 1",   "tagline": "Consonant Sounds", "done": l1_done,  "total": 17,
 		  "locked": l1_lock, "sets": _level1_sets(),  "pfn": func(i): LevelProgress.current_index = i,
 		  "show_all": false, "color": Color("#6EB5FF"), "txt_color": PURPLE,
 		  "grouped": true, "group_meta": _level1_group_meta() },
-		{ "id": "level15", "label": "Level 1.5", "done": l15_done, "total": 13,
+		{ "id": "level15", "label": "Level 1.5", "tagline": "Sounds in Words", "done": l15_done, "total": 13,
 		  "locked": l15_lock, "sets": _level15_sets(), "pfn": func(i): Level15Progress.current_index = i,
 		  "show_all": false, "color": Color("#A83A22"), "txt_color": Color("#EDE4D3"),
 		  "grouped": true, "group_meta": _level15_group_meta() },
-		{ "id": "level2",  "label": "Level 2",   "done": l2_done,  "total": 12,
+		{ "id": "level2",  "label": "Level 2",   "tagline": "Single Vowels", "done": l2_done,  "total": 12,
 		  "locked": l2_lock, "sets": _level2_sets(),  "pfn": func(i): Level2Progress.current_index = i,
 		  "show_all": false, "color": Color("#8DB33A"), "txt_color": PURPLE,
 		  "grouped": false, "group_meta": {} },
-		{ "id": "level25", "label": "Level 2.5", "done": 0, "total": 19,
+		{ "id": "level25", "label": "Level 2.5", "tagline": "Rimes", "done": 0, "total": 19,
 		  "locked": l25_lock, "sets": [], "pfn": func(_i): pass,
 		  "show_all": false, "color": Color("#7B68EE"), "txt_color": Color("#EDE4D3"),
 		  "grouped": false, "group_meta": {} },
@@ -173,9 +201,6 @@ func _level2_sets() -> Array:
 
 
 # ─── Set Group intro metadata (draft copy — wording TBD with product) ─────────
-# Each entry: { title, goal }. "title" mirrors the existing phoneme
-# summary; "goal" is new, first-pass copy to get the UI working — not final
-# wording.
 func _prep_group_meta() -> Dictionary:
 	return {
 		"A": { "title": "m  s  t  b  v  k", "goal": "Find the picture that starts with the sound." },
@@ -210,21 +235,10 @@ func _level15_group_meta() -> Dictionary:
 	}
 
 
-# ─── Static header (purple bar with title + summary) ──────────────────────────
-func _build_header() -> void:
-	var prep_done  : int = 26 if SaveManager.is_prep_completed()   else SaveManager.get_prep_set_index()
-	var l1_done    : int = 17 if SaveManager.is_level1_completed()  else SaveManager.get_level1_set_index()
-	var l15_done   : int = 13 if SaveManager.is_level15_completed() else SaveManager.get_level15_set_index()
-	var l2_done    : int = 12 if SaveManager.is_level2_completed()  else SaveManager.get_level2_set_index()
-	var total_done : int = prep_done + l1_done + l15_done + l2_done
-	var cubes      : int = total_done   # 1 cube per completed set
-
-	var level_names : Array[String] = ["Prep", "Level 1", "Level 1.5", "Level 2", "Level 2.5"]
-	var cur : String = level_names[_current_level_index()]
-
+# ─── Header (purple bar — title + subtitle text swap per screen) ──────────────
+func _build_header_bar() -> void:
 	var vp_w : float = get_viewport_rect().size.x
 
-	# Purple background
 	var bar := ColorRect.new()
 	bar.color        = PURPLE
 	bar.size         = Vector2(vp_w, HDR_TOP)
@@ -232,28 +246,31 @@ func _build_header() -> void:
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bar)
 
-	# "Where am I" title — offset right so back button has its own zone
-	var title := Label.new()
-	title.text                 = "Where am I"
-	title.position             = Vector2(120, 8)
-	title.size                 = Vector2(vp_w - 240, 42)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 28)
-	title.add_theme_color_override("font_color", AMBER)
-	if _font: title.add_theme_font_override("font", _font)
-	add_child(title)
+	_title_lbl = Label.new()
+	_title_lbl.position             = Vector2(120, 4)
+	_title_lbl.size                 = Vector2(vp_w - 240, 46)
+	_title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	_title_lbl.add_theme_font_size_override("font_size", 36)
+	_title_lbl.add_theme_color_override("font_color", AMBER)
+	if _font: _title_lbl.add_theme_font_override("font", _font)
+	add_child(_title_lbl)
 
-	# Summary line
-	var summary := Label.new()
-	summary.text                 = "%d sets done  ·  %d cubes  ·  now: %s" % [total_done, cubes, cur]
-	summary.position             = Vector2(0, 64)
-	summary.size                 = Vector2(vp_w, 40)
-	summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	summary.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	summary.add_theme_font_size_override("font_size", 16)
-	summary.add_theme_color_override("font_color", AMBER)
-	if _font: summary.add_theme_font_override("font", _font)
-	add_child(summary)
+	_sub_lbl = Label.new()
+	_sub_lbl.position             = Vector2(0, 52)
+	_sub_lbl.size                 = Vector2(vp_w, 28)
+	_sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_sub_lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	_sub_lbl.add_theme_font_size_override("font_size", 19)
+	_sub_lbl.add_theme_color_override("font_color", AMBER)
+	if _font: _sub_lbl.add_theme_font_override("font", _font)
+	add_child(_sub_lbl)
+
+
+func _set_header(title: String, sub: String) -> void:
+	_title_lbl.text = title
+	_sub_lbl.text    = sub
+	_sub_lbl.visible = sub != ""
 
 
 func _build_back_button() -> void:
@@ -262,143 +279,158 @@ func _build_back_button() -> void:
 	btn.ignore_texture_size = true
 	btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn.size                = Vector2(90, 90)
-	btn.position            = Vector2(16, 13)
-	btn.z_index             = 10
+	btn.position             = Vector2(16, 13)
+	btn.z_index              = 10
 	var shader := Shader.new()
 	shader.code = """shader_type canvas_item;
 uniform vec4 c : source_color;
 void fragment() { vec4 t = texture(TEXTURE, UV); COLOR = vec4(c.rgb, t.a); }"""
 	var mat := ShaderMaterial.new()
 	mat.shader = shader
-	mat.set_shader_parameter("c", AMBER)   # amber on purple bg
+	mat.set_shader_parameter("c", AMBER)
 	btn.material = mat
 	btn.pressed.connect(_on_back_pressed)
 	add_child(btn)
 
 
-# ─── Scroll area ──────────────────────────────────────────────────────────────
-func _build_scroll_area() -> void:
-	_scroll = ScrollContainer.new()
-	_scroll.position               = Vector2(0, HDR_TOP)
-	_scroll.size                   = Vector2(get_viewport_rect().size.x, get_viewport_rect().size.y - HDR_TOP)
-	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_AUTO
-	_scroll.scroll_deadzone        = 8
-	add_child(_scroll)
+# ─── Content area helpers ──────────────────────────────────────────────────────
+func _clear_content() -> void:
+	# queue_free(), not free() — a page switch is triggered from inside a
+	# tapped tile's own "pressed" signal, and that tile is a child of
+	# _content. Freeing it immediately destroys the node while it's still on
+	# the call stack for its own signal emission, which corrupts the frame.
+	# remove_child() detaches it from the tree (stops it drawing/processing)
+	# right away; queue_free() safely defers the actual deallocation.
+	for c in _content.get_children():
+		_content.remove_child(c)
+		c.queue_free()
 
-	_vbox = VBoxContainer.new()
-	_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_vbox.add_theme_constant_override("separation", 0)
-	_scroll.add_child(_vbox)
+
+func _tile_w(cols: int) -> float:
+	var vp_w : float = get_viewport_rect().size.x
+	return (vp_w - PAGE_PAD * 2.0 - TILE_GAP * (cols - 1)) / cols
+
+
+# Level tile height (and matching font sizes) computed from how many Levels
+# there are, so the 2-col grid always fits one screen without scrolling —
+# tiles start at LVL_TILE_MAX_H for today's 5 Levels and shrink gracefully
+# toward LVL_TILE_MIN_H as more Levels are added (still a comfortable tap
+# target at the floor: ~2x the standard mobile minimum touch size).
+func _lvl_tile_metrics(count: int) -> Dictionary:
+	var rows  : int   = int(ceil(count / 2.0))
+	var avail : float = _content.size.y - TOP_PAD
+	var raw_h : float = (avail - (rows - 1) * TILE_GAP) / rows
+	var h     : float = clamp(raw_h, LVL_TILE_MIN_H, LVL_TILE_MAX_H)
+	return {
+		"h": h,
+		"name_font": int(clamp(round(h * 0.253), 26, 38)),
+		"prog_font": int(clamp(round(h * 0.147), 16, 22)),
+	}
+
+
+# ─── Screen 1 — Levels grid ────────────────────────────────────────────────────
+func _show_levels_page() -> void:
+	_page = "levels"
+	_clear_content()
+
+	var prep_done  : int = 26 if SaveManager.is_prep_completed()   else SaveManager.get_prep_set_index()
+	var l1_done    : int = 17 if SaveManager.is_level1_completed()  else SaveManager.get_level1_set_index()
+	var l15_done   : int = 13 if SaveManager.is_level15_completed() else SaveManager.get_level15_set_index()
+	var l2_done    : int = 12 if SaveManager.is_level2_completed()  else SaveManager.get_level2_set_index()
+	var total_done : int = prep_done + l1_done + l15_done + l2_done
+
+	var level_names : Array[String] = ["Prep Level", "Level 1", "Level 1.5", "Level 2", "Level 2.5"]
+	var cur : String = level_names[_current_level_index()]
+
+	_set_header("Where am I", "%d sets done  ·  now: %s" % [total_done, cur])
+
+	var cols    : int        = 2
+	var tile_w  : float      = _tile_w(cols)
+	var metrics : Dictionary = _lvl_tile_metrics(_levels.size())
+	var tile_h  : float      = metrics["h"]
 
 	for i in range(_levels.size()):
-		_add_level_section(_vbox, _levels[i], i)
+		var ld  : Dictionary = _levels[i]
+		var row : int = i / cols
+		var col : int = i % cols
+		var tile := _make_level_tile(ld, tile_w, metrics)
+		tile.position = Vector2(PAGE_PAD + col * (tile_w + TILE_GAP), TOP_PAD + row * (tile_h + TILE_GAP))
+		_content.add_child(tile)
+		if not ld["locked"]:
+			tile.pressed.connect(_on_level_tapped.bind(i))
 
 
-func _add_level_section(vbox: VBoxContainer, ld: Dictionary, li: int) -> void:
-	var is_locked : bool = ld["locked"]
-	var is_done   : bool = (ld["done"] >= ld["total"])
-	var done_count : int = ld["done"]
+func _make_level_tile(ld: Dictionary, width: float, metrics: Dictionary) -> Button:
+	var h : float = metrics["h"]
+	var tile := Button.new()
+	tile.custom_minimum_size = Vector2(width, h)
+	tile.size                = Vector2(width, h)
+	tile.text                = ""
+	tile.disabled            = ld["locked"]
 
-	# ── Header button ──────────────────────────────────────────────────────────
-	var vp_w : float = get_viewport_rect().size.x
-	var hdr := Button.new()
-	hdr.custom_minimum_size   = Vector2(vp_w, HDR_H)
-	hdr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hdr.clip_text             = false
-	hdr.alignment             = HORIZONTAL_ALIGNMENT_LEFT
-
-	var hdr_text  : String
-	var right_txt : String
-
-	if is_locked:
-		hdr_text  = "     🔒  " + ld["label"]
-		right_txt = ""
-	else:
-		hdr_text  = "     ▶  " + ld["label"]
-		right_txt = "%d / %d%s" % [done_count, ld["total"], "  ✓" if is_done else ""]
-
-	var hdr_col  : Color = ld["color"] if not is_locked else GRAY_H
-	var txt_col  : Color = ld["txt_color"] if not is_locked else WHITE
-
-	if _font: hdr.add_theme_font_override("font", _font)
-	hdr.add_theme_font_size_override("font_size", 20)
-	hdr.add_theme_color_override("font_color",         txt_col)
-	hdr.add_theme_color_override("font_hover_color",   txt_col)
-	hdr.add_theme_color_override("font_pressed_color", txt_col)
-	hdr.add_theme_color_override("font_focus_color",   txt_col)
+	var is_done : bool = ld["done"] >= ld["total"] and not ld["locked"]
 
 	var style := StyleBoxFlat.new()
-	style.bg_color = hdr_col
-	hdr.add_theme_stylebox_override("normal",  style)
-	hdr.add_theme_stylebox_override("hover",   style)
-	hdr.add_theme_stylebox_override("pressed", style)
-	hdr.add_theme_stylebox_override("focus",   style)
+	style.bg_color                   = GRAY_H if ld["locked"] else (PURPLE_TINT if is_done else WHITE)
+	style.border_color               = PURPLE
+	style.border_width_top           = 3
+	style.border_width_bottom        = 3
+	style.border_width_left          = 3
+	style.border_width_right         = 3
+	style.corner_radius_top_left     = 18
+	style.corner_radius_top_right    = 18
+	style.corner_radius_bottom_left  = 18
+	style.corner_radius_bottom_right = 18
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		tile.add_theme_stylebox_override(state, style)
 
-	hdr.text = hdr_text
-	vbox.add_child(hdr)
+	var name_txt : String = ("🔒  " if ld["locked"] else "") + ld["label"]
+	_panel_label(tile, name_txt, Vector2(0, h * 0.28), Vector2(width, h * 0.36), metrics["name_font"],
+		WHITE if ld["locked"] else PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
 
-	# Right-side progress label — child of hdr so it never affects VBox layout
-	if right_txt != "":
-		var prog := Label.new()
-		prog.text                 = right_txt
-		prog.size                 = Vector2(200, HDR_H)
-		prog.position             = Vector2(vp_w - 216, 0)
-		prog.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		prog.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-		prog.add_theme_font_size_override("font_size", 17)
-		prog.add_theme_color_override("font_color", txt_col)
-		if _font: prog.add_theme_font_override("font", _font)
-		prog.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		prog.z_index      = 1
-		hdr.add_child(prog)   # attached to button, not VBox — zero layout impact
+	if not ld["locked"]:
+		var prog_txt : String = "%d / %d%s" % [ld["done"], ld["total"], "  ✓" if is_done else ""]
+		_panel_label(tile, prog_txt, Vector2(0, h * 0.66), Vector2(width, h * 0.22), metrics["prog_font"],
+			BROWN, HORIZONTAL_ALIGNMENT_CENTER)
 
-	# ── Rows container (accordion body) ───────────────────────────────────────
-	var display_count : int = ld["total"] if ld.get("show_all", false) else done_count
-	var rows : Control = null
-
-	_group_tiles.append([])
-	_group_panels.append(null)
-	_selected_group.append(-1)
-	_group_ctx.append({})
-
-	if not is_locked and display_count > 0:
-		if ld.get("grouped", false):
-			# Set Group grid: tiles never move once built. Tapping a tile
-			# only updates the fixed intro panel below the grid — the grid
-			# itself never reflows, so every group stays reachable no matter
-			# which one's intro is currently showing.
-			rows = VBoxContainer.new()
-			rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			rows.add_theme_constant_override("separation", 14)
-			rows.visible = false
-			vbox.add_child(rows)
-			_fill_group_grid(rows, ld, li, done_count)
-		else:
-			# Flat single-level list (Level 2: every set is already its own
-			# standalone item, no natural sub-grouping).
-			var n_rows  : int   = int(ceil(display_count / 2.0))
-			var rows_h  : float = n_rows * ROW_STEP + 16.0
-			rows = Control.new()
-			rows.custom_minimum_size   = Vector2(vp_w, rows_h)
-			rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			rows.visible               = false
-			vbox.add_child(rows)
-			_fill_set_rows(rows, ld, done_count)
-
-	_rows_containers.append(rows)
-	_expanded_flags.append(false)
-
-	if not is_locked:
-		hdr.pressed.connect(_on_header_tapped.bind(li, hdr, rows))
-
-	# Gap between level sections
-	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(0, 6)
-	vbox.add_child(spacer)
+	return tile
 
 
-# ─── Set Groups (Prep / Level 1 / Level 1.5) ───────────────────────────────────
+func _on_level_tapped(li: int) -> void:
+	_sel_level = li
+	var ld : Dictionary = _levels[li]
+	if ld.get("grouped", false):
+		_show_groups_page()
+	elif ld["sets"].size() > CHUNK_MAX:
+		_show_chunks_page()
+	else:
+		_show_sets_page_flat()
+
+
+# ─── Screen 2 — Set Group grid (skipped entirely for ungrouped levels) ────────
+func _show_groups_page() -> void:
+	_page = "groups"
+	_clear_content()
+
+	var ld : Dictionary = _levels[_sel_level]
+	_set_header(ld["label"], ld.get("tagline", ""))
+
+	var groups      : Array = _group_sets(ld["sets"])
+	var done_counts : Array = _group_done_counts(groups, ld["done"])
+
+	var cols   : int   = 2
+	var tile_w : float = _tile_w(cols)
+
+	for gi in range(groups.size()):
+		var group : Dictionary = groups[gi]
+		var row : int = gi / cols
+		var col : int = gi % cols
+		var tile := _make_group_tile(group["letter"], done_counts[gi], group["sets"].size(), tile_w)
+		tile.position = Vector2(PAGE_PAD + col * (tile_w + TILE_GAP), TOP_PAD + row * (GRP_TILE_H + TILE_GAP))
+		_content.add_child(tile)
+		tile.pressed.connect(_on_group_tapped.bind(gi))
+
+
 # Splits a level's flat sets list into groups by label prefix (A1,A2,A3 -> "A").
 func _group_sets(sets: Array) -> Array:
 	var groups : Array = []
@@ -410,212 +442,240 @@ func _group_sets(sets: Array) -> Array:
 	return groups
 
 
-func _fill_group_grid(vbox: VBoxContainer, ld: Dictionary, li: int, done_count: int) -> void:
-	var groups : Array = _group_sets(ld["sets"])
-
+func _group_done_counts(groups: Array, level_done: int) -> Array:
 	var done_counts : Array = []
-	var running_index : int = 0
+	var running : int = 0
 	for group in groups:
 		var gd : int = 0
 		for _s in group["sets"]:
-			if running_index < done_count:
+			if running < level_done:
 				gd += 1
-			running_index += 1
+			running += 1
 		done_counts.append(gd)
-
-	_group_ctx[li] = { "groups": groups, "done": done_counts, "ld": ld }
-
-	# ── Grid of Set Group tiles — fixed positions, never reflow ─────────────
-	var vp_w   : float = get_viewport_rect().size.x
-	var n_rows : int   = int(ceil(groups.size() / float(GRID_COLS)))
-	var tile_w : float = (vp_w - PAGE_PAD * 2.0 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS
-	var grid_h : float = n_rows * GRID_TILE_H + max(0, n_rows - 1) * GRID_GAP
-
-	var grid := Control.new()
-	grid.custom_minimum_size   = Vector2(vp_w, grid_h)
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.add_child(grid)
-
-	for gi in range(groups.size()):
-		var group : Dictionary = groups[gi]
-		var row : int = gi / GRID_COLS
-		var col : int = gi % GRID_COLS
-		var tx  : float = PAGE_PAD + col * (tile_w + GRID_GAP)
-		var ty  : float = row * (GRID_TILE_H + GRID_GAP)
-		var tile := _make_group_tile(group["letter"], done_counts[gi], group["sets"].size(), tile_w)
-		tile.position = Vector2(tx, ty)
-		grid.add_child(tile)
-		_group_tiles[li].append(tile)
-		tile.pressed.connect(_on_tile_tapped.bind(li, gi))
-
-	# ── Fixed Set intro panel, sits below the grid ──────────────────────────
-	var panel := VBoxContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.add_theme_constant_override("separation", 8)
-	vbox.add_child(panel)
-	_group_panels[li] = panel
-
-	if groups.size() > 0:
-		_on_tile_tapped(li, 0)
+	return done_counts
 
 
-func _make_group_tile(letter: String, done: int, total: int, width: float) -> Button:
+# ─── Screen 2 (ungrouped-but-many levels) — auto chunk-selection grid ─────────
+# Splits a flat sets list into chunks of at most CHUNK_MAX, sized as evenly
+# as possible (e.g. 19 sets -> 4 chunks of 5/5/5/4, not 6/6/6/1) so no chunk
+# ends up oddly small. Returns [] when the list already fits in one screen.
+func _chunk_sets(sets: Array) -> Array:
+	var total : int = sets.size()
+	if total <= CHUNK_MAX:
+		return []
+	var n_chunks : int = int(ceil(float(total) / CHUNK_MAX))
+	var base     : int = total / n_chunks
+	var extra    : int = total % n_chunks
+	var chunks   : Array = []
+	var idx      : int = 0
+	for c in range(n_chunks):
+		var size        : int   = base + (1 if c < extra else 0)
+		var chunk_sets  : Array = sets.slice(idx, idx + size)
+		var first_label : String = chunk_sets[0]["label"]
+		var last_label  : String = chunk_sets[-1]["label"]
+		var label : String = ("Sets %s–%s" % [first_label, last_label]) if size > 1 else ("Set %s" % first_label)
+		chunks.append({ "label": label, "sets": chunk_sets })
+		idx += size
+	return chunks
+
+
+func _show_chunks_page() -> void:
+	_page = "chunks"
+	_clear_content()
+
+	var ld : Dictionary = _levels[_sel_level]
+	_set_header(ld["label"], ld.get("tagline", ""))
+
+	var chunks      : Array = _chunk_sets(ld["sets"])
+	var done_counts : Array = _group_done_counts(chunks, ld["done"])
+
+	var cols   : int   = 2
+	var tile_w : float = _tile_w(cols)
+
+	for ci in range(chunks.size()):
+		var chunk : Dictionary = chunks[ci]
+		var row : int = ci / cols
+		var col : int = ci % cols
+		var tile := _make_chunk_tile(chunk["label"], done_counts[ci], chunk["sets"].size(), tile_w)
+		tile.position = Vector2(PAGE_PAD + col * (tile_w + TILE_GAP), TOP_PAD + row * (GRP_TILE_H + TILE_GAP))
+		_content.add_child(tile)
+		tile.pressed.connect(_on_chunk_tapped.bind(ci))
+
+
+func _make_chunk_tile(label: String, done: int, total: int, width: float) -> Button:
 	var tile := Button.new()
-	tile.custom_minimum_size = Vector2(width, GRID_TILE_H)
-	tile.size                = Vector2(width, GRID_TILE_H)
+	tile.custom_minimum_size = Vector2(width, GRP_TILE_H)
+	tile.size                = Vector2(width, GRP_TILE_H)
 	tile.text                = ""
 
-	_style_tile(tile, false)
-
 	var is_done : bool = done >= total
-	var letter_lbl := Label.new()
-	letter_lbl.text                 = letter
-	letter_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	letter_lbl.position             = Vector2(0, 6)
-	letter_lbl.size                 = Vector2(width, 34)
-	letter_lbl.add_theme_font_size_override("font_size", 26)
-	letter_lbl.add_theme_color_override("font_color", PURPLE)
-	letter_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if _font: letter_lbl.add_theme_font_override("font", _font)
-	tile.add_child(letter_lbl)
+	_style_tile(tile, is_done)
 
-	var prog_lbl := Label.new()
-	prog_lbl.text                 = "%d / %d%s" % [done, total, "  ✓" if is_done else ""]
-	prog_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	prog_lbl.position             = Vector2(0, 44)
-	prog_lbl.size                 = Vector2(width, 24)
-	prog_lbl.add_theme_font_size_override("font_size", 14)
-	prog_lbl.add_theme_color_override("font_color", BROWN)
-	prog_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if _font: prog_lbl.add_theme_font_override("font", _font)
-	tile.add_child(prog_lbl)
+	_panel_label(tile, label, Vector2(0, 18), Vector2(width, 44), 30, PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
+	_panel_label(tile, "%d / %d%s" % [done, total, "  ✓" if is_done else ""],
+		Vector2(0, 68), Vector2(width, 30), 20, BROWN, HORIZONTAL_ALIGNMENT_CENTER)
 
 	return tile
 
 
-func _style_tile(tile: Button, selected: bool) -> void:
+func _on_chunk_tapped(ci: int) -> void:
+	_sel_chunk = ci
+	_show_sets_page_chunk()
+
+
+func _make_group_tile(letter: String, done: int, total: int, width: float) -> Button:
+	var tile := Button.new()
+	tile.custom_minimum_size = Vector2(width, GRP_TILE_H)
+	tile.size                = Vector2(width, GRP_TILE_H)
+	tile.text                = ""
+
+	var is_done : bool = done >= total
+	_style_tile(tile, is_done)
+
+	_panel_label(tile, "Set %s" % letter, Vector2(0, 18), Vector2(width, 44), 34, PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
+	_panel_label(tile, "%d / %d%s" % [done, total, "  ✓" if is_done else ""],
+		Vector2(0, 68), Vector2(width, 30), 20, BROWN, HORIZONTAL_ALIGNMENT_CENTER)
+
+	return tile
+
+
+func _style_tile(tile: Button, filled: bool) -> void:
 	var style := StyleBoxFlat.new()
-	style.bg_color                   = PURPLE_TINT if selected else WHITE
+	style.bg_color                   = PURPLE_TINT if filled else WHITE
 	style.border_color               = PURPLE
-	style.border_width_top           = 4 if selected else 2
-	style.border_width_bottom        = 4 if selected else 2
-	style.border_width_left          = 4 if selected else 2
-	style.border_width_right         = 4 if selected else 2
+	style.border_width_top           = 3
+	style.border_width_bottom        = 3
+	style.border_width_left          = 3
+	style.border_width_right         = 3
 	style.corner_radius_top_left     = 16
 	style.corner_radius_top_right    = 16
 	style.corner_radius_bottom_left  = 16
 	style.corner_radius_bottom_right = 16
-	tile.add_theme_stylebox_override("normal",  style)
-	tile.add_theme_stylebox_override("hover",   style)
-	tile.add_theme_stylebox_override("pressed", style)
-	tile.add_theme_stylebox_override("focus",   style)
+	for state in ["normal", "hover", "pressed", "focus"]:
+		tile.add_theme_stylebox_override(state, style)
 
 
-func _on_tile_tapped(li: int, gi: int) -> void:
-	var prev : int = _selected_group[li]
-	if prev != -1 and prev < _group_tiles[li].size():
-		_style_tile(_group_tiles[li][prev], false)
-	_selected_group[li] = gi
-	_style_tile(_group_tiles[li][gi], true)
-
-	var ctx         : Dictionary = _group_ctx[li]
-	var groups      : Array      = ctx["groups"]
-	var done_counts : Array      = ctx["done"]
-	var ld          : Dictionary = ctx["ld"]
-
-	var group       : Dictionary = groups[gi]
-	var group_done  : int        = done_counts[gi]
-	var group_total : int        = group["sets"].size()
-	var meta        : Dictionary = ld.get("group_meta", {}).get(group["letter"], {})
-
-	_render_group_panel(_group_panels[li], group, group_done, group_total, meta, ld)
+func _on_group_tapped(gi: int) -> void:
+	_sel_group = gi
+	_show_sets_page()
 
 
-# ─── Set intro panel (Set name / Title / Learning Goal / Progress) ────────────
-func _render_group_panel(panel: VBoxContainer, group: Dictionary, group_done: int,
-		group_total: int, meta: Dictionary, ld: Dictionary) -> void:
-	# Immediate removal, not queue_free() — otherwise the old and new cards
-	# can briefly coexist as siblings in the same frame, and the container
-	# chain above can compute its height from the stale, larger child set.
-	for c in panel.get_children():
-		panel.remove_child(c)
-		c.free()
+# ─── Screen 3 — Set detail (grouped levels) ────────────────────────────────────
+func _show_sets_page() -> void:
+	_page = "sets"
+	_clear_content()
 
-	var vp_w   : float   = get_viewport_rect().size.x
-	var letter : String  = group["letter"]
-	var title  : String  = meta.get("title", "")
-	var goal   : String  = meta.get("goal", "")
+	var ld : Dictionary = _levels[_sel_level]
+	_set_header(ld["label"], ld.get("tagline", ""))
 
-	var card := Panel.new()
-	card.custom_minimum_size   = Vector2(vp_w, PANEL_CARD_H)
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var sty := StyleBoxFlat.new()
-	sty.bg_color                   = WHITE
-	sty.border_color               = PURPLE
-	sty.border_width_top           = 2
-	sty.border_width_bottom        = 2
-	sty.border_width_left          = 2
-	sty.border_width_right         = 2
-	sty.corner_radius_top_left     = 16
-	sty.corner_radius_top_right    = 16
-	sty.corner_radius_bottom_left  = 16
-	sty.corner_radius_bottom_right = 16
-	card.add_theme_stylebox_override("panel", sty)
-	panel.add_child(card)
+	var groups : Array = _group_sets(ld["sets"])
+	var group  : Dictionary = groups[_sel_group]
+	var letter : String = group["letter"]
 
-	# Four stacked lines: Set name, phoneme title, learning goal, progress.
-	_panel_label(card, "Set %s" % letter, Vector2(24, 12), Vector2(vp_w - 48, 30), 22, PURPLE)
-	_panel_label(card, title, Vector2(24, 46), Vector2(vp_w - 48, 24), 16, BROWN)
-	_panel_label(card, goal,  Vector2(24, 74), Vector2(vp_w - 48, 24), 16, PURPLE)
-	_panel_label(card, "%d / %d Completed" % [group_done, group_total],
-		Vector2(24, 102), Vector2(vp_w - 48, 22), 14, BROWN)
+	var done_counts : Array = _group_done_counts(groups, ld["done"])
+	var group_done  : int = done_counts[_sel_group]
+	var group_total : int = group["sets"].size()
+	var meta        : Dictionary = ld.get("group_meta", {}).get(letter, {})
 
-	var sets_area := Control.new()
-	var n_rows : int   = int(ceil(group["sets"].size() / 2.0))
-	var area_h : float = n_rows * ROW_STEP + 16.0
-	sets_area.custom_minimum_size   = Vector2(vp_w, area_h)
-	sets_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.add_child(sets_area)
-	_render_set_cells(sets_area, group["sets"], ld, group_done)
+	var vp_w : float = get_viewport_rect().size.x
+	_panel_label(_content, "Set %s — %s" % [letter, meta.get("title", "")],
+		Vector2(PAGE_PAD, TOP_PAD), Vector2(vp_w - PAGE_PAD * 2, 46), 32, PURPLE)
+	_panel_label(_content, meta.get("goal", ""),
+		Vector2(PAGE_PAD, TOP_PAD + 50), Vector2(vp_w - PAGE_PAD * 2, 32), 22, BROWN)
+	_panel_label(_content, "%d / %d Completed" % [group_done, group_total],
+		Vector2(PAGE_PAD, TOP_PAD + 88), Vector2(vp_w - PAGE_PAD * 2, 28), 19, PURPLE)
 
-	# Force a resort at every level in the chain — a plain Control's
-	# custom_minimum_size change doesn't always reliably bubble all the way
-	# up through nested VBoxContainers on its own.
-	panel.queue_sort()
-	var rows_container : Container = panel.get_parent() as Container
-	if rows_container:
-		rows_container.queue_sort()
-	if _vbox:
-		_vbox.queue_sort()
+	var cells_area := Control.new()
+	cells_area.position = Vector2(0, TOP_PAD + 130)
+	cells_area.size     = Vector2(vp_w, _content.size.y - (TOP_PAD + 130))
+	_content.add_child(cells_area)
+	_render_set_cells(cells_area, group["sets"], ld, group_done)
 
 
-# ─── Set rows (flat list — Level 2) ────────────────────────────────────────────
-func _fill_set_rows(parent: Control, ld: Dictionary, done_count: int) -> void:
-	var sets          : Array = ld["sets"]
-	var display_count : int   = ld["total"] if ld.get("show_all", false) else done_count
-	var visible_sets  : Array = sets.slice(0, display_count)
-	_render_set_cells(parent, visible_sets, ld, done_count)
+# ─── Screen 3 — Set detail (ungrouped levels, e.g. Level 2) ───────────────────
+func _show_sets_page_flat() -> void:
+	_page = "sets"
+	_clear_content()
+
+	var ld : Dictionary = _levels[_sel_level]
+	_set_header(ld["label"], ld.get("tagline", ""))
+
+	var display_count : int   = ld["total"] if ld.get("show_all", false) else ld["done"]
+	var visible_sets  : Array = ld["sets"].slice(0, display_count)
+
+	var vp_w : float = get_viewport_rect().size.x
+	var cells_area := Control.new()
+	cells_area.position = Vector2(0, TOP_PAD)
+	cells_area.size     = Vector2(vp_w, _content.size.y - TOP_PAD)
+	_content.add_child(cells_area)
+
+	if visible_sets.is_empty():
+		_panel_label(cells_area, "Complete more sets to see them here.",
+			Vector2(PAGE_PAD, 40), Vector2(vp_w - PAGE_PAD * 2, 30), 20, BROWN, HORIZONTAL_ALIGNMENT_CENTER)
+		return
+
+	_render_set_cells(cells_area, visible_sets, ld, ld["done"])
+
+
+# ─── Screen 3 — Set detail (one chunk of an ungrouped-but-many level) ─────────
+func _show_sets_page_chunk() -> void:
+	_page = "sets"
+	_clear_content()
+
+	var ld : Dictionary = _levels[_sel_level]
+	_set_header(ld["label"], ld.get("tagline", ""))
+
+	var chunks      : Array      = _chunk_sets(ld["sets"])
+	var chunk       : Dictionary = chunks[_sel_chunk]
+	var done_counts : Array      = _group_done_counts(chunks, ld["done"])
+	var chunk_done  : int        = done_counts[_sel_chunk]
+
+	var vp_w : float = get_viewport_rect().size.x
+	var cells_area := Control.new()
+	cells_area.position = Vector2(0, TOP_PAD)
+	cells_area.size     = Vector2(vp_w, _content.size.y - TOP_PAD)
+	_content.add_child(cells_area)
+	_render_set_cells(cells_area, chunk["sets"], ld, chunk_done)
+
+
+# Row height for the Set-card grid, computed from how many cards actually
+# need to fit in the available area — a single Set Group (<=6 sets, 3 rows)
+# fits comfortably at the max size, but Level 2's flat list can show up to
+# 12 at once (6 rows), which needs the smaller end of the range.
+func _cell_metrics(count: int, area_h: float) -> Dictionary:
+	var rows     : int   = int(ceil(count / 2.0))
+	var raw_step : float = area_h / max(rows, 1)
+	var row_step : float = clamp(raw_step, CELL_ROW_STEP_MIN, CELL_ROW_STEP_MAX)
+	return { "row_step": row_step, "cell_h": row_step - CELL_GAP }
 
 
 # Shared low-level cell grid renderer — used both for Level 2's flat list and
-# for a single Set Group's individual sets, shown in the intro panel.
+# for a single Set Group's individual sets on Screen 3.
 func _render_set_cells(parent: Control, cell_sets: Array, ld: Dictionary, local_done: int) -> void:
+	var metrics  : Dictionary = _cell_metrics(cell_sets.size(), parent.size.y)
+	var row_step : float = metrics["row_step"]
+	var cell_h   : float = metrics["cell_h"]
 	var page_pad : float = (get_viewport_rect().size.x - CELL_W * 2.0 - CELL_GAP) / 2.0
 	for pair in range(int(ceil(cell_sets.size() / 2.0))):
-		var row_y : float = 8.0 + pair * ROW_STEP
+		var row_y : float = pair * row_step
 		for side in range(2):
 			var idx : int = pair * 2 + side
 			if idx >= cell_sets.size():
 				break
 			var cell_x : float = page_pad + side * (CELL_W + CELL_GAP)
-			_make_completed_cell(parent, cell_sets[idx], ld, cell_x, row_y, idx < local_done)
+			_make_completed_cell(parent, cell_sets[idx], ld, cell_x, row_y, cell_h, idx < local_done)
 
+
+# Sub-element offsets below were tuned at this reference height (the old
+# fixed CELL_H) and scale proportionally via k for smaller row heights.
+const CELL_H_REF : float = 92.0
 
 func _make_completed_cell(parent: Control, sd: Dictionary,
-		ld: Dictionary, cx: float, cy: float, is_completed: bool = true) -> void:
+		ld: Dictionary, cx: float, cy: float, cell_h: float, is_completed: bool = true) -> void:
+	var k : float = cell_h / CELL_H_REF
 	var panel := Panel.new()
 	panel.position = Vector2(cx, cy)
-	panel.size     = Vector2(CELL_W, CELL_H)
+	panel.size     = Vector2(CELL_W, cell_h)
 	var sty := StyleBoxFlat.new()
 	sty.bg_color                   = WHITE
 	sty.border_color               = PURPLE
@@ -623,20 +683,20 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 	sty.border_width_bottom        = 2
 	sty.border_width_left          = 2
 	sty.border_width_right         = 2
-	sty.corner_radius_top_left     = 10
-	sty.corner_radius_top_right    = 10
-	sty.corner_radius_bottom_left  = 10
-	sty.corner_radius_bottom_right = 10
+	sty.corner_radius_top_left     = 12
+	sty.corner_radius_top_right    = 12
+	sty.corner_radius_bottom_left  = 12
+	sty.corner_radius_bottom_right = 12
 	panel.add_theme_stylebox_override("panel", sty)
 	parent.add_child(panel)
 
 	# ✓ checkmark (completed sets only)
 	if is_completed:
-		_panel_label(panel, "✓", Vector2(6, 22), Vector2(24, 24), 16, PURPLE)
+		_panel_label(panel, "✓", Vector2(10, 32 * k), Vector2(30, 32 * k), max(12, int(round(20 * k))), PURPLE)
 	# Set label
-	_panel_label(panel, sd["label"], Vector2(30, 20), Vector2(50, 28), 18, PURPLE)
+	_panel_label(panel, sd["label"], Vector2(38, 28 * k), Vector2(58, 36 * k), max(14, int(round(24 * k))), PURPLE)
 	# Phoneme label
-	_panel_label(panel, sd["phonemes"], Vector2(86, 22), Vector2(320, 26), 15, BROWN)
+	_panel_label(panel, sd["phonemes"], Vector2(100, 31 * k), Vector2(320, 34 * k), max(12, int(round(19 * k))), BROWN)
 
 	# Happy Louis icon
 	if _louis_tex != null:
@@ -645,24 +705,24 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 		img.expand_mode    = TextureRect.EXPAND_IGNORE_SIZE
 		img.stretch_mode   = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		img.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-		img.size           = Vector2(44, 44)
-		img.position       = Vector2(CELL_W - 138, 12)
+		img.size           = Vector2(52, 52) * k
+		img.position       = Vector2(CELL_W - 138, 20 * k)
 		img.mouse_filter   = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(img)
 
 	# Replay count "×N" (completed sets only)
 	if is_completed:
 		var count : int = SaveManager.get_review_count(sd["key"])
-		_panel_label(panel, "×%d" % count, Vector2(CELL_W - 92, 23), Vector2(46, 22), 14, PURPLE)
+		_panel_label(panel, "×%d" % count, Vector2(CELL_W - 92, 33 * k), Vector2(46, 26 * k), max(11, int(round(16 * k))), PURPLE)
 
 	# Replay button ▶
 	var rp := Button.new()
 	rp.text         = "▶"
-	rp.position     = Vector2(CELL_W - 66, 13)
-	rp.size         = Vector2(60, 42)
-	rp.pivot_offset = Vector2(30, 21)
+	rp.position     = Vector2(CELL_W - 66, 23 * k)
+	rp.size         = Vector2(60, 52 * k)
+	rp.pivot_offset = Vector2(30, 26 * k)
 	if _font: rp.add_theme_font_override("font", _font)
-	rp.add_theme_font_size_override("font_size", 16)
+	rp.add_theme_font_size_override("font_size", max(12, int(round(18 * k))))
 	rp.add_theme_color_override("font_color",         AMBER)
 	rp.add_theme_color_override("font_hover_color",   AMBER)
 	rp.add_theme_color_override("font_pressed_color", AMBER)
@@ -695,27 +755,6 @@ func _panel_label(parent: Control, text: String, pos: Vector2, sz: Vector2,
 	parent.add_child(lbl)
 
 
-# ─── Accordion toggle (Level headers) ──────────────────────────────────────────
-func _on_header_tapped(li: int, hdr: Button, rows: Control) -> void:
-	if rows == null:
-		return
-	var expanding : bool = not _expanded_flags[li]
-	_expanded_flags[li]  = expanding
-	rows.visible         = expanding
-	# rows' contents were built while hidden, so its true size may never have
-	# been computed. Force it (and everything above it) to resort now that
-	# it's visible, plus one more deferred pass once this frame settles —
-	# otherwise the ScrollContainer above can end up with a stale, too-short
-	# scroll range and the bottom of the content becomes unreachable.
-	if rows is Container:
-		(rows as Container).queue_sort()
-	if _vbox:
-		_vbox.queue_sort()
-		_vbox.call_deferred("queue_sort")
-	var icon : String = "▼" if expanding else "▶"
-	hdr.text = "     " + icon + "  " + _levels[li]["label"]
-
-
 # ─── Replay launch ────────────────────────────────────────────────────────────
 func _on_replay_pressed(sd: Dictionary, ld: Dictionary) -> void:
 	ReviewState.active  = true
@@ -737,8 +776,21 @@ func _current_level_index() -> int:
 	return 4
 
 
+# ─── Back navigation — context-aware per screen ────────────────────────────────
 func _on_back_pressed() -> void:
-	if is_overlay:
-		close_requested.emit()
-	else:
-		get_tree().change_scene_to_file("res://gnb_home.tscn")
+	match _page:
+		"sets":
+			var ld : Dictionary = _levels[_sel_level]
+			if ld.get("grouped", false):
+				_show_groups_page()
+			elif ld["sets"].size() > CHUNK_MAX:
+				_show_chunks_page()
+			else:
+				_show_levels_page()
+		"groups", "chunks":
+			_show_levels_page()
+		_:
+			if is_overlay:
+				close_requested.emit()
+			else:
+				get_tree().change_scene_to_file("res://gnb_home.tscn")

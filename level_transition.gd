@@ -33,14 +33,20 @@ const CROWN_LAND_Y  : float = 226.0
 const CROWN_TILT    : float = 1.0     # slight clockwise tilt
 
 # ─── Layout ───────────────────────────────────────────────────────────────────
-const LEVEL1_Y      : float = 615.0   # top of "Level 1" label — below enlarged face
-const LEVEL1_H      : float = 68.0
+# Shifted up from the original 615 — with two lines of text (see
+# _setup_label_group()) the block sits noticeably lower, and the celebration
+# bounce was bringing it uncomfortably close to the bottom screen edge.
+const LEVEL1_Y      : float = 575.0
+const LEVEL1_LINE1_FONT : int = 34   # "You made it!" — larger, the headline
+const LEVEL1_LINE2_FONT : int = 22   # "Keep hopping!" — smaller, the follow-on
 
 
 # ─── State ────────────────────────────────────────────────────────────────────
 var _face         : Sprite2D          = null
 var _crown        : Sprite2D          = null
-var _label_level1 : Label             = null
+var _label_group  : Node2D            = null   # holds both text lines so the
+                                                 # celebration tween can move
+                                                 # them together as one unit
 var _music_player : AudioStreamPlayer = null
 var _font         : Font              = null
 
@@ -58,7 +64,7 @@ func _ready() -> void:
 
 	_setup_face()
 	_setup_crown()
-	_setup_label_level1()
+	_setup_label_group()
 	_play_sequence()
 
 # ─── Node setup ───────────────────────────────────────────────────────────────
@@ -94,19 +100,29 @@ void fragment() {
 	mat.shader = shader
 	node.material = mat
 
-func _setup_label_level1() -> void:
-	_label_level1                      = Label.new()
-	_label_level1.text                 = level_name
-	_label_level1.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_label_level1.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	_label_level1.size                 = Vector2(1280.0, LEVEL1_H)
-	_label_level1.position             = Vector2(0.0, LEVEL1_Y)
-	_label_level1.z_index              = 3
-	_label_level1.add_theme_font_size_override("font_size", 28)
-	_label_level1.add_theme_color_override("font_color", PURPLE_COLOR)
+func _setup_label_group() -> void:
+	_label_group          = Node2D.new()
+	_label_group.position = Vector2(0.0, LEVEL1_Y)
+	_label_group.z_index  = 3
+	add_child(_label_group)
+
+	var line1 := _make_label_line("You made it!", 0.0, 44.0, LEVEL1_LINE1_FONT)
+	var line2 := _make_label_line("Keep hopping!", 42.0, 34.0, LEVEL1_LINE2_FONT)
+	_label_group.add_child(line1)
+	_label_group.add_child(line2)
+
+func _make_label_line(text: String, y: float, h: float, font_size: int) -> Label:
+	var lbl := Label.new()
+	lbl.text                 = text
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	lbl.size                 = Vector2(1280.0, h)
+	lbl.position              = Vector2(0.0, y)
+	lbl.add_theme_font_size_override("font_size", font_size)
+	lbl.add_theme_color_override("font_color", PURPLE_COLOR)
 	if _font:
-		_label_level1.add_theme_font_override("font", _font)
-	add_child(_label_level1)
+		lbl.add_theme_font_override("font", _font)
+	return lbl
 
 # ─── Music ────────────────────────────────────────────────────────────────────
 func _start_music() -> void:
@@ -183,12 +199,12 @@ func _celebrate() -> void:
 		t_up.tween_property(_crown, "position",
 				base_crown + Vector2(0.0, -55.0), 0.14) \
 				.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-		t_up.tween_property(_label_level1, "position",
+		t_up.tween_property(_label_group, "position",
 				base_label + Vector2(0.0, -8.0), 0.14) \
 				.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 		t_up.tween_property(_face,  "rotation_degrees", tilt,        0.14)
 		t_up.tween_property(_crown, "rotation_degrees", tilt * 0.7,  0.14)
-		t_up.tween_property(_label_level1, "rotation_degrees", tilt * 0.3, 0.14)
+		t_up.tween_property(_label_group, "rotation_degrees", tilt * 0.3, 0.14)
 		t_up.tween_property(_face,  "scale",
 				Vector2(FACE_SCALE * 1.10, FACE_SCALE * 1.10), 0.14)
 		await t_up.finished
@@ -200,11 +216,11 @@ func _celebrate() -> void:
 				.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 		t_dn.tween_property(_crown, "position",         base_crown, 0.22) \
 				.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
-		t_dn.tween_property(_label_level1, "position",  base_label, 0.22) \
+		t_dn.tween_property(_label_group, "position",  base_label, 0.22) \
 				.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 		t_dn.tween_property(_face,  "rotation_degrees", 0.0,        0.22)
 		t_dn.tween_property(_crown, "rotation_degrees", 0.0,        0.22)
-		t_dn.tween_property(_label_level1, "rotation_degrees", 0.0, 0.22)
+		t_dn.tween_property(_label_group, "rotation_degrees", 0.0, 0.22)
 		t_dn.tween_property(_face,  "scale",
 				Vector2(FACE_SCALE, FACE_SCALE), 0.22)
 		await t_dn.finished
@@ -217,7 +233,7 @@ func _celebrate() -> void:
 	_face.scale                  = Vector2(FACE_SCALE, FACE_SCALE)
 	_crown.position              = base_crown
 	_crown.rotation_degrees      = CROWN_TILT
-	_label_level1.position         = base_label
-	_label_level1.rotation_degrees = 0.0
-	_label_level1.scale            = Vector2(1.0, 1.0)
+	_label_group.position        = base_label
+	_label_group.rotation_degrees = 0.0
+	_label_group.scale            = Vector2(1.0, 1.0)
 

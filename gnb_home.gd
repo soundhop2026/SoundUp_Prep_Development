@@ -5,6 +5,25 @@ const AMBER     : Color  = Color("#FFB703")
 const WHITE     : Color  = Color("#FFFFFF")
 const FONT_PATH : String = "res://UI_assets/210 연필스케치R.ttf"
 
+# ─── Logo ───────────────────────────────────────────────────────────────────
+# Face + "SOUNDHOP" hair are the original hand-drawn artwork again — a
+# code-built version (individual arced letters + a synthetic fill behind the
+# face) kept missing the mark on look and feel. Split into two separately
+# color-masked layers from the same original GNB_SOUNDHOPplaybutton.png
+# (letters-only and face-only, both on an identical 2000x1264 canvas so they
+# stay aligned) so the face alone can be scaled up without resizing the
+# letters — the baked-in "Start with Sound" text was also dropped from both;
+# the subtitle below is real, separate text instead, so it stays correctable.
+const LOGO_LETTERS_IMG : String = "res://UI_assets/GNB_SOUNDHOP_letters_only.png"
+const LOGO_FACE_IMG    : String = "res://UI_assets/GNB_SOUNDHOP_face_only.png"
+const LOGO_SIZE         : Vector2 = Vector2(604.0, 382.0)
+const LOGO_TOP          : float   = 25.0
+const LOGO_FACE_SCALE   : float   = 1.10   # face only, relative to its size in the original art
+const LOGO_LETTERS_Y_OFFSET : float = 6.0  # nudge the hair down, closer to the head
+
+const LOGO_SUBTITLE_Y     : float = 427.0
+const LOGO_SUBTITLE_SIZE  : int   = 24
+
 var _font : Font = null
 
 func _ready() -> void:
@@ -46,17 +65,55 @@ void fragment() { vec4 t = texture(TEXTURE, UV); COLOR = vec4(c.rgb, t.a); }"""
 
 
 func _build_logo() -> void:
-	const LOGO_PNG : String = "res://UI_assets/GNB_SOUNDHOPplaybutton.png"
-	if not ResourceLoader.exists(LOGO_PNG):
-		return
-	var logo := TextureRect.new()
-	logo.texture      = load(LOGO_PNG) as Texture2D
-	logo.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
-	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	logo.size         = Vector2(680, 400)
-	logo.position     = Vector2((1280 - 680) * 0.5, 60)
-	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(logo)
+	_build_logo_image()
+	_build_logo_subtitle()
+
+
+func _build_logo_image() -> void:
+	var pos : Vector2 = Vector2((1280.0 - LOGO_SIZE.x) * 0.5, LOGO_TOP)
+
+	# Face first (behind), scaled up around its own center — both layers
+	# share the exact same source canvas, so this position/size also lines
+	# up the letters layer drawn on top with no extra offset math needed.
+	if ResourceLoader.exists(LOGO_FACE_IMG):
+		var face := TextureRect.new()
+		face.texture       = load(LOGO_FACE_IMG) as Texture2D
+		face.expand_mode   = TextureRect.EXPAND_IGNORE_SIZE
+		face.stretch_mode  = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		face.size          = LOGO_SIZE
+		face.position      = pos
+		face.pivot_offset  = LOGO_SIZE * 0.5
+		face.scale         = Vector2(LOGO_FACE_SCALE, LOGO_FACE_SCALE)
+		face.mouse_filter  = Control.MOUSE_FILTER_IGNORE
+		face.z_index       = 1
+		add_child(face)
+
+	if ResourceLoader.exists(LOGO_LETTERS_IMG):
+		var letters := TextureRect.new()
+		letters.texture      = load(LOGO_LETTERS_IMG) as Texture2D
+		letters.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
+		letters.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		letters.size         = LOGO_SIZE
+		letters.position     = pos + Vector2(0.0, LOGO_LETTERS_Y_OFFSET)
+		letters.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		letters.z_index      = 2
+		add_child(letters)
+
+
+func _build_logo_subtitle() -> void:
+	var lbl := Label.new()
+	lbl.text                 = "Start with the Sound"
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	lbl.size                 = Vector2(1280.0, 36.0)
+	lbl.position             = Vector2(0.0, LOGO_SUBTITLE_Y)
+	lbl.z_index              = 3
+	lbl.mouse_filter         = Control.MOUSE_FILTER_IGNORE
+	if _font:
+		lbl.add_theme_font_override("font", _font)
+	lbl.add_theme_font_size_override("font_size", LOGO_SUBTITLE_SIZE)
+	lbl.add_theme_color_override("font_color", PURPLE)
+	add_child(lbl)
 
 
 func _build_menu_buttons() -> void:

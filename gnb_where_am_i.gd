@@ -14,13 +14,14 @@ const LOUIS_PATH : String = "res://louisfaces/happylouis3-Photoroom.png"
 
 # ─── Layout ───────────────────────────────────────────────────────────────────
 # Symmetric: PAGE_PAD*2 + CELL_W*2 + CELL_GAP = 1280
-const CELL_W   : float = 580.0
-const CELL_H   : float = 50.0
-const CELL_GAP : float = 16.0
-const PAGE_PAD : float = 52.0   # (1280 - 580*2 - 16) / 2 = 52 — balanced margins
-const ROW_STEP : float = 58.0   # CELL_H + 8 gap
-const HDR_H    : float = 46.0
-const HDR_TOP  : float = 116.0  # scroll area starts here (after purple header)
+const CELL_W       : float = 580.0
+const CELL_H       : float = 68.0   # enlarged — fewer sets shown per screen now
+const CELL_GAP     : float = 16.0
+const PAGE_PAD     : float = 52.0   # (1280 - 580*2 - 16) / 2 = 52 — balanced margins
+const ROW_STEP     : float = 76.0   # CELL_H + 8 gap
+const HDR_H        : float = 46.0
+const HDR_TOP      : float = 116.0  # scroll area starts here (after purple header)
+const GROUP_CARD_H : float = 60.0   # Set Group card height (Prep/Level 1/Level 1.5)
 
 # ─── State ────────────────────────────────────────────────────────────────────
 var _font             : Font           = null
@@ -29,9 +30,15 @@ var _levels           : Array          = []
 var _rows_containers  : Array[Control] = []
 var _expanded_flags   : Array[bool]    = []
 
+# Set Group accordion state (Prep / Level 1 / Level 1.5 only — one entry per
+# level, empty arrays / -1 for levels that stay flat, e.g. Level 2).
+var _group_headers    : Array = []   # per level: Array[Button]
+var _group_bodies     : Array = []   # per level: Array[Control]
+var _expanded_group   : Array[int] = []   # per level: expanded group index, -1 = none
+
 var is_overlay        : bool           = false
 var _vbox             : VBoxContainer  = null
-var _scroll           : ScrollContainer = null
+var _scroll            : ScrollContainer = null
 signal close_requested
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -74,19 +81,24 @@ func _build_level_meta() -> void:
 	_levels = [
 		{ "id": "prep",    "label": "Prep",      "done": prep_done, "total": 26,
 		  "locked": false,   "sets": _prep_sets(),    "pfn": func(i): PrepLevelProgress.current_index = i,
-		  "show_all": SaveManager.is_chose_level1_path(), "color": Color("#A8E063"), "txt_color": PURPLE },
+		  "show_all": SaveManager.is_chose_level1_path(), "color": Color("#A8E063"), "txt_color": PURPLE,
+		  "grouped": true },
 		{ "id": "level1",  "label": "Level 1",   "done": l1_done,  "total": 17,
 		  "locked": l1_lock, "sets": _level1_sets(),  "pfn": func(i): LevelProgress.current_index = i,
-		  "show_all": false, "color": Color("#6EB5FF"), "txt_color": PURPLE },
+		  "show_all": false, "color": Color("#6EB5FF"), "txt_color": PURPLE,
+		  "grouped": true },
 		{ "id": "level15", "label": "Level 1.5", "done": l15_done, "total": 13,
 		  "locked": l15_lock, "sets": _level15_sets(), "pfn": func(i): Level15Progress.current_index = i,
-		  "show_all": false, "color": Color("#A83A22"), "txt_color": Color("#EDE4D3") },
+		  "show_all": false, "color": Color("#A83A22"), "txt_color": Color("#EDE4D3"),
+		  "grouped": true },
 		{ "id": "level2",  "label": "Level 2",   "done": l2_done,  "total": 12,
 		  "locked": l2_lock, "sets": _level2_sets(),  "pfn": func(i): Level2Progress.current_index = i,
-		  "show_all": false, "color": Color("#8DB33A"), "txt_color": PURPLE },
+		  "show_all": false, "color": Color("#8DB33A"), "txt_color": PURPLE,
+		  "grouped": false },
 		{ "id": "level25", "label": "Level 2.5", "done": 0, "total": 19,
 		  "locked": l25_lock, "sets": [], "pfn": func(_i): pass,
-		  "show_all": false, "color": Color("#7B68EE"), "txt_color": Color("#EDE4D3") },
+		  "show_all": false, "color": Color("#7B68EE"), "txt_color": Color("#EDE4D3"),
+		  "grouped": false },
 	]
 
 
@@ -299,15 +311,33 @@ func _add_level_section(vbox: VBoxContainer, ld: Dictionary, li: int) -> void:
 	# ── Rows container (accordion body) ───────────────────────────────────────
 	var display_count : int = ld["total"] if ld.get("show_all", false) else done_count
 	var rows : Control = null
+
+	_group_headers.append([])
+	_group_bodies.append([])
+	_expanded_group.append(-1)
+
 	if not is_locked and display_count > 0:
-		var n_rows  : int   = int(ceil(display_count / 2.0))
-		var rows_h  : float = n_rows * ROW_STEP + 16.0
-		rows = Control.new()
-		rows.custom_minimum_size   = Vector2(vp_w, rows_h)
-		rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		rows.visible               = false
-		vbox.add_child(rows)
-		_fill_set_rows(rows, ld, done_count)
+		if ld.get("grouped", false):
+			# Two-level accordion: this container holds one Set Group card
+			# per group; each group's individual sets stay hidden until
+			# that group card is tapped (see _fill_group_cards()).
+			rows = VBoxContainer.new()
+			rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			rows.add_theme_constant_override("separation", 10)
+			rows.visible = false
+			vbox.add_child(rows)
+			_fill_group_cards(rows, ld, li, done_count)
+		else:
+			# Flat single-level list (Level 2: every set is already its own
+			# standalone item, no natural sub-grouping).
+			var n_rows  : int   = int(ceil(display_count / 2.0))
+			var rows_h  : float = n_rows * ROW_STEP + 16.0
+			rows = Control.new()
+			rows.custom_minimum_size   = Vector2(vp_w, rows_h)
+			rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			rows.visible               = false
+			vbox.add_child(rows)
+			_fill_set_rows(rows, ld, done_count)
 
 	_rows_containers.append(rows)
 	_expanded_flags.append(false)
@@ -321,21 +351,156 @@ func _add_level_section(vbox: VBoxContainer, ld: Dictionary, li: int) -> void:
 	vbox.add_child(spacer)
 
 
-# ─── Set rows ─────────────────────────────────────────────────────────────────
+# ─── Set Groups (Prep / Level 1 / Level 1.5) ───────────────────────────────────
+# Splits a level's flat sets list into groups by label prefix (A1,A2,A3 -> "A").
+func _group_sets(sets: Array) -> Array:
+	var groups : Array = []
+	for sd in sets:
+		var letter : String = String(sd["label"]).left(1)
+		if groups.is_empty() or groups[-1]["letter"] != letter:
+			groups.append({ "letter": letter, "sets": [] })
+		groups[-1]["sets"].append(sd)
+	return groups
+
+
+func _fill_group_cards(vbox: VBoxContainer, ld: Dictionary, li: int, done_count: int) -> void:
+	var groups        : Array = _group_sets(ld["sets"])
+	var running_index : int   = 0   # position in the flat sets list, to derive per-group done counts
+
+	for gi in range(groups.size()):
+		var group      : Dictionary = groups[gi]
+		var group_sets : Array      = group["sets"]
+		var group_done : int        = 0
+		for _s in group_sets:
+			if running_index < done_count:
+				group_done += 1
+			running_index += 1
+
+		var block := VBoxContainer.new()
+		block.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		block.add_theme_constant_override("separation", 6)
+		vbox.add_child(block)
+
+		var phonemes : String = group_sets[0].get("phonemes", "")
+		var hdr := _make_group_header(group["letter"], phonemes, group_sets.size(), group_done)
+		block.add_child(hdr)
+
+		var body : Control = Control.new()
+		var n_rows : int   = int(ceil(group_sets.size() / 2.0))
+		var body_h : float = n_rows * ROW_STEP + 16.0
+		body.custom_minimum_size   = Vector2(get_viewport_rect().size.x, body_h)
+		body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		body.visible               = false
+		block.add_child(body)
+		_render_set_cells(body, group_sets, ld, group_done)
+
+		_group_headers[li].append(hdr)
+		_group_bodies[li].append(body)
+
+		hdr.pressed.connect(_on_group_tapped.bind(li, gi, hdr, body))
+
+
+func _make_group_header(letter: String, phonemes: String, total_in_group: int, done_in_group: int) -> Button:
+	var vp_w : float = get_viewport_rect().size.x
+	var hdr := Button.new()
+	hdr.custom_minimum_size   = Vector2(vp_w, GROUP_CARD_H)
+	hdr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr.clip_text             = false
+	hdr.alignment             = HORIZONTAL_ALIGNMENT_LEFT
+	hdr.set_meta("letter", letter)
+	hdr.set_meta("phonemes", phonemes)
+	hdr.set_meta("total", total_in_group)
+	hdr.set_meta("done", done_in_group)
+
+	if _font: hdr.add_theme_font_override("font", _font)
+	hdr.add_theme_font_size_override("font_size", 19)
+	hdr.add_theme_color_override("font_color",         PURPLE)
+	hdr.add_theme_color_override("font_hover_color",   PURPLE)
+	hdr.add_theme_color_override("font_pressed_color", PURPLE)
+	hdr.add_theme_color_override("font_focus_color",   PURPLE)
+
+	var style := StyleBoxFlat.new()
+	style.bg_color                   = WHITE
+	style.border_color               = PURPLE
+	style.border_width_top           = 2
+	style.border_width_bottom        = 2
+	style.border_width_left          = 2
+	style.border_width_right         = 2
+	style.corner_radius_top_left     = 14
+	style.corner_radius_top_right    = 14
+	style.corner_radius_bottom_left  = 14
+	style.corner_radius_bottom_right = 14
+	hdr.add_theme_stylebox_override("normal",  style)
+	hdr.add_theme_stylebox_override("hover",   style)
+	hdr.add_theme_stylebox_override("pressed", style)
+	hdr.add_theme_stylebox_override("focus",   style)
+
+	hdr.text = _group_header_text(hdr, false)
+
+	var prog := Label.new()
+	prog.text                 = "%d / %d%s" % [done_in_group, total_in_group, "  ✓" if done_in_group >= total_in_group else ""]
+	prog.size                 = Vector2(200, GROUP_CARD_H)
+	prog.position             = Vector2(vp_w - 216, 0)
+	prog.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	prog.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	prog.add_theme_font_size_override("font_size", 16)
+	prog.add_theme_color_override("font_color", PURPLE)
+	if _font: prog.add_theme_font_override("font", _font)
+	prog.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	prog.z_index      = 1
+	hdr.add_child(prog)
+
+	return hdr
+
+
+func _group_header_text(hdr: Button, expanding: bool) -> String:
+	var icon     : String = "▼" if expanding else "▶"
+	var letter   : String = hdr.get_meta("letter")
+	var phonemes : String = hdr.get_meta("phonemes")
+	return "          %s  Set %s   —   %s" % [icon, letter, phonemes]
+
+
+func _on_group_tapped(li: int, gi: int, hdr: Button, body: Control) -> void:
+	var currently_expanded : int = _expanded_group[li]
+
+	if currently_expanded == gi:
+		body.visible         = false
+		_expanded_group[li]  = -1
+		hdr.text              = _group_header_text(hdr, false)
+	else:
+		if currently_expanded != -1:
+			var prev_hdr  : Button  = _group_headers[li][currently_expanded]
+			var prev_body : Control = _group_bodies[li][currently_expanded]
+			prev_body.visible = false
+			prev_hdr.text      = _group_header_text(prev_hdr, false)
+		body.visible         = true
+		_expanded_group[li] = gi
+		hdr.text              = _group_header_text(hdr, true)
+
+	if _vbox:
+		_vbox.queue_sort()
+
+
+# ─── Set rows (flat list — Level 2) ────────────────────────────────────────────
 func _fill_set_rows(parent: Control, ld: Dictionary, done_count: int) -> void:
 	var sets          : Array = ld["sets"]
 	var display_count : int   = ld["total"] if ld.get("show_all", false) else done_count
 	var visible_sets  : Array = sets.slice(0, display_count)
+	_render_set_cells(parent, visible_sets, ld, done_count)
 
+
+# Shared low-level cell grid renderer — used both for Level 2's flat list and
+# for a single Set Group's individual sets once that group is expanded.
+func _render_set_cells(parent: Control, cell_sets: Array, ld: Dictionary, local_done: int) -> void:
 	var page_pad : float = (get_viewport_rect().size.x - CELL_W * 2.0 - CELL_GAP) / 2.0
-	for pair in range(int(ceil(visible_sets.size() / 2.0))):
+	for pair in range(int(ceil(cell_sets.size() / 2.0))):
 		var row_y : float = 8.0 + pair * ROW_STEP
 		for side in range(2):
 			var idx : int = pair * 2 + side
-			if idx >= visible_sets.size():
+			if idx >= cell_sets.size():
 				break
 			var cell_x : float = page_pad + side * (CELL_W + CELL_GAP)
-			_make_completed_cell(parent, visible_sets[idx], ld, cell_x, row_y, idx < done_count)
+			_make_completed_cell(parent, cell_sets[idx], ld, cell_x, row_y, idx < local_done)
 
 
 func _make_completed_cell(parent: Control, sd: Dictionary,
@@ -359,11 +524,11 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 
 	# ✓ checkmark (completed sets only)
 	if is_completed:
-		_panel_label(panel, "✓", Vector2(4, 14), Vector2(22, 22), 14, PURPLE)
+		_panel_label(panel, "✓", Vector2(6, 22), Vector2(24, 24), 16, PURPLE)
 	# Set label
-	_panel_label(panel, sd["label"], Vector2(26, 13), Vector2(44, 24), 15, PURPLE)
+	_panel_label(panel, sd["label"], Vector2(30, 20), Vector2(50, 28), 18, PURPLE)
 	# Phoneme label
-	_panel_label(panel, sd["phonemes"], Vector2(74, 15), Vector2(340, 22), 13, BROWN)
+	_panel_label(panel, sd["phonemes"], Vector2(86, 22), Vector2(320, 26), 15, BROWN)
 
 	# Happy Louis icon
 	if _louis_tex != null:
@@ -372,24 +537,24 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 		img.expand_mode    = TextureRect.EXPAND_IGNORE_SIZE
 		img.stretch_mode   = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		img.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-		img.size           = Vector2(36, 36)
-		img.position       = Vector2(CELL_W - 130, 7)
+		img.size           = Vector2(44, 44)
+		img.position       = Vector2(CELL_W - 138, 12)
 		img.mouse_filter   = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(img)
 
 	# Replay count "×N" (completed sets only)
 	if is_completed:
 		var count : int = SaveManager.get_review_count(sd["key"])
-		_panel_label(panel, "×%d" % count, Vector2(CELL_W - 92, 15), Vector2(46, 22), 13, PURPLE)
+		_panel_label(panel, "×%d" % count, Vector2(CELL_W - 92, 23), Vector2(46, 22), 14, PURPLE)
 
 	# Replay button ▶
 	var rp := Button.new()
 	rp.text         = "▶"
-	rp.position     = Vector2(CELL_W - 58, 7)
-	rp.size         = Vector2(52, 36)
-	rp.pivot_offset = Vector2(26, 18)
+	rp.position     = Vector2(CELL_W - 66, 13)
+	rp.size         = Vector2(60, 42)
+	rp.pivot_offset = Vector2(30, 21)
 	if _font: rp.add_theme_font_override("font", _font)
-	rp.add_theme_font_size_override("font_size", 15)
+	rp.add_theme_font_size_override("font_size", 16)
 	rp.add_theme_color_override("font_color",         AMBER)
 	rp.add_theme_color_override("font_hover_color",   AMBER)
 	rp.add_theme_color_override("font_pressed_color", AMBER)
@@ -421,7 +586,7 @@ func _panel_label(parent: Control, text: String, pos: Vector2, sz: Vector2,
 	parent.add_child(lbl)
 
 
-# ─── Accordion toggle ─────────────────────────────────────────────────────────
+# ─── Accordion toggle (Level headers) ──────────────────────────────────────────
 func _on_header_tapped(li: int, hdr: Button, rows: Control) -> void:
 	if rows == null:
 		return

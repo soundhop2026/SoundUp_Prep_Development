@@ -350,7 +350,7 @@ func _process(delta: float) -> void:
 	if phase == "wait_listen":
 		hint_playing                  = true
 		$PointedHand.visible          = true
-		$PointedHand.position         = Vector2(1050, 280)
+		$PointedHand.position         = Vector2(1050, 190)
 		$PointedHand.rotation_degrees = -30.0
 		_play_listen_hint()
 

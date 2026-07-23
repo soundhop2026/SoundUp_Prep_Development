@@ -144,10 +144,13 @@ actually playable.
 - Retry graduation (`is_retry=true`): no bounce → all 26 cubes dance → `level_transition`
 
 ### Cube board
-- Asset: `UI_assets/preplevel_set_counting_cube_empty.png`, tinted via modulate alpha (dim=unearned, opaque=earned) rather than a separate filled/outline pair
-- 6 cubes total — one per **main group** (1A–1F), not one per sub-set; filled based on `PrepLevelProgress.main_set_number()`
-- Single row, 50px cubes, 80px step, centred at x=640, y=559 (`CUBE_ROW2_Y=607` exists as a constant but is unused dead code, left over from an earlier two-row design)
-- All earned cubes dance together after each set (19 wiggle cycles, ~4s)
+- Same system as Level 1's `transition.gd` cube board (reused, not reimplemented separately) —
+  same asset, deep-blue filled / faint-white-outline colors, 40px cubes on a 48px step, two
+  rows split by `(total+1)/2`, centred at x=640.
+- 26 cubes total — one per **individual set**, not per main group; `earned = PrepLevelProgress.current_index + 1`
+- Whole board is created (hidden) in `_ready()`; `_show_cubes(earned)` reveals it on a pass,
+  and only the newly-earned cube plays the continuous wiggle dance (`_dance_cube`) — same
+  behavior as Level 1, not a full-board group dance
 
 ### CRITICAL routing rule
 `has_next()` MUST be called BEFORE `advance()` — reversed order silently routes to title.

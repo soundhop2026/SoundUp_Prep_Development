@@ -4,11 +4,13 @@ extends Node2D
 # 4 discrete bounces (ascending pitch) → 2s silent bob → route
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ─── Cube board ───────────────────────────────────────────────────────────────
-const CUBE_SIZE   : int   = 50
-const CUBE_GAP    : int   = 5
-const CUBE_ROW1_Y : float = 559.0
-const CUBE_ROW2_Y : float = 607.0
+# ─── Cube board — same constants as transition.gd (Level 1's set cube board) ───
+const CUBE_FILLED : Color = Color(0.15, 0.35, 0.90, 1.0)   # deep blue
+const CUBE_EMPTY  : Color = Color(1.00, 1.00, 1.00, 0.28)  # faint white outline
+const CUBE_SIZE   : float = 40.0
+const CUBE_STEP   : float = 48.0   # 40px + 8px gap
+const CUBE_ROW1_Y : float = 625.0
+const CUBE_ROW2_Y : float = 670.0
 
 # ─── Play Button constants ─────────────────────────────────────────────────────
 const BASE_SCALE  : float = 0.80
@@ -62,35 +64,55 @@ func _ready() -> void:
 	$PlayButtonImage.scale      = Vector2(BASE_SCALE, BASE_SCALE)
 	$PlayButtonImage.modulate   = Color(1.0, 1.0, 1.0, 1.0)
 	_create_info_labels()
-	if PrepLevelProgress.is_main_set_boundary() and PrepLevelProgress.last_score_pct >= 85.0:
-		_create_cube_board()
+	_create_cube_board()
 	_play_transition()
 
 # ─── Cube board ───────────────────────────────────────────────────────────────
 
 func _create_cube_board() -> void:
 	var cube_tex : Texture2D = load("res://UI_assets/preplevel_set_counting_cube_empty.png")
-	var tex_px   : float     = max(cube_tex.get_size().x, cube_tex.get_size().y)
-	_cube_scale              = float(CUBE_SIZE) / tex_px
-
-	const TOTAL  : int   = 6
-	const STEP   : float = 80.0
-	var width    : float = (TOTAL - 1) * STEP
-	var x0       : float = 640.0 - width / 2.0
-
-	for i in range(TOTAL):
+	var tex_px   : float     = min(cube_tex.get_size().x, cube_tex.get_size().y)
+	_cube_scale              = CUBE_SIZE / tex_px
+	var total    : int       = PrepLevelProgress.sets.size()
+	var row1     : int       = (total + 1) / 2   # ceiling half: 26→13
+	var row2     : int       = total - row1
+	for i in range(total):
 		var sp := Sprite2D.new()
 		sp.texture  = cube_tex
 		sp.scale    = Vector2(_cube_scale, _cube_scale)
-		sp.position = Vector2(x0 + i * STEP, CUBE_ROW1_Y)
-		sp.z_index  = 5
-		sp.modulate = Color(1.0, 1.0, 1.0, 0.25)
-		sp.visible  = true
+		sp.modulate = CUBE_EMPTY
+		sp.visible  = false
+		if i < row1:
+			var start_x : float = 640.0 - ((row1 - 1) * CUBE_STEP) / 2.0
+			sp.position = Vector2(start_x + i * CUBE_STEP, CUBE_ROW1_Y)
+		else:
+			var j       : int   = i - row1
+			var start_x : float = 640.0 - ((row2 - 1) * CUBE_STEP) / 2.0
+			sp.position = Vector2(start_x + j * CUBE_STEP, CUBE_ROW2_Y)
 		add_child(sp)
 		_cubes.append(sp)
 
-	for i in range(PrepLevelProgress.main_set_number()):
-		_cubes[i].modulate = Color(1.0, 1.0, 1.0, 1.0)
+# Reveals the whole board at once: filled cubes solid, rest faint outline
+func _show_cubes(earned: int) -> void:
+	for i in range(_cubes.size()):
+		_cubes[i].visible  = true
+		_cubes[i].modulate = CUBE_FILLED if i < earned else CUBE_EMPTY
+
+# Each earned cube bounces independently — runs until scene changes
+func _dance_cube(idx: int) -> void:
+	var base_pos := _cubes[idx].position
+	while true:
+		var rot := randf_range(-5.0,   5.0)
+		var dx  := randf_range(-4.0,   4.0)
+		var dy  := randf_range(-8.0,   8.0)
+		var sc  := randf_range(0.92,  1.10) * _cube_scale
+		var dur := randf_range(0.12,  0.20) + idx * 0.01
+		var t   := create_tween()
+		t.set_parallel(true)
+		t.tween_property(_cubes[idx], "rotation_degrees", rot,                         dur)
+		t.tween_property(_cubes[idx], "position",         base_pos + Vector2(dx, dy), dur)
+		t.tween_property(_cubes[idx], "scale",            Vector2(sc, sc),             dur)
+		await t.finished
 
 # ─── Main sequence ────────────────────────────────────────────────────────────
 
@@ -153,14 +175,13 @@ func _play_transition() -> void:
 		get_tree().change_scene_to_file("res://prep_game.tscn")
 		return
 
-	# ── Passed (≥ 85%) ────────────────────────────────────────────────────────
+	# ── Passed (≥ 85%) — one cube per set, same reveal as Level 1 ────────────
 	PrepLevelProgress.is_retry = false
 
-	if PrepLevelProgress.is_main_set_boundary():
-		var earned : int = PrepLevelProgress.main_set_number() + 1
-		_cubes[earned - 1].modulate = Color(1.0, 1.0, 1.0, 1.0)
-		await _dance_all_earned_cubes(earned)
-		await get_tree().create_timer(0.3).timeout
+	var earned : int = PrepLevelProgress.current_index + 1
+	_show_cubes(earned)
+	_dance_cube(earned - 1)
+	await get_tree().create_timer(2.0).timeout
 
 	await _exit_play_button()
 
@@ -182,46 +203,3 @@ func _exit_play_button() -> void:
 	t.tween_property($PlayButtonImage, "scale",      Vector2(0.0, 0.0), 0.30).set_ease(Tween.EASE_IN)
 	t.tween_property($PlayButtonImage, "modulate:a", 0.0,               0.30)
 	await t.finished
-
-# ─── All earned cubes dance together ─────────────────────────────────────────
-
-func _dance_all_earned_cubes(done: int) -> void:
-	var earned : Array[Sprite2D] = []
-	for i in range(min(done, _cubes.size())):
-		earned.append(_cubes[i])
-
-	if earned.is_empty():
-		return
-
-	var base_positions : Array[Vector2] = []
-	var base_scales    : Array[Vector2] = []
-	for cube in earned:
-		base_positions.append(cube.position)
-		base_scales.append(cube.scale)
-
-	for i in range(19):
-		var rot : float = -12.0 if i % 2 == 0 else 12.0
-		var sc  : float = _cube_scale * 1.35
-
-		for j in range(earned.size()):
-			var t1 := create_tween()
-			t1.set_parallel(true)
-			t1.tween_property(earned[j], "rotation_degrees", rot,                                    0.10)
-			t1.tween_property(earned[j], "position",         base_positions[j] + Vector2(0, -18.0), 0.10)
-			t1.tween_property(earned[j], "scale",            Vector2(sc, sc),                        0.10)
-		await get_tree().create_timer(0.10).timeout
-
-		for j in range(earned.size()):
-			var t2 := create_tween()
-			t2.set_parallel(true)
-			t2.tween_property(earned[j], "rotation_degrees", 0.0,               0.10)
-			t2.tween_property(earned[j], "position",         base_positions[j], 0.10)
-			t2.tween_property(earned[j], "scale",            base_scales[j],    0.10)
-		await get_tree().create_timer(0.10).timeout
-
-	for j in range(earned.size()):
-		var settle := create_tween()
-		settle.set_parallel(true)
-		settle.tween_property(earned[j], "rotation_degrees", 0.0,               0.12)
-		settle.tween_property(earned[j], "position",         base_positions[j], 0.12)
-		settle.tween_property(earned[j], "scale",            base_scales[j],    0.12)

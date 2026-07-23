@@ -34,7 +34,7 @@ title.tscn / title.gd
 prep_game.tscn / prep_game.gd  ←─────────────────────────────┐
     ↓ (each set done)                                         │ retry loop
 prep_transition.tscn / prep_transition.gd ────────────────────┘
-    ↓ (all 33 sets done, accuracy ≥ 85%)
+    ↓ (all 26 sets done, accuracy ≥ 85%)
 level_transition.tscn / level_transition.gd   ← plays ONCE in a child's lifetime
     ↓
 game.tscn / game.gd  ←───────────────────────────────────────┐
@@ -95,23 +95,31 @@ else:
 **Purpose:** Sound-only phonemic awareness training. No letters. No Louis. No PlayButton.
 
 ### Key differences from game.gd
-- Phoneme auto-plays ×3 (child does NOT press Listen)
-- Word sounds auto-play ×2 per image with bounce animation
+- Phoneme auto-plays ×2 (child does NOT press Listen)
+- Word sounds auto-play ×1 per image with bounce animation
 - Pointed hand guides attention, disappears before choice window
 - Wrong answer → full loop replay (not try-again screen)
 - 3-second choice window, then auto-replay if no answer
-- No idle hint timer, no back button
+- No idle hint timer
+- Back button available, works throughout the auto-play narration (not just the final choice window) — round_index - 1, guarded by `_resolving`/round_index==0 rather than `result_locked`. `_resolving` is true only during `_do_correct()`/`_do_wrong()`'s own result sound effects, since those are about to change round_index themselves; a `_seq_gen` counter (bumped on every `_start_round()`) cancels any in-flight auto-play sequence Back interrupts, so it can't race the new round's sequence. Nothing is ever forced — auto-play stays the default.
 
-### 33 Prep Sets
+### 26 Prep Sets
+Originally scoped at 33 sets (through a 1G "ending sounds" group), deliberately
+trimmed to 26 — kids meet those sounds again in Level 1, so Prep saves the more
+complicated phonemes for there instead and stays lighter. `prep_1e_3.json`,
+`prep_1e_4.json`, and `prep_1g_1.json`–`prep_1g_5.json` still exist on disk as
+leftovers from the original 33-set scope but are intentionally unused —
+`prep_level_progress.gd`'s `sets` array is the source of truth for what's
+actually playable.
+
 | Group | Chunks | Phonemes | Choices |
 |---|---|---|---|
 | 1A | prep_1a_1 → prep_1a_4 | M S T B V K | 3 |
 | 1B | prep_1b_1 → prep_1b_4 | N F P D G J | 4 |
 | 1C | prep_1c_1 → prep_1c_6 | H W Y L R Z | 4 |
 | 1D | prep_1d_1 → prep_1d_6 | Contrast pairs | 4 |
-| 1E | prep_1e_1 → prep_1e_4 | C-soft G-soft X Q | 3 |
+| 1E | prep_1e_1 → prep_1e_2 | C-soft G-soft X Q | 3 |
 | 1F | prep_1f_1 → prep_1f_4 | All sounds mixed | 5 |
-| 1G | prep_1g_1 → prep_1g_5 | Ending sounds | 4 |
 
 ### Accuracy tracking (`PrepLevelProgress`)
 - `pass_total` — total rounds completed
@@ -120,7 +128,7 @@ else:
 - A "wrong round" = any round with at least one wrong press
 
 ### 85% gate
-- After all 33 sets: if `accuracy() >= 0.85` → cube dance → `level_transition.tscn`
+- After all 26 sets: if `accuracy() >= 0.85` → cube dance → `level_transition.tscn`
 - If `< 0.85` → wrong-round retry (flat, continuous, no new cubes)
 - Retry loops until accuracy reaches 85%+
 
@@ -131,14 +139,14 @@ else:
 **Purpose:** Between-set celebration inside Prep Level.
 
 - Background: baby green `#A8E063`
-- Sets 1–32: PlayButton bounces ×6 → earned cubes dance → next set
-- Set 33: bounce → accuracy check → cubes dance → route
-- Retry graduation (`is_retry=true`): no bounce → all 33 cubes dance → `level_transition`
+- Sets 1–25: PlayButton bounces ×6 → earned cubes dance → next set
+- Set 26: bounce → accuracy check → cubes dance → route
+- Retry graduation (`is_retry=true`): no bounce → all 26 cubes dance → `level_transition`
 
 ### Cube board
-- Asset: `UI_assets/preplevel_set_counting_cube.png` (filled) / `_empty.png` (outline)
-- 50px per cube, 2 rows (17 top + 16 bottom), centred at x=640
-- Row 1 Y: 559, Row 2 Y: 607
+- Asset: `UI_assets/preplevel_set_counting_cube_empty.png`, tinted via modulate alpha (dim=unearned, opaque=earned) rather than a separate filled/outline pair
+- 6 cubes total — one per **main group** (1A–1F), not one per sub-set; filled based on `PrepLevelProgress.main_set_number()`
+- Single row, 50px cubes, 80px step, centred at x=640, y=559 (`CUBE_ROW2_Y=607` exists as a constant but is unused dead code, left over from an earlier two-row design)
 - All earned cubes dance together after each set (19 wiggle cycles, ~4s)
 
 ### CRITICAL routing rule
@@ -211,8 +219,12 @@ The `phase = "wait_listen"` flow and `$ListenButton` must be preserved.
 `_shuffle_no_consecutive()` ensures no two consecutive rounds share the same phoneme.
 
 ### Back button
-- Size 150×150, position (108, 25)
-- On press: if `result_locked` or `round_index == 0` → do nothing; else go back one round
+- Shared component: `back_button.gd` (`class_name BackButton extends TextureButton`) —
+  same position (108, 25), size 150×150, appearance, and touch target everywhere it's
+  used (`game.gd`, `prep_game.gd`, `game2.gd`, `game25.gd`, `game15.gd`). Each screen
+  instantiates `BackButton.new()` and connects its own `pressed` handler — only the
+  navigation/guard logic differs per screen, never the button itself.
+- On press (Level 1): if `result_locked` or `round_index == 0` → do nothing; else go back one round
 - `_round_hint_used` resets when going back (clean slate for that round)
 
 ### 17 Level 1 Sets (331 total rounds)

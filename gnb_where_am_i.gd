@@ -279,7 +279,7 @@ func _build_back_button() -> void:
 	btn.ignore_texture_size = true
 	btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn.size                = Vector2(90, 90)
-	btn.position             = Vector2(16, 13)
+	btn.position             = Vector2(16, 5)
 	btn.z_index              = 10
 	var shader := Shader.new()
 	shader.code = """shader_type canvas_item;
@@ -722,7 +722,7 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 	rp.size         = Vector2(60, 52 * k)
 	rp.pivot_offset = Vector2(30, 26 * k)
 	if _font: rp.add_theme_font_override("font", _font)
-	rp.add_theme_font_size_override("font_size", max(12, int(round(18 * k))))
+	rp.add_theme_font_size_override("font_size", max(24, int(round(36 * k))))
 	rp.add_theme_color_override("font_color",         AMBER)
 	rp.add_theme_color_override("font_hover_color",   AMBER)
 	rp.add_theme_color_override("font_pressed_color", AMBER)

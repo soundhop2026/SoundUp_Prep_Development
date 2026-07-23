@@ -30,7 +30,6 @@ extends Node2D
 const WORDS_PATH    := "res://data/words.json"
 const PHONEMES_PATH := "res://data/phonemes.json"
 const OPEN_HAND_TEX := "res://UI_assets/handsigns/openhand.png"
-const BACK_BTN_TEX  := "res://UI_assets/back_button.png"
 
 const CANVAS_W := 1280.0
 const BG_COLOR        := Color("#A83A22")
@@ -271,14 +270,7 @@ func _add_count_cubes(btn: Button, count: int) -> void:
 
 
 func _setup_back_button() -> void:
-	_back_btn = TextureButton.new()
-	_back_btn.texture_normal      = load(BACK_BTN_TEX) as Texture2D
-	_back_btn.ignore_texture_size = true
-	_back_btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	_back_btn.custom_minimum_size = Vector2(150.0, 150.0)
-	_back_btn.size                = Vector2(150.0, 150.0)
-	_back_btn.position            = Vector2(20.0, 20.0)
-	_back_btn.z_index             = 10
+	_back_btn = BackButton.new()
 	_back_btn.pressed.connect(_on_back_pressed)
 	add_child(_back_btn)
 

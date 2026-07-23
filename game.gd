@@ -62,22 +62,7 @@ func _add_ear_icon() -> void:
 	$ListenButton.add_child(icon)
 
 func _setup_back_button() -> void:
-	_back_btn = TextureButton.new()
-	_back_btn.texture_normal      = load("res://UI_assets/back_button.png") as Texture2D
-	_back_btn.ignore_texture_size = true
-	_back_btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	# 150×150 — 2.5× the previous 60px size
-	_back_btn.custom_minimum_size = Vector2(150, 150)
-	_back_btn.size                = Vector2(150, 150)
-	# Inside the left side of the Listen bar, centred on the bar's vertical centre (y=100)
-	_back_btn.position            = Vector2(108, 25)
-	_back_btn.z_index             = 2
-	# Recolour the black triangle to white so it shows on the dark Listen bar
-	var shader := Shader.new()
-	shader.code = "shader_type canvas_item;\nvoid fragment() { vec4 c = texture(TEXTURE, UV); COLOR = vec4(1.0, 1.0, 1.0, c.a); }"
-	var mat := ShaderMaterial.new()
-	mat.shader = shader
-	_back_btn.material = mat
+	_back_btn = BackButton.new()
 	_back_btn.pressed.connect(_on_back_pressed)
 	add_child(_back_btn)
 

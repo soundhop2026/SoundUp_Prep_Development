@@ -22,6 +22,14 @@ var _btn_centers        : Array[Vector2] = []
 var _btn_base_pos       : Array[Vector2] = []   # original positions for animation reset
 var _waiting_for_choice   : bool           = false  # true during the 3-second choice window
 var _listen_bar_base_pos  : Vector2        = Vector2(100, 60)
+var _seq_gen              : int            = 0      # bumped on every _start_round() — lets an
+													  # in-flight _run_prep_sequence() detect it's
+                                                      # been superseded (e.g. by Back) and bail out
+													  # instead of racing the new round's sequence
+var _resolving            : bool           = false  # true only while _do_correct()/_do_wrong()
+													  # are playing their result sound effects —
+													  # Back is blocked here to avoid colliding
+													  # with their own pending round_index change
 
 # ─── Accuracy tracking (per set / per retry pass) ─────────────────────────────
 var _round_had_error    : bool  = false   # true if child pressed wrong at least once this round
@@ -31,6 +39,7 @@ var _local_wrong        : int   = 0       # wrong rounds this set
 var _round_cubes        : Array[ColorRect] = []
 var _total_set_rounds   : int              = 0
 var _gnb_btn            : Button           = null
+var _back_btn           : TextureButton    = null
 
 func _ready() -> void:
 	SceneBackground.set_color(Color("#A8E063"))
@@ -49,6 +58,7 @@ func _ready() -> void:
 	_add_ear_icon()
 	$ListenButton.pressed.connect(_on_listen_ignored)
 	_create_gnb_flag()
+	_setup_back_button()
 
 	$PointedHand.visible = false
 	$PointedHand.scale   = Vector2(0.08, 0.08)
@@ -123,6 +133,32 @@ func _on_gnb_flag_pressed() -> void:
 	wai.connect("close_requested", func(): overlay.queue_free())
 	overlay.add_child(wai)
 	add_child(overlay)
+
+# ─── Back button ──────────────────────────────────────────────────────────────
+# Lets the child revisit the previous round on demand. Auto-play stays the
+# default and nothing here is forced — this only adds an option. Mirrors
+# game.gd's back button exactly: same asset/styling/guard, same simple
+# round_index decrement. That includes an existing Level 1 quirk carried
+# over as-is (not something new here): re-answering a round correctly after
+# going back adds to _local_total again, since tallying happens in
+# _do_correct() with no de-dupe check — same as clean_correct_count in game.gd.
+
+func _setup_back_button() -> void:
+	_back_btn = BackButton.new()
+	_back_btn.pressed.connect(_on_back_pressed)
+	add_child(_back_btn)
+
+func _on_back_pressed() -> void:
+	# Deliberately NOT gated on result_locked — Back should work throughout
+	# the auto-play narration, not just the brief final choice window.
+	# _resolving is the narrower guard: only blocks the short window while
+	# _do_correct()/_do_wrong() are mid-flight and about to change
+	# round_index themselves (see their comments for why that race matters).
+	if _resolving or round_index == 0:
+		return
+	_waiting_for_choice = false   # cancel the pending choice-window auto-replay
+	round_index -= 1
+	_start_round()   # bumps _seq_gen, cancelling any in-flight sequence
 
 func _add_ear_icon() -> void:
 	var icon := TextureRect.new()
@@ -215,6 +251,7 @@ func _start_round() -> void:
 	_round_had_error = false   # reset for each new round
 	var rd : Dictionary = rounds[round_index]
 	result_locked = true
+	_seq_gen     += 1   # invalidate any still-running previous sequence
 
 	$ListenSound.stop()
 	$PointedHand.visible    = false
@@ -240,6 +277,10 @@ func _start_round() -> void:
 # ─── Prep auto-play sequence ──────────────────────────────────────────────────
 
 func _run_prep_sequence() -> void:
+	var gen : int = _seq_gen   # snapshot — if Back/etc. bump _seq_gen while we're
+							   # mid-await below, we've been superseded; bail out
+							   # rather than keep animating/playing for a round
+							   # that's no longer current.
 	result_locked = true
 	var rd : Dictionary = rounds[round_index]
 	var n  : int        = rd["choices"].size()
@@ -252,10 +293,13 @@ func _run_prep_sequence() -> void:
 		$ListenSound.play()
 		_bounce_listen_bar()
 		await $ListenSound.finished
+		if gen != _seq_gen: return
 		if i < 1:
 			await get_tree().create_timer(0.3).timeout
+			if gen != _seq_gen: return
 
 	await get_tree().create_timer(0.5).timeout
+	if gen != _seq_gen: return
 
 	# ── Step 2: Word sound ×1 per image — EvalPlayButton shown ──────────────
 	$PointedHand.visible    = false
@@ -270,7 +314,9 @@ func _run_prep_sequence() -> void:
 		_bounce_image(btn, i)
 		snd.play()
 		await snd.finished
+		if gen != _seq_gen: return
 		await get_tree().create_timer(0.6).timeout
+		if gen != _seq_gen: return
 
 	# ── Step 3: Hide EvalPlayButton, unlock for child's choice ───────────────
 	$EvalPlayButton.visible = false
@@ -279,6 +325,7 @@ func _run_prep_sequence() -> void:
 
 	# 3-second choice window — if no answer, replay the full loop
 	await get_tree().create_timer(5.0).timeout
+	if gen != _seq_gen: return
 	if _waiting_for_choice:
 		_waiting_for_choice = false
 		result_locked       = true
@@ -355,6 +402,7 @@ func _blend_round_cube() -> void:
 # ─── Correct ──────────────────────────────────────────────────────────────────
 
 func _do_correct() -> void:
+	_resolving = true   # block Back — round_index changes below, once resolved
 	# Record round result before advancing
 	_local_total += 1
 	if _round_had_error:
@@ -365,18 +413,21 @@ func _do_correct() -> void:
 	_blend_round_cube()
 	await $CorrectSound.finished
 	await get_tree().create_timer(0.6).timeout
+	_resolving = false
 	round_index += 1
 	_start_round()
 
 # ─── Wrong — replay full prep loop ────────────────────────────────────────────
 
 func _do_wrong() -> void:
+	_resolving = true   # block Back — this reads round_index again once resolved
 	_round_had_error = true   # mark this round as having an error
 	$OopsSound.play()
 	await $OopsSound.finished
 	$WrongSound.play()
 	await $WrongSound.finished
 	await get_tree().create_timer(0.3).timeout
+	_resolving = false
 	# Restore button positions in case of animation drift, then replay
 	_restore_button_positions()
 	_run_prep_sequence()

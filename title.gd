@@ -19,9 +19,9 @@ const ARC_MAX_DEG : float   =  36.0
 const FACE_CENTER_Y : float = 300.0
 const BTN_SCALE     : float = 0.90
 
-const WORD_TEXTS    : Array[String] = ["Start", "with", "the", "Sound"]
-const WORD_W        : Array[float]  = [78.0, 60.0, 48.0, 80.0]
-const WORD_X_OFFSET : Array[float]  = [-175.0, -85.0, -13.0, 47.0]  # offsets from viewport centre
+const WORD_TEXTS    : Array[String] = ["Learning", "Sounds"]
+const WORD_W        : Array[float]  = [128.0, 96.0]
+const WORD_X_OFFSET : Array[float]  = [-142.0, -2.0]  # offsets from viewport centre; centred on x=618 (the logo's true visual centre), not 640 — see ARC_CENTER
 const WORDS_Y       : float         = 450.0
 
 const FLY_OUT : Array[Vector2] = [
@@ -117,10 +117,7 @@ func _create_debug_menu_button() -> void:
 	_debug_btn              = Button.new()
 	_debug_btn.text         = "DEBUG"
 	_debug_btn.size         = Vector2(200, 70)
-	_debug_btn.position     = Vector2(
-		(get_viewport_rect().size.x - 200.0) / 2.0,
-		get_viewport_rect().size.y - 190.0
-	)
+	_debug_btn.position     = Vector2(20.0, 20.0)
 	_debug_btn.z_index      = 10
 	_debug_btn.add_theme_font_size_override("font_size", 22)
 	_debug_btn.add_theme_color_override("font_color", Color("#FFFFFF"))
@@ -419,7 +416,7 @@ func _animate_out_then_route(choice: String) -> void:
 		t.tween_property(_letters[i], "modulate:a", 0.0, 0.45)
 		await get_tree().create_timer(0.55).timeout
 
-	var slide_x : Array[float] = [-280.0, -280.0, -280.0, get_viewport_rect().size.x + 300.0]
+	var slide_x : Array[float] = [-280.0, get_viewport_rect().size.x + 300.0]
 	for i in range(WORD_TEXTS.size()):
 		var t := create_tween()
 		t.tween_property(_words[i], "position:x", slide_x[i], 0.55) \

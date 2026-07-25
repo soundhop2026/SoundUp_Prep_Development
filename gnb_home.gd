@@ -102,7 +102,7 @@ func _build_logo_image() -> void:
 
 func _build_logo_subtitle() -> void:
 	var lbl := Label.new()
-	lbl.text                 = "Start with the Sound"
+	lbl.text                 = "Learning Sounds"
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
 	lbl.size                 = Vector2(1280.0, 36.0)

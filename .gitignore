@@ -2,4 +2,8 @@
 .godot/
 /android/
 *.apk
-*.apk
+*.aab
+*.apk.idsig
+/build/
+*.jks
+*.keystore

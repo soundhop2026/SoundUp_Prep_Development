@@ -40,7 +40,7 @@ func _build_back_button() -> void:
 	btn.ignore_texture_size = true
 	btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn.size                = Vector2(90, 90)
-	btn.position            = Vector2(30, 30)
+	btn.position            = Vector2(30, 0)
 	btn.z_index             = 10
 	var shader := Shader.new()
 	shader.code = """shader_type canvas_item;

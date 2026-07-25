@@ -73,9 +73,6 @@ const COUNT_BTN_W   := 180.0
 const COUNT_BTN_H   :=  90.0
 const COUNT_BTN_GAP := 40.0
 
-# Back button
-const BACK_USES_MAX  : int   = 2
-
 # Idle hint timing
 const HINT_IDLE_SEC  : float = 3.0
 const EVAL_DELAY     : float = 1.0
@@ -131,15 +128,16 @@ var _build_index : int = 0   # next cube slot to fill
 var _clean_correct   : int   = 0
 var _round_hint_used : bool  = false
 var _assisted_rounds : Array = []
+var _scored_rounds   : Dictionary = {} # _round_index -> true once counted toward the set's
+                                        # score — Back is unlimited for review, but a round's
+                                        # score is locked in on its first completion and never
+                                        # changes on replay
 
 # ── Dynamic nodes ────────────────────────────────────────────────────────────
 var _cube_nodes   : Array         = []
 var _choice_nodes : Array         = []
 var _back_btn     : TextureButton = null
 var _gnb_btn      : Button        = null
-
-# ── Back button use limit ────────────────────────────────────────────────────
-var _back_uses : int = 0
 
 # ── Idle hint ────────────────────────────────────────────────────────────────
 var _idle_time   : float = 0.0
@@ -1618,11 +1616,8 @@ func _on_count_pressed(count: int) -> void:
 
 
 func _on_back_pressed() -> void:
-	if _result_locked or _round_index == 0 or _back_uses >= BACK_USES_MAX:
+	if _result_locked or _round_index == 0:
 		return
-	_back_uses += 1
-	if _back_uses >= BACK_USES_MAX:
-		_back_btn.modulate.a = 0.35   # dim to signal disabled
 	_autoplay_active = false
 	_reset_idle()
 	_round_index -= 1
@@ -1668,6 +1663,11 @@ func _shake_node(node: Control) -> Tween:
 # ════════════════════════════════════════════════════════════════════════════
 
 func _tally_round() -> void:
+	# Back is unlimited for review; replaying an already-scored round must
+	# never change the score, pass percentage, or gate result.
+	if _scored_rounds.has(_round_index):
+		return
+	_scored_rounds[_round_index] = true
 	if not _round_hint_used:
 		_clean_correct += 1
 	else:

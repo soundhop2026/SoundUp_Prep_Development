@@ -45,6 +45,10 @@ var correct_count       : int    = 0
 var clean_correct_count : int    = 0
 var _round_hint_used    : bool   = false
 var _assisted_rounds    : Array  = []
+var _scored_rounds      : Dictionary = {} # round_index -> true once counted toward the set's
+                                           # score — Back is unlimited for review, but a round's
+                                           # score is locked in on its first completion and never
+                                           # changes on replay
 var _round_cubes        : Array[ColorRect] = []
 var _total_set_rounds   : int              = 0
 
@@ -240,6 +244,7 @@ func _load_rounds() -> void:
 	correct_count       = 0
 	clean_correct_count = 0
 	_assisted_rounds    = []
+	_scored_rounds      = {}
 
 # ─── Round flow ───────────────────────────────────────────────────────────────
 func _start_round() -> void:
@@ -452,11 +457,15 @@ func _input(event: InputEvent) -> void:
 
 # ─── Correct / Wrong ──────────────────────────────────────────────────────────
 func _do_correct() -> void:
-	correct_count += 1
-	if not _round_hint_used:
-		clean_correct_count += 1
-	else:
-		_assisted_rounds.append(rounds[round_index])
+	# Back is unlimited for review; replaying an already-scored round must
+	# never change the score, pass percentage, or gate result.
+	if not _scored_rounds.has(round_index):
+		_scored_rounds[round_index] = true
+		correct_count += 1
+		if not _round_hint_used:
+			clean_correct_count += 1
+		else:
+			_assisted_rounds.append(rounds[round_index])
 	_stop_cube_blink()
 	var style := StyleBoxFlat.new()
 	style.bg_color                   = CUBE_BORDER

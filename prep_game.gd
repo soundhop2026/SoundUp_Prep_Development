@@ -36,6 +36,10 @@ var _round_had_error    : bool  = false   # true if child pressed wrong at least
 var _local_wrong_rounds : Array = []      # wrong round dicts collected this set
 var _local_total        : int   = 0       # rounds completed this set
 var _local_wrong        : int   = 0       # wrong rounds this set
+var _scored_rounds      : Dictionary = {} # round_index -> true once counted toward the set's
+                                           # score — Back is unlimited for review, but a round's
+                                           # score is locked in on its first completion and never
+                                           # changes on replay
 var _round_cubes        : Array[ColorRect] = []
 var _total_set_rounds   : int              = 0
 var _gnb_btn            : Button           = null
@@ -177,6 +181,7 @@ func _load_rounds() -> void:
 	_local_wrong_rounds = []
 	_local_total        = 0
 	_local_wrong        = 0
+	_scored_rounds      = {}
 
 	var file := FileAccess.open(PrepLevelProgress.current_set(), FileAccess.READ)
 	var data : Dictionary = JSON.parse_string(file.get_as_text())
@@ -403,11 +408,15 @@ func _blend_round_cube() -> void:
 
 func _do_correct() -> void:
 	_resolving = true   # block Back — round_index changes below, once resolved
-	# Record round result before advancing
-	_local_total += 1
-	if _round_had_error:
-		_local_wrong += 1
-		_local_wrong_rounds.append(rounds[round_index])
+	# Record round result before advancing — only on this round's first
+	# completion. Back is unlimited for review; replaying an already-scored
+	# round must never change the score, pass percentage, or gate result.
+	if not _scored_rounds.has(round_index):
+		_scored_rounds[round_index] = true
+		_local_total += 1
+		if _round_had_error:
+			_local_wrong += 1
+			_local_wrong_rounds.append(rounds[round_index])
 
 	$CorrectSound.play()
 	_blend_round_cube()

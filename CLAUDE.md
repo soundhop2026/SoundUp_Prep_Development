@@ -101,7 +101,7 @@ else:
 - Wrong answer → full loop replay (not try-again screen)
 - 3-second choice window, then auto-replay if no answer
 - No idle hint timer
-- Back button available, works throughout the auto-play narration (not just the final choice window) — round_index - 1, guarded by `_resolving`/round_index==0 rather than `result_locked`. `_resolving` is true only during `_do_correct()`/`_do_wrong()`'s own result sound effects, since those are about to change round_index themselves; a `_seq_gen` counter (bumped on every `_start_round()`) cancels any in-flight auto-play sequence Back interrupts, so it can't race the new round's sequence. Nothing is ever forced — auto-play stays the default.
+- Back button — see [Back Button Philosophy](#back-button-philosophy-locked) for the product-wide rule. Prep-specific: works throughout the auto-play narration (not just the final choice window), guarded by `_resolving`/`round_index==0` rather than `result_locked`. `_resolving` is true only during `_do_correct()`/`_do_wrong()`'s own result sound effects, since those are about to change round_index themselves; a `_seq_gen` counter (bumped on every `_start_round()`) cancels any in-flight auto-play sequence Back interrupts, so it can't race the new round's sequence. Nothing is ever forced — auto-play stays the default.
 
 ### 26 Prep Sets
 Originally scoped at 33 sets (through a 1G "ending sounds" group), deliberately
@@ -222,13 +222,10 @@ The `phase = "wait_listen"` flow and `$ListenButton` must be preserved.
 `_shuffle_no_consecutive()` ensures no two consecutive rounds share the same phoneme.
 
 ### Back button
-- Shared component: `back_button.gd` (`class_name BackButton extends TextureButton`) —
-  same position (108, 25), size 150×150, appearance, and touch target everywhere it's
-  used (`game.gd`, `prep_game.gd`, `game2.gd`, `game25.gd`, `game15.gd`). Each screen
-  instantiates `BackButton.new()` and connects its own `pressed` handler — only the
-  navigation/guard logic differs per screen, never the button itself.
-- On press (Level 1): if `result_locked` or `round_index == 0` → do nothing; else go back one round
-- `_round_hint_used` resets when going back (clean slate for that round)
+See [Back Button Philosophy](#back-button-philosophy-locked) for the product-wide rule and
+implementation details (shared `back_button.gd` component, unlimited navigation, first-attempt
+scoring lock-in). Level-1-specific: `_round_hint_used` resets when going back (clean slate for
+that round).
 
 ### 17 Level 1 Sets (331 total rounds)
 | Set | Phonemes | Choices | Rounds |
@@ -367,6 +364,41 @@ void fragment() {
 4. **Never invent timing values.** Use `await sound.finished` for audio sync. Only change a timing if it violates the locked design.
 5. **`_round_hint_used` set ONLY in `_do_wrong()`** — pressing Listen again, tapping images, taking time — none of these are penalties.
 6. **DEBUG_FAST constant** in `level_transition.gd` — set `false` before any release build.
+7. **Back is unlimited review, never scoring.** See [Back Button Philosophy](#back-button-philosophy-locked) — applies to every round-based level, current and future, unless there's a specific gameplay reason not to.
+
+---
+
+## Back Button Philosophy (locked)
+
+Product-wide navigation rule — applies to every round-based level, current and future,
+unless there's a very specific gameplay reason not to:
+
+- Back is a **review feature, never a scoring feature.**
+- Back is **unlimited** in every round-based level — no per-set or per-press cap.
+- Players may return to any previous round within the current set.
+- Players can **never skip forward** — after going back, they must replay forward through
+  every round in order to reach where they were.
+- A round contributes to scoring **only once, on its first completed attempt.** Replay never
+  changes score, pass percentage, stars, completion status, or gate decisions.
+- Completed round-progress cubes remain visible while replaying, so the player can always see
+  where they are relative to their previous furthest point.
+
+### Implementation
+- Shared button: `back_button.gd` (`class_name BackButton extends TextureButton`) — same
+  position, size, appearance everywhere it's used (`game.gd`, `prep_game.gd`, `game2.gd`,
+  `game25.gd`, `game15.gd`). Each screen instantiates `BackButton.new()` and wires its own
+  `pressed` handler; only the guard logic differs per screen, never the button itself.
+- Navigation: `round_index -= 1` (`_round_index` in `game15.gd`), guarded only by
+  `result_locked`/`_resolving` (mid-flight result animation) and `round_index == 0` — no
+  press-count cap on any screen. (`game15.gd` previously had a `BACK_USES_MAX = 2` cap;
+  removed for consistency with this rule.)
+- Scoring lock-in: every screen tracks a `_scored_rounds` dictionary (`round_index -> true`),
+  reset per set. The correct-answer handler (`_do_correct()` / `_tally_round()` in
+  `game15.gd`) only increments the score counters and appends to the wrong/assisted-rounds
+  list the *first* time a given `round_index` is scored — replays after that still play the
+  sound/cube-blend/round-advance as normal, but never touch score state again.
+- New round-based levels should follow this same `_scored_rounds`-guarded pattern rather than
+  inventing a new one.
 
 ---
 

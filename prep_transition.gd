@@ -185,6 +185,18 @@ func _play_transition() -> void:
 
 	await _exit_play_button()
 
+	# ── Free → premium boundary: never auto-continues past here ──────────────
+	# Everything above this point (bounce, cubes, exit fade) is identical for
+	# every set, free or not. Only right here — after the transition has
+	# fully finished — do we ever stop and wait for an explicit choice.
+	if PrepLevelProgress.crosses_into_premium():
+		_await_keep_hopping_then_continue()
+		return
+
+	_continue_to_next_set()
+
+
+func _continue_to_next_set() -> void:
 	if PrepLevelProgress.has_next():
 		PrepLevelProgress.advance()
 		get_tree().change_scene_to_file("res://prep_game.tscn")
@@ -194,6 +206,46 @@ func _play_transition() -> void:
 		LevelTransition.next_level_id = "level1"
 		LevelTransition.level_name    = "Level 1"
 		get_tree().change_scene_to_file("res://level_transition.tscn")
+
+
+# ─── "Keep Hopping!" — the one explicit choice before premium content ───────
+func _await_keep_hopping_then_continue() -> void:
+	var btn := Button.new()
+	btn.text         = "Keep Hopping!"
+	btn.size         = Vector2(340, 84)
+	btn.position     = Vector2(640.0 - 170.0, 290.0 - 42.0)
+	btn.pivot_offset = btn.size / 2.0
+	var font_path : String = "res://UI_assets/210 연필스케치R.ttf"
+	if ResourceLoader.exists(font_path):
+		btn.add_theme_font_override("font", load(font_path))
+	btn.add_theme_font_size_override("font_size", 28)
+	btn.add_theme_color_override("font_color",         Color.WHITE)
+	btn.add_theme_color_override("font_hover_color",   Color("#FFB703"))
+	btn.add_theme_color_override("font_pressed_color", Color("#FFB703"))
+	btn.add_theme_color_override("font_focus_color",   Color.WHITE)
+	var sty := StyleBoxFlat.new()
+	sty.bg_color                   = Color("#4B0082")
+	sty.corner_radius_top_left     = 20
+	sty.corner_radius_top_right    = 20
+	sty.corner_radius_bottom_left  = 20
+	sty.corner_radius_bottom_right = 20
+	sty.shadow_color               = Color(0.0, 0.0, 0.0, 0.30)
+	sty.shadow_size                = 14
+	sty.shadow_offset              = Vector2(0, 6)
+	btn.add_theme_stylebox_override("normal",  sty)
+	btn.add_theme_stylebox_override("hover",   sty)
+	btn.add_theme_stylebox_override("pressed", sty)
+	btn.add_theme_stylebox_override("focus",   sty)
+	btn.modulate.a = 0.0
+	add_child(btn)
+
+	var fade := create_tween()
+	fade.tween_property(btn, "modulate:a", 1.0, 0.4)
+
+	btn.pressed.connect(func():
+		PremiumIntroState.context_id = "prep"
+		get_tree().change_scene_to_file("res://premium_intro.tscn")
+	)
 
 # ─── PlayButton exit (shrink + fade) ─────────────────────────────────────────
 

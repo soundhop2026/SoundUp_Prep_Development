@@ -39,6 +39,7 @@ func _ready() -> void:
 	_build_back_button()
 	_build_scene_shortcuts()
 	_build_utilities()
+	_build_premium_gate_demo()
 	_build_status_label()
 
 
@@ -92,6 +93,7 @@ func _build_scene_shortcuts() -> void:
 		{ "label": "Level 2",       "fn": Callable(self, "_jump_level2") },
 		{ "label": "Set Transition","fn": Callable(self, "_jump_set_transition") },
 		{ "label": "Coronation",    "fn": Callable(self, "_jump_coronation") },
+		{ "label": "Prep Set 2 (Boundary)", "fn": Callable(self, "_jump_prep_set2") },
 	]
 
 	const COL_W  : float = 560.0
@@ -129,6 +131,23 @@ func _build_utilities() -> void:
 		var x : float = start_x + i * (BTN_W + GAP)
 		_make_action_button(utils[i]["label"], Vector2(x, Y), Vector2(BTN_W, 70.0),
 			utils[i]["fn"], WARN_RED)
+
+
+# ─── Premium flow demo — jumps straight to the Premium Intro Scene, skipping
+# the need to play through two full Prep sets. Permanent QA tool. ─────────────
+func _build_premium_gate_demo() -> void:
+	_make_label("Premium Flow Demo", Vector2(70, 610), Vector2(600, 24), 18, AMBER)
+
+	const BTN_W : float = 380.0
+	var start_x : float = (1280.0 - BTN_W) / 2.0
+	_make_action_button("Test Premium Intro → Choose Plan", Vector2(start_x, 640),
+		Vector2(BTN_W, 60.0), Callable(self, "_on_test_premium_flow_pressed"))
+
+
+func _on_test_premium_flow_pressed() -> void:
+	SaveManager.set_subscribed(false)
+	PremiumIntroState.context_id = "prep"
+	get_tree().change_scene_to_file("res://premium_intro.tscn")
 
 
 func _build_status_label() -> void:
@@ -200,6 +219,14 @@ func _jump_title() -> void:
 
 func _jump_prep() -> void:
 	PrepLevelProgress.current_index = 0
+	PrepLevelProgress.is_retry      = false
+	PrepLevelProgress.retry_rounds.clear()
+	get_tree().change_scene_to_file("res://prep_game.tscn")
+
+# Lands on Set A2 (index 1) — the last free set. Completing it triggers the
+# free/premium boundary: Transition -> Keep Hopping! -> Premium Intro -> Gate.
+func _jump_prep_set2() -> void:
+	PrepLevelProgress.current_index = 1
 	PrepLevelProgress.is_retry      = false
 	PrepLevelProgress.retry_rounds.clear()
 	get_tree().change_scene_to_file("res://prep_game.tscn")

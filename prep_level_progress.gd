@@ -69,6 +69,18 @@ const MAIN_SET_BOUNDARIES : Array[int] = [3, 7, 13, 19, 21, 25]
 static func is_main_set_boundary() -> bool:
 	return current_index in MAIN_SET_BOUNDARIES
 
+# ─── Free / premium boundary ───────────────────────────────────────────────────
+# Sets 1-2 (index 0-1) are free; Set 3 (index 2) onward requires the Parent Gate.
+const FREE_SET_COUNT : int = 2
+
+static func is_free_set(index: int) -> bool:
+	return index < FREE_SET_COUNT
+
+# True right after finishing the last free set, before advancing past it —
+# the exact moment the Parent Gate should intercept progression.
+static func crosses_into_premium() -> bool:
+	return is_free_set(current_index) and not is_free_set(current_index + 1)
+
 # Returns which main set (0–6) the current sub-set belongs to.
 static func main_set_number() -> int:
 	for i in range(MAIN_SET_BOUNDARIES.size()):

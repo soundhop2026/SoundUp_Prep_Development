@@ -24,6 +24,7 @@ static func _default_data() -> Dictionary:
 		"path_chosen"         : false,
 		"chose_level1_path"   : false,
 		"review_counts"       : {},
+		"subscribed"          : false,
 	}
 
 func _ready() -> void:
@@ -139,16 +140,25 @@ func set_chose_level1_path() -> void:
 	_data["chose_level1_path"] = true
 	save_game()
 
+func is_subscribed() -> bool:
+	return _data.get("subscribed", false)
+
+func set_subscribed(value: bool) -> void:
+	_data["subscribed"] = value
+	save_game()
+
 # --- Debug utilities (QA only — see debug_config.gd) ---
 
 func reset_progress() -> void:
 	var keep_path_chosen       : bool       = _data.get("path_chosen", false)
 	var keep_chose_level1_path : bool       = _data.get("chose_level1_path", false)
 	var keep_review_counts     : Dictionary = _data.get("review_counts", {})
+	var keep_subscribed        : bool       = _data.get("subscribed", false)
 	_data                       = _default_data()
 	_data["path_chosen"]       = keep_path_chosen
 	_data["chose_level1_path"] = keep_chose_level1_path
 	_data["review_counts"]     = keep_review_counts
+	_data["subscribed"]        = keep_subscribed
 	save_game()
 
 func unlock_all_levels() -> void:

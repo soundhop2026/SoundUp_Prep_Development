@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://viauk7c6vxjo"
-path="res://.godot/imported/jungle.png-8997ad717071d9c5bb7b8de50c0eb94c.ctex"
+uid="uid://b0jvwmd13ke28"
+path="res://.godot/imported/exact.png-be71618db4c13f347e2a5745c701b9cc.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://SoundUp_level1_word images/J/jungle.png"
-dest_files=["res://.godot/imported/jungle.png-8997ad717071d9c5bb7b8de50c0eb94c.ctex"]
+source_file="res://SoundUp_level1_word images/x-gz/exact.png"
+dest_files=["res://.godot/imported/exact.png-be71618db4c13f347e2a5745c701b9cc.ctex"]
 
 [params]
 

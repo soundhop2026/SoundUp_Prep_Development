@@ -129,7 +129,7 @@ var _clean_correct   : int   = 0
 var _round_hint_used : bool  = false
 var _assisted_rounds : Array = []
 var _scored_rounds   : Dictionary = {} # _round_index -> true once counted toward the set's
-                                        # score — Back is unlimited for review, but a round's
+										# score — Back is unlimited for review, but a round's
                                         # score is locked in on its first completion and never
                                         # changes on replay
 

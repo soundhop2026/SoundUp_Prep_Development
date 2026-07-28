@@ -46,9 +46,9 @@ var clean_correct_count : int    = 0
 var _round_hint_used    : bool   = false
 var _assisted_rounds    : Array  = []
 var _scored_rounds      : Dictionary = {} # round_index -> true once counted toward the set's
-                                           # score — Back is unlimited for review, but a round's
-                                           # score is locked in on its first completion and never
-                                           # changes on replay
+										   # score — Back is unlimited for review, but a round's
+										   # score is locked in on its first completion and never
+										   # changes on replay
 var _round_cubes        : Array[ColorRect] = []
 var _total_set_rounds   : int              = 0
 

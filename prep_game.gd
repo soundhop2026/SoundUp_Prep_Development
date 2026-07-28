@@ -37,9 +37,9 @@ var _local_wrong_rounds : Array = []      # wrong round dicts collected this set
 var _local_total        : int   = 0       # rounds completed this set
 var _local_wrong        : int   = 0       # wrong rounds this set
 var _scored_rounds      : Dictionary = {} # round_index -> true once counted toward the set's
-                                           # score — Back is unlimited for review, but a round's
-                                           # score is locked in on its first completion and never
-                                           # changes on replay
+										   # score — Back is unlimited for review, but a round's
+										   # score is locked in on its first completion and never
+										   # changes on replay
 var _round_cubes        : Array[ColorRect] = []
 var _total_set_rounds   : int              = 0
 var _gnb_btn            : Button           = null

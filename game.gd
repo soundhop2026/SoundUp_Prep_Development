@@ -14,9 +14,9 @@ var clean_correct_count : int   = 0      # correct with no wrong click this roun
 var _round_hint_used    : bool  = false  # set true on first wrong click this round
 var _assisted_rounds    : Array = []     # round dicts where _round_hint_used was true
 var _scored_rounds      : Dictionary = {} # round_index -> true once counted toward the set's
-                                           # score — Back is unlimited for review, but a round's
-                                           # score is locked in on its first completion and never
-                                           # changes on replay
+										   # score — Back is unlimited for review, but a round's
+										   # score is locked in on its first completion and never
+										   # changes on replay
 var _back_btn           : TextureButton = null
 var _gnb_btn            : Button        = null
 var _round_cubes        : Array[ColorRect] = []

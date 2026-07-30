@@ -86,7 +86,9 @@ func _build_yearly_card() -> void:
 		14, AMBER, HORIZONTAL_ALIGNMENT_CENTER, card)
 	_make_label("Yearly", Vector2(0, 40), Vector2(CARD_W, 32),
 		22, PURPLE, HORIZONTAL_ALIGNMENT_CENTER, card)
-	_price_label(card, "$69.99", "/year", 76.0)
+	_make_label("Full Access", Vector2(0, 76), Vector2(CARD_W, 24),
+		15, GRAY_TEXT, HORIZONTAL_ALIGNMENT_CENTER, card)
+	_price_label(card, "$69.99", "/year", 118.0)
 	_make_label("Pay for 10 months.\nGet 2 months free.", Vector2(0, 158), Vector2(CARD_W, 44),
 		13, GRAY_TEXT, HORIZONTAL_ALIGNMENT_CENTER, card)
 

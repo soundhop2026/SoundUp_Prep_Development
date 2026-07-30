@@ -99,8 +99,8 @@
                                            "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/J.wav/jeep.wav"
                                        },
                                        {
-                                           "image":  "res://SoundUp_level1_word images/G_soft/genie.png",
-                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/G_soft.wav/genie.wav"
+                                           "image":  "res://SoundUp_level1_word images/H/hat.png",
+                                           "word_audio":  "res://BGM&effect/SoundUp_level1_word sounds/H.wav/hat.wav"
                                        }
                                    ]
                    },

@@ -365,6 +365,49 @@ void fragment() {
 5. **`_round_hint_used` set ONLY in `_do_wrong()`** — pressing Listen again, tapping images, taking time — none of these are penalties.
 6. **DEBUG_FAST constant** in `level_transition.gd` — set `false` before any release build.
 7. **Back is unlimited review, never scoring.** See [Back Button Philosophy](#back-button-philosophy-locked) — applies to every round-based level, current and future, unless there's a specific gameplay reason not to.
+8. **Distractors must be phonemically different from the target.** See [Phoneme-Based Distractor Rule](#phoneme-based-distractor-rule-locked) — never pair a target and a distractor that share the same actual sound, even if their spelling differs.
+
+---
+
+## Phoneme-Based Distractor Rule (locked)
+
+Found via a real bug: a Level 1F/Prep 1F "sounds mixed" round targeted **J** (`jeep` as the
+correct answer) but included **`genie`** as a distractor. Soft G and J are both /dʒ/ — the
+exact same phoneme, just spelled differently. A child who correctly identified the sound and
+picked `genie` would have been marked wrong for a right answer. Fixed by swapping `genie` for
+`hat` in the three files sharing that round (`level_1f.json`, `level_1f_2.json`,
+`prep_1f_4.json`); confirmed no other files pair a J-word with a soft-G word.
+
+**Rule:** choice validation happens at two levels, both required:
+1. **Phoneme level** — classify every word by its actual sound, not its spelling. This is a
+   property of the word itself, checked once, independent of any round.
+2. **Round level** — within one round's actual choice set, no distractor may share the
+   **target's phoneme**, regardless of how it's spelled.
+
+**Grapheme overlap is irrelevant and never the problem.** Two distractors spelled with the same
+letter (e.g. two different C-words) are completely fine together, even if one is hard C and one
+is soft C — they don't share a phoneme with each other. The only thing that matters is whether
+a distractor's *actual sound* matches the *target's actual sound* — spelling never enters into
+whether a pairing is valid.
+
+**Known same-phoneme spelling groups in this curriculum:**
+- **/dʒ/** — J (`jeep`, `jump`, `jacket`) and soft G (`genie`, `giant`, `gym`, `giraffe`)
+- **/s/** — S (`sun`, `sock`) and soft C (`city`, `cereal`, `cent`, `circus`, `celery`, `circle`)
+- **/k/** — K (`kite`) and hard C (`cat`, `cup`)
+- **/ɡ/** — G (`go`) and hard G (`game`) — don't mix if the round's goal is phoneme
+  discrimination between them
+- **/ks/** — X (`box`) and other spellings representing the same sound — check before using as
+  a distractor pair
+
+**Before approving any round's choices, validate:**
+1. The target phoneme
+2. The correct answer's actual phoneme (not just its target letter/spelling)
+3. Every distractor's actual phoneme, checked against the target specifically — not against
+   each other, and not against spelling
+
+When adding a new word to the word bank, classify its phoneme once (level 1), then re-check it
+against the target every time it's used as a distractor in a specific round (level 2) — passing
+one check doesn't exempt it from the other.
 
 ---
 

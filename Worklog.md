@@ -52,6 +52,45 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-08-01
+
+### Completed
+- Sound Quest exploration flow refinement — Sound Quest clarified as a mastery exploration
+  activity, not an assessment:
+  - Maze solution path is hidden; the approach to the maze is a plain free-drag with no guide
+    line at all (the maze's entry gap is already fully visible, so no path indicator is needed).
+  - Each image attempt generates a new maze layout (`_reshape_maze()` per attempt).
+  - Wrong-route exploration inside the maze is allowed — wandering into a dead-end branch never
+    fails or resets the attempt.
+  - Wall crossing is blocked (the drag holds at its last valid cell), but exploring any real
+    open corridor, dead ends included, is never treated as failure.
+  - Target word audio continues during maze exploration, tied to active movement, for natural
+    sound repetition.
+  - Exit success triggers only after the image is dragged fully through and slightly past the
+    maze's exit boundary (tolerance zone, not pixel-perfect).
+  - Completed images move to the completed row after successfully exiting.
+- Commits: `886058f`, `795cad8`, `85b9d6b`, `f735219`, `df16b29`, `8401c29`, `14c54de`,
+  `53c4f26`, `e928c8d`, `c452774` — pushed and verified against `origin/main` via `git fetch`.
+
+### Decisions
+- Sound Quest's collision model tracks which maze *cell* the drag currently occupies and only
+  allows moving into an adjacent cell when that specific wall is open (`can_move_between()` in
+  `maze_generator.gd`) — an earlier rect-union approach (`full_corridor_rects()`) looked
+  correct but couldn't actually distinguish a real closed wall from a dead-end branch, since
+  adjacent cells' rects always touch regardless of wall state. Caught by a headless test before
+  it shipped.
+- No fail sound anywhere in Sound Quest — a wrong turn is discovery, not a mistake, so nothing
+  plays to signal it.
+
+### Risks / Gotchas
+- None new from this entry; see prior entries for keystore/tool-path/Gradle notes.
+
+### Next Session
+- Continue hands-on playtesting of Sound Quest (DEBUG → Demo Shortcuts → "Test Sound Quest
+  (Group A)") for any further exploration-flow feedback.
+
+---
+
 ## 2026-07-29
 
 ### Completed

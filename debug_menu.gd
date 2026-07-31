@@ -134,21 +134,32 @@ func _build_utilities() -> void:
 			utils[i]["fn"], WARN_RED)
 
 
-# ─── Premium flow demo — jumps straight to the Premium Intro Scene, skipping
-# the need to play through two full Prep sets. Permanent QA tool. ─────────────
+# ─── Demo shortcuts — jump straight into a specific flow, skipping the setup
+# needed to reach it through normal play. Permanent QA tools. ────────────────
 func _build_premium_gate_demo() -> void:
-	_make_label("Premium Flow Demo", Vector2(70, 610), Vector2(600, 24), 18, AMBER)
+	_make_label("Demo Shortcuts", Vector2(70, 610), Vector2(600, 24), 18, AMBER)
 
 	const BTN_W : float = 380.0
-	var start_x : float = (1280.0 - BTN_W) / 2.0
+	const GAP   : float =  20.0
+	var start_x : float = (1280.0 - BTN_W * 2.0 - GAP) / 2.0
 	_make_action_button("Test Premium Intro → Choose Plan", Vector2(start_x, 640),
 		Vector2(BTN_W, 60.0), Callable(self, "_on_test_premium_flow_pressed"))
+	_make_action_button("Test Sound Quest (Group A)", Vector2(start_x + BTN_W + GAP, 640),
+		Vector2(BTN_W, 60.0), Callable(self, "_on_test_sound_quest_pressed"))
 
 
 func _on_test_premium_flow_pressed() -> void:
 	SaveManager.set_subscribed(false)
 	PremiumIntroState.context_id = "prep"
 	get_tree().change_scene_to_file("res://premium_intro.tscn")
+
+
+# Jumps straight into Sound Quest with Group A's real word range, skipping
+# the need to play a full 20-round Prep set to trigger the Group boundary.
+func _on_test_sound_quest_pressed() -> void:
+	SoundQuestState.group_start_index = 0
+	SoundQuestState.group_end_index   = 3
+	get_tree().change_scene_to_file("res://sound_quest.tscn")
 
 
 func _build_status_label() -> void:

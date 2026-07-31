@@ -32,7 +32,9 @@ const PURPLE       : Color = Color("#4B0082")
 const AMBER        : Color = Color("#FFB703")
 const WHITE        : Color = Color("#FFFFFF")
 const WALL_COLOR   : Color = Color("#2E2E2E")   # thick hand-drawn-style wall lines
-const ROUTE_COLOR  : Color = Color("#4B0082")   # hidden route, once revealed — brand purple
+# Light violet, not the deep #4B0082 brand purple — deep purple against near-
+# black walls had too little contrast to actually read as a distinct path.
+const ROUTE_COLOR  : Color = Color("#B388FF")
 
 # 4 fixed slot centers — same quadrant layout game.gd uses for 4-choice rounds.
 const SLOT_POSITIONS : Array[Vector2] = [
@@ -43,6 +45,10 @@ const SLOT_POSITIONS : Array[Vector2] = [
 ]
 
 const IMAGE_BOX     : float = 150.0    # word image fits within this box
+# The dragged image shrinks to roughly this size while navigating the maze —
+# at the full 150px IMAGE_BOX it would blanket most of a 50px-cell corridor
+# and hide the route it's meant to be following.
+const MAZE_DRAG_IMAGE_SIZE : float = 60.0
 const BOB_AREA_SIZE : Vector2 = Vector2(190, 190)   # boundary the drag must cross
 const BOB_AMPLITUDE : float = 8.0
 const BOB_HALF_DUR  : float = 0.9
@@ -60,7 +66,7 @@ const MAZE_COLS       : int   = 8
 const MAZE_ROWS        : int   = 4
 const MAZE_CELL_SIZE   : float = 50.0
 const MAZE_WALL_WIDTH  : float = 6.0
-const ROUTE_WIDTH      : float = 5.0
+const ROUTE_WIDTH      : float = 8.0
 const GOAL_MARKER_R    : float = 14.0
 
 const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window = "stopped"
@@ -106,7 +112,6 @@ const ST_DRAG_MAZE     : String = "drag_maze"
 
 var _font : Font = null
 
-var _group_letter : String = "A"
 var _quests        : Array = []   # Array[Array[Dictionary]] — 4 quests of {image, word_audio, phoneme_audio}
 var _quest_index    : int   = 0
 var _quest_remaining : Array = []  # new words in the current Quest not yet placed in a round
@@ -138,7 +143,6 @@ var _music_player     : AudioStreamPlayer = null
 var _word_audio_active : bool = false   # guards the manual play->finished->replay loop
 var _move_timer : Timer = null   # word audio pauses when no drag-motion arrives within MOVE_STOP_DELAY
 
-var _header_label : Label = null
 var _busy : bool = false   # true during Quest Transition / group handoff — input ignored
 
 
@@ -154,11 +158,7 @@ func _ready() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	_group_letter = PrepLevelProgress.set_labels[SoundQuestState.group_start_index][0]
-
 	_build_audio_players()
-	_start_music()
-	_build_header()
 	_maze_container = Node2D.new()
 	add_child(_maze_container)
 
@@ -195,10 +195,10 @@ func _build_audio_players() -> void:
 
 
 # ─── Background music ───────────────────────────────────────────────────────
-# Loops for the whole Sound Quest scene lifetime — same manual loop-on-finished
-# idiom as level_transition.gd's _start_music()/_on_music_finished(). Keeps
-# playing straight through Quest Transitions (no scene change happens between
-# Quests), fades out once before handing control back to Prep progression.
+# Plays only during the Quest Transition beat between rounds/quests, not
+# during gameplay itself — started at the top of _play_quest_transition() and
+# stopped at its end. Same manual loop-on-finished idiom as level_transition.
+# gd's _start_music()/_on_music_finished().
 func _start_music() -> void:
 	if not ResourceLoader.exists(MUSIC_PATH):
 		return
@@ -225,26 +225,6 @@ func _stop_music() -> void:
 	_music_player.stop()
 
 
-func _build_header() -> void:
-	_header_label = Label.new()
-	_header_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_header_label.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	_header_label.position = Vector2(0, 16)
-	_header_label.size     = Vector2(1280, 44)
-	_header_label.add_theme_font_size_override("font_size", 28)
-	_header_label.add_theme_color_override("font_color", PURPLE)
-	if _font:
-		_header_label.add_theme_font_override("font", _font)
-	add_child(_header_label)
-	_update_header()
-
-
-func _update_header() -> void:
-	if _header_label:
-		_header_label.text = "Group %s · Sound Quest %d of %d" % [
-			_group_letter, _quest_index + 1, QUEST_COUNT]
-
-
 # ─── Quest lifecycle ────────────────────────────────────────────────────────
 
 func _start_quest() -> void:
@@ -263,7 +243,6 @@ func _start_quest() -> void:
 	_quest_remaining   = words.duplicate()
 	_quest_total_words = words.size()
 	_quest_done_words  = 0
-	_update_header()
 
 	for slot in _slots:
 		if slot.get("node") != null:
@@ -428,7 +407,12 @@ func _stop_bob(index: int) -> void:
 func _snap_back(index: int) -> void:
 	var slot : Dictionary = _slots[index]
 	var btn  : TextureButton = slot["node"]
-	btn.position = slot["base_pos"] - btn.pivot_offset
+	# Restores full size in case this snap-back follows a failed maze attempt
+	# (_enter_maze_mode() shrinks the image while navigating) — harmless no-op
+	# if it never left the bobbing area, since it was already full size.
+	btn.size         = Vector2(IMAGE_BOX, IMAGE_BOX)
+	btn.pivot_offset = Vector2(IMAGE_BOX, IMAGE_BOX) / 2.0
+	btn.position     = slot["base_pos"] - btn.pivot_offset
 	_start_bob(index)
 
 
@@ -584,7 +568,9 @@ func _enter_maze_mode(index: int, drag_pos: Vector2) -> void:
 	_drag_anchor_target  = _maze.start_pos()
 
 	var btn : TextureButton = slot["node"]
-	btn.position = _drag_anchor_target - btn.pivot_offset
+	btn.size         = Vector2(MAZE_DRAG_IMAGE_SIZE, MAZE_DRAG_IMAGE_SIZE)
+	btn.pivot_offset = btn.size / 2.0
+	btn.position     = _drag_anchor_target - btn.pivot_offset
 
 	_start_word_audio(index)
 
@@ -726,6 +712,7 @@ const QT_PLAY_BUTTON_SIZE  : float = 70.0
 
 func _play_quest_transition() -> void:
 	_busy = true
+	_start_music()
 
 	var maze_size : Vector2 = Vector2(QT_MAZE_COLS, QT_MAZE_ROWS) * QT_CELL_SIZE
 	var origin    : Vector2 = Vector2(640, 380) - maze_size / 2.0
@@ -787,6 +774,7 @@ func _play_quest_transition() -> void:
 	await ext.finished
 
 	deco_container.queue_free()
+	await _stop_music()
 	_busy = false
 	_start_quest()
 

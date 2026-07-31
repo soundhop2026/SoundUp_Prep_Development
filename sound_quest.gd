@@ -85,6 +85,17 @@ const MAZE_START_CELL  : Vector2i = Vector2i(6, 0)   # the maze's one shared ent
 const MAZE_WALL_WIDTH  : float = 6.0
 const GOAL_MARKER_R    : float = 14.0
 
+# Success doesn't fire the instant the drag reaches the goal cell — the
+# child has to actually pull the image out through the exit and slightly
+# past the maze's boundary. EXIT_ZONE_DEPTH is how far past that boundary
+# still counts as "still exiting" rather than an instant fail; EXIT_
+# SUCCESS_THRESHOLD (smaller, well inside that safe depth) is how far past
+# it actually has to go before success triggers. EXIT_ZONE_Y_TOLERANCE
+# forgives imprecise vertical alignment with the exit row.
+const EXIT_ZONE_DEPTH        : float = 60.0
+const EXIT_ZONE_Y_TOLERANCE  : float = 30.0
+const EXIT_SUCCESS_THRESHOLD : float = 25.0
+
 const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window = "stopped"
 
 # No guide line — the maze (and its entry) is already fully visible, so the
@@ -555,10 +566,23 @@ func _update_maze_drag(idx: int, pos: Vector2) -> void:
 	if _word_audio_active and not _word_player.playing:
 		_word_player.play()
 
-	if not _maze.is_point_in_corridor(center):
+	if _maze.is_point_in_corridor(center):
+		return
+
+	# Outside the strict corridor — only OK if within the exit zone (passing
+	# through, or just past, the exit on the way out). Anything else off the
+	# corridor is a fail, same hard-wall rule as everywhere else in the maze.
+	var goal_rect  : Rect2 = _maze.cell_rect(_maze.goal_cell)
+	var boundary_x : float = goal_rect.position.x + goal_rect.size.x
+	var exit_zone  : Rect2 = Rect2(
+		boundary_x, goal_rect.position.y - EXIT_ZONE_Y_TOLERANCE,
+		EXIT_ZONE_DEPTH, goal_rect.size.y + EXIT_ZONE_Y_TOLERANCE * 2.0)
+
+	if not exit_zone.has_point(center):
 		_fail_attempt(idx)
 		return
-	if _maze.goal_pos().distance_to(center) <= _maze.cell_size * 0.5:
+
+	if center.x >= boundary_x + EXIT_SUCCESS_THRESHOLD:
 		_succeed_attempt(idx)
 
 

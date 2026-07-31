@@ -5,12 +5,22 @@ extends Node2D
 # after that Group's last sub-set finishes (see prep_transition.gd's
 # is_main_set_boundary() branch). Reached via SoundQuestState's handoff.
 #
-# 4 words visible at once, each bobbing in its own fixed area. Tap = hear the
-# phoneme (unlimited, exploration only). Press-and-drag past the bobbing
-# area's boundary starts a maze attempt: a fresh maze is generated, the full
-# word loops while dragging, a hard wall means instant fail, reaching the
-# goal marks the word mastered. Failed words stay in the same visible slot
-# for immediate retry — never requeued.
+# 4 words visible at once in a row across the top, each bobbing in its own
+# fixed area. Tap = hear the phoneme (unlimited, exploration only). Press-
+# and-drag past the bobbing area's boundary begins a two-phase attempt:
+#
+#  1. Approach — each image has its own hidden, winding path (loops + wide
+#     zigzags) connecting it to the one shared maze's single entry point.
+#     Invisible until this drag crosses the boundary, then revealed in
+#     purple; straying more than a small tolerance off it fails instantly.
+#     The line disappears the instant the image reaches the maze.
+#  2. Maze — a single shared maze (one entry, one exit, everywhere else on
+#     its boundary sealed) with no visible line at all — pure hard-wall
+#     navigation by feel. Reaching the goal marks the word mastered.
+#
+# Both the maze and the approach path regenerate fresh on every attempt,
+# including retries after a fail, so nothing can be memorized. Failed words
+# stay in the same visible slot for immediate retry — never requeued.
 #
 # Words are grouped into Quest Rounds of exactly 4 — the whole round has to
 # finish (all 4 mastered) before the next round of 4 begins; nothing refills
@@ -36,18 +46,20 @@ const WALL_COLOR   : Color = Color("#2E2E2E")   # thick hand-drawn-style wall li
 # black walls had too little contrast to actually read as a distinct path.
 const ROUTE_COLOR  : Color = Color("#B388FF")
 
-# 4 fixed slot centers — same quadrant layout game.gd uses for 4-choice rounds.
+# 4 fixed slot centers in a single row across the top, feeding down into the
+# one shared maze near the bottom via each image's own approach path.
 const SLOT_POSITIONS : Array[Vector2] = [
-	Vector2(370, 270),
-	Vector2(810, 270),
-	Vector2(370, 490),
-	Vector2(810, 490),
+	Vector2(195, 180),
+	Vector2(534, 180),
+	Vector2(749, 180),
+	Vector2(1090, 180),
 ]
 
 const IMAGE_BOX     : float = 150.0    # word image fits within this box
-# The dragged image shrinks to roughly this size while navigating the maze —
-# at the full 150px IMAGE_BOX it would blanket most of a 50px-cell corridor
-# and hide the route it's meant to be following.
+# The dragged image shrinks to roughly this size for the whole journey (both
+# the approach path and the maze) — at the full 150px IMAGE_BOX it would
+# blanket most of a 65px-cell corridor and hide whatever it's meant to be
+# following, visible route or not.
 const MAZE_DRAG_IMAGE_SIZE : float = 60.0
 const BOB_AREA_SIZE : Vector2 = Vector2(190, 190)   # boundary the drag must cross
 const BOB_AMPLITUDE : float = 8.0
@@ -55,21 +67,39 @@ const BOB_HALF_DUR  : float = 0.9
 
 const TAP_MOVE_THRESHOLD : float = 14.0   # px — below this, a release counts as a tap
 
-# One shared maze box for every Group — difficulty is carried by route STYLE
-# (see STYLE_WEIGHTS_BY_GROUP below), not by growing the box. Sized from the
-# real slot layout: only one maze is ever active at a time (the drag state
-# machine allows just one slot in ST_DRAG_MAZE), so it only has to clear the
-# other 3 idle bobbing images (190x190 each) and the screen edges — measured
-# clearance around any of the 4 slots is ~325px horizontally but only
-# ~115-125px vertically, so the box is landscape rather than square.
-const MAZE_COLS       : int   = 8
-const MAZE_ROWS        : int   = 4
-const MAZE_CELL_SIZE   : float = 50.0
+# One shared maze for every image and every Group — difficulty is carried by
+# route STYLE (see STYLE_WEIGHTS_BY_GROUP below), not by growing the box.
+# A wide, tall band near the bottom of the screen, well clear of the top
+# image row (which ends around y=255) and the completed row to its right.
+# Sealed on every side except one entry (left edge) and one exit (right
+# edge, feeding the completed row) — see maze_generator.gd's wall_segments().
+const MAZE_COLS       : int      = 12
+const MAZE_ROWS        : int      = 4
+const MAZE_CELL_SIZE   : float    = 65.0
+const MAZE_ORIGIN      : Vector2  = Vector2(60, 420)
+const MAZE_START_CELL  : Vector2i = Vector2i(0, 2)   # the maze's one shared entry, left edge
 const MAZE_WALL_WIDTH  : float = 6.0
 const ROUTE_WIDTH      : float = 8.0
 const GOAL_MARKER_R    : float = 14.0
 
 const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window = "stopped"
+
+# ─── Approach path ──────────────────────────────────────────────────────────
+# The hidden, winding path connecting a chosen image to the maze's single
+# entry — invisible until that image is dragged past its bobbing boundary,
+# and hidden again the instant it reaches the maze. Distinct from the maze:
+# never grid-based, no hard walls — a smooth polyline the drag has to stay
+# within a tolerance band of, tracked by progress *along* the path (not raw
+# position), since the path loops back over itself and a plain "am I near
+# any purple pixel" check would get confused at those crossings.
+const APPROACH_TOLERANCE  : float = 40.0   # px — how far off the path still counts as "on" it
+const APPROACH_LOOKAHEAD  : int   = 6      # segments searched ahead of current progress each frame
+const APPROACH_LOOP_MIN   : int   = 1
+const APPROACH_LOOP_MAX   : int   = 2
+const APPROACH_ZIGZAG_MIN : int   = 3
+const APPROACH_ZIGZAG_MAX : int   = 5
+const APPROACH_ZIGZAG_LEFT_X  : float = 80.0
+const APPROACH_ZIGZAG_RIGHT_X : float = 1150.0
 
 # A Quest Round is always exactly 4 images — never a partial round. If a
 # Quest's remaining new words run short of 4, the round is padded with review
@@ -78,10 +108,11 @@ const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window
 const ROUND_SIZE : int = 4
 
 # Completed images from the current round move here — a simple horizontal
-# row, capped at ROUND_SIZE since a round is never bigger than 4. Clears at
-# the start of every new round.
-const COMPLETED_ROW_Y       : float = 380.0
-const COMPLETED_ROW_START_X : float = 950.0
+# row, capped at ROUND_SIZE since a round is never bigger than 4. Positioned
+# just past the maze's exit (right edge, x=780) so it reads as "this is
+# where the maze leads." Clears at the start of every new round.
+const COMPLETED_ROW_Y       : float = 600.0
+const COMPLETED_ROW_START_X : float = 900.0
 const COMPLETED_ROW_STEP    : float = 90.0
 const COMPLETED_THUMB_SIZE  : float = 70.0
 const COMPLETED_MOVE_DUR    : float = 0.35
@@ -107,6 +138,7 @@ const STYLE_WEIGHTS_BY_GROUP : Array[Dictionary] = [
 const ST_EMPTY         : String = "empty"
 const ST_BOBBING       : String = "bobbing"
 const ST_DRAG_IN_AREA  : String = "drag_in_area"
+const ST_DRAG_APPROACH : String = "drag_approach"   # following the revealed path toward the maze
 const ST_DRAG_MAZE     : String = "drag_maze"
 
 
@@ -133,6 +165,10 @@ var _drag_anchor_target  : Vector2 = Vector2.ZERO   # image center pos at that s
 
 var _maze          = null   # MazeGenerator.MazeData
 var _maze_container : Node2D = null
+
+var _approach_points    : Array    = []   # Array[Vector2] — this attempt's winding path, image -> maze entry
+var _approach_index     : int      = 0    # how far along _approach_points progress has been confirmed
+var _approach_container : Node2D   = null
 
 var _phoneme_player : AudioStreamPlayer = null
 var _word_player     : AudioStreamPlayer = null
@@ -161,6 +197,8 @@ func _ready() -> void:
 	_build_audio_players()
 	_maze_container = Node2D.new()
 	add_child(_maze_container)
+	_approach_container = Node2D.new()
+	add_child(_approach_container)
 
 	var pool : Array = SoundQuestState.build_word_pool(
 		SoundQuestState.group_start_index, SoundQuestState.group_end_index)
@@ -407,9 +445,9 @@ func _stop_bob(index: int) -> void:
 func _snap_back(index: int) -> void:
 	var slot : Dictionary = _slots[index]
 	var btn  : TextureButton = slot["node"]
-	# Restores full size in case this snap-back follows a failed maze attempt
-	# (_enter_maze_mode() shrinks the image while navigating) — harmless no-op
-	# if it never left the bobbing area, since it was already full size.
+	# Restores full size in case this snap-back follows a failed approach/maze
+	# attempt (_enter_approach_mode() shrinks the image for the whole journey)
+	# — harmless no-op if it never left the bobbing area, already full size.
 	btn.size         = Vector2(IMAGE_BOX, IMAGE_BOX)
 	btn.pivot_offset = Vector2(IMAGE_BOX, IMAGE_BOX) / 2.0
 	btn.position     = slot["base_pos"] - btn.pivot_offset
@@ -477,33 +515,86 @@ func _update_drag(pos: Vector2) -> void:
 			# no word audio yet, per spec.
 			btn.position = pos - btn.pivot_offset
 			return
-		# Crossed the boundary — lock into maze gameplay.
-		_enter_maze_mode(idx, pos)
+		# Crossed the boundary — reveal this image's approach path.
+		_enter_approach_mode(idx, pos)
+		return
+
+	if slot["state"] == ST_DRAG_APPROACH:
+		_update_approach_drag(idx, pos)
 		return
 
 	if slot["state"] == ST_DRAG_MAZE:
-		# The maze is generated centered on the slot, not on wherever the
-		# finger happened to cross the bobbing-area boundary, so the image
-		# tracks pointer movement relative to the anchor set in
-		# _enter_maze_mode() rather than jumping straight to the raw pointer
-		# position — that keeps it inside the corridor's start cell and keeps
-		# the maze fully on-screen regardless of which edge was crossed.
-		var center : Vector2 = _drag_anchor_target + (pos - _drag_anchor_pointer)
-		btn.position = center - btn.pivot_offset
+		_update_maze_drag(idx, pos)
 
-		# Word audio is tied to active movement, not the whole attempt: every
-		# drag-motion event restarts the "still moving" timer and resumes
-		# playback if a prior pause already stopped it. _on_move_stop_timeout()
-		# stops playback again once no motion arrives for MOVE_STOP_DELAY.
-		_move_timer.start()
-		if _word_audio_active and not _word_player.playing:
-			_word_player.play()
 
-		if not _maze.is_point_in_corridor(center):
-			_fail_attempt(idx)
-			return
-		if _maze.goal_pos().distance_to(center) <= _maze.cell_size * 0.5:
-			_succeed_attempt(idx)
+# Following the revealed approach path — progress is tracked by how far
+# along the path the drag has confirmed reaching, not raw distance to "any"
+# point on it, since the path loops back over itself (see APPROACH_TOLERANCE
+# doc comment above).
+func _update_approach_drag(idx: int, pos: Vector2) -> void:
+	var slot : Dictionary = _slots[idx]
+	var btn  : TextureButton = slot["node"]
+	btn.position = pos - btn.pivot_offset
+
+	_move_timer.start()
+	if _word_audio_active and not _word_player.playing:
+		_word_player.play()
+
+	var window_end : int   = mini(_approach_index + APPROACH_LOOKAHEAD, _approach_points.size() - 1)
+	var best_dist  : float = INF
+	var best_index : int   = _approach_index
+	for i in range(_approach_index, window_end):
+		var cp : Vector2 = _closest_point_on_segment(pos, _approach_points[i], _approach_points[i + 1])
+		var d  : float   = pos.distance_to(cp)
+		if d < best_dist:
+			best_dist  = d
+			best_index = i
+
+	if best_dist > APPROACH_TOLERANCE:
+		_fail_attempt(idx)
+		return
+
+	_approach_index = maxi(_approach_index, best_index)
+
+	var last_point : Vector2 = _approach_points[-1]
+	if _approach_index >= _approach_points.size() - 2 and pos.distance_to(last_point) <= APPROACH_TOLERANCE:
+		_enter_maze_from_approach(idx, pos)
+
+
+func _update_maze_drag(idx: int, pos: Vector2) -> void:
+	var slot : Dictionary = _slots[idx]
+	var btn  : TextureButton = slot["node"]
+
+	# The maze sits at one fixed shared position, not centered on any slot,
+	# so the image tracks pointer movement relative to the anchor set in
+	# _enter_maze_from_approach() rather than jumping straight to the raw
+	# pointer position — that keeps it inside the corridor's start cell
+	# regardless of exactly where the approach path happened to end.
+	var center : Vector2 = _drag_anchor_target + (pos - _drag_anchor_pointer)
+	btn.position = center - btn.pivot_offset
+
+	# Word audio is tied to active movement, not the whole attempt: every
+	# drag-motion event restarts the "still moving" timer and resumes
+	# playback if a prior pause already stopped it. _on_move_stop_timeout()
+	# stops playback again once no motion arrives for MOVE_STOP_DELAY.
+	_move_timer.start()
+	if _word_audio_active and not _word_player.playing:
+		_word_player.play()
+
+	if not _maze.is_point_in_corridor(center):
+		_fail_attempt(idx)
+		return
+	if _maze.goal_pos().distance_to(center) <= _maze.cell_size * 0.5:
+		_succeed_attempt(idx)
+
+
+static func _closest_point_on_segment(p: Vector2, a: Vector2, b: Vector2) -> Vector2:
+	var ab     : Vector2 = b - a
+	var len_sq : float   = ab.length_squared()
+	if len_sq == 0.0:
+		return a
+	var t : float = clampf((p - a).dot(ab) / len_sq, 0.0, 1.0)
+	return a + ab * t
 
 
 func _end_drag(pos: Vector2) -> void:
@@ -517,8 +608,8 @@ func _end_drag(pos: Vector2) -> void:
 		slot["state"] = ST_BOBBING
 		_slots[idx] = slot
 		_snap_back(idx)
-	elif slot["state"] == ST_DRAG_MAZE:
-		# Released mid-maze, before reaching the goal.
+	elif slot["state"] == ST_DRAG_APPROACH or slot["state"] == ST_DRAG_MAZE:
+		# Released before reaching the maze, or mid-maze before the goal.
 		_fail_attempt(idx)
 
 	_dragging_slot_index = -1
@@ -550,29 +641,109 @@ func _pick_style() -> String:
 	return MazeGenerator.STYLE_CURVE
 
 
-func _enter_maze_mode(index: int, drag_pos: Vector2) -> void:
+# Crossing the bobbing boundary — the maze is generated now (not rendered
+# yet) purely so the approach path has a real entry point (_maze.start_pos())
+# to end at, rather than duplicating that cell-center math. Nothing about the
+# maze is visible until _enter_maze_from_approach() actually reveals it.
+func _enter_approach_mode(index: int, drag_pos: Vector2) -> void:
 	var slot : Dictionary = _slots[index]
 	_stop_bob(index)
-	slot["state"] = ST_DRAG_MAZE
+	slot["state"] = ST_DRAG_APPROACH
 	_slots[index] = slot
-
-	var maze_size : Vector2 = Vector2(MAZE_COLS, MAZE_ROWS) * MAZE_CELL_SIZE
-	var origin    : Vector2 = slot["base_pos"] - maze_size / 2.0
-	_maze = MazeGenerator.generate(MAZE_COLS, MAZE_ROWS, MAZE_CELL_SIZE, origin, _pick_style())
-	_render_maze()
-
-	# Anchor the image to the maze's actual start cell rather than the raw
-	# crossing point — see _update_drag()'s ST_DRAG_MAZE branch, which maps
-	# further pointer motion relative to this anchor.
-	_drag_anchor_pointer = drag_pos
-	_drag_anchor_target  = _maze.start_pos()
 
 	var btn : TextureButton = slot["node"]
 	btn.size         = Vector2(MAZE_DRAG_IMAGE_SIZE, MAZE_DRAG_IMAGE_SIZE)
 	btn.pivot_offset = btn.size / 2.0
-	btn.position     = _drag_anchor_target - btn.pivot_offset
+	btn.position     = drag_pos - btn.pivot_offset
+
+	_maze = MazeGenerator.generate(MAZE_COLS, MAZE_ROWS, MAZE_CELL_SIZE, MAZE_ORIGIN,
+		_pick_style(), MAZE_START_CELL, MAZE_COLS - 1)
+
+	_approach_points = _generate_approach_path(drag_pos, _maze.start_pos())
+	_approach_index  = 0
+	_render_approach_path()
 
 	_start_word_audio(index)
+
+
+# A wandering polyline from the image to the maze entry: one or two small
+# loops near the start, then a wide zigzag that never crosses back above the
+# image itself (min_y), scaled to actually reach the entry's height by the
+# time it settles there.
+func _generate_approach_path(image_pos: Vector2, entry_pos: Vector2) -> Array:
+	var points  : Array  = [image_pos]
+	var min_y   : float   = image_pos.y + 15.0
+	var current : Vector2 = image_pos
+
+	var loop_count : int = randi_range(APPROACH_LOOP_MIN, APPROACH_LOOP_MAX)
+	for i in range(loop_count):
+		var loop_cy     : float   = current.y + randf_range(35.0, 55.0)
+		var loop_center : Vector2 = Vector2(current.x + randf_range(-50.0, 50.0), loop_cy)
+		var loop_radius : float   = randf_range(30.0, 50.0)
+		var steps       : int     = 10
+		for s in range(1, steps + 1):
+			var angle : float  = (float(s) / steps) * TAU
+			var p     : Vector2 = loop_center + Vector2(cos(angle), sin(angle)) * loop_radius
+			p.y = maxf(p.y, min_y)
+			points.append(p)
+		current = points[-1]
+
+	var zigzag_count : int   = randi_range(APPROACH_ZIGZAG_MIN, APPROACH_ZIGZAG_MAX)
+	var remaining_dy : float = maxf(entry_pos.y - current.y, 40.0)
+	var y_step       : float = remaining_dy / float(zigzag_count + 1)
+	var going_right  : bool  = current.x < (APPROACH_ZIGZAG_LEFT_X + APPROACH_ZIGZAG_RIGHT_X) * 0.5
+	for i in range(zigzag_count):
+		var target_x : float = APPROACH_ZIGZAG_RIGHT_X if going_right else APPROACH_ZIGZAG_LEFT_X
+		current = Vector2(target_x, current.y + y_step)
+		points.append(current)
+		going_right = not going_right
+
+	points.append(entry_pos)
+	return points
+
+
+func _render_approach_path() -> void:
+	for c in _approach_container.get_children():
+		c.queue_free()
+	if _approach_points.is_empty():
+		return
+	var line := Line2D.new()
+	line.width          = ROUTE_WIDTH
+	line.default_color  = ROUTE_COLOR
+	line.begin_cap_mode  = Line2D.LINE_CAP_ROUND
+	line.end_cap_mode    = Line2D.LINE_CAP_ROUND
+	line.joint_mode      = Line2D.LINE_JOINT_ROUND
+	for p in _approach_points:
+		line.add_point(p)
+	_approach_container.add_child(line)
+
+
+func _clear_approach_path() -> void:
+	_approach_points = []
+	_approach_index  = 0
+	for c in _approach_container.get_children():
+		c.queue_free()
+
+
+# The image has followed the approach path all the way to the maze entry —
+# the purple line disappears here, and the maze (generated back in
+# _enter_approach_mode()) becomes visible with no line of its own at all.
+func _enter_maze_from_approach(index: int, drag_pos: Vector2) -> void:
+	var slot : Dictionary = _slots[index]
+	slot["state"] = ST_DRAG_MAZE
+	_slots[index] = slot
+
+	_clear_approach_path()
+	_render_maze()
+
+	# Anchor the image to the maze's actual start cell rather than the raw
+	# arrival point — see _update_maze_drag(), which maps further pointer
+	# motion relative to this anchor.
+	_drag_anchor_pointer = drag_pos
+	_drag_anchor_target  = _maze.start_pos()
+
+	var btn : TextureButton = slot["node"]
+	btn.position = _drag_anchor_target - btn.pivot_offset
 
 
 func _render_maze() -> void:
@@ -590,21 +761,6 @@ func _render_maze() -> void:
 		line.add_point(seg[0])
 		line.add_point(seg[1])
 		_maze_container.add_child(line)
-
-	# The hidden route becomes visible the instant the maze itself does — both
-	# share the same trigger (crossing the bobbing-area boundary) — so it's
-	# drawn right alongside the walls, no separate reveal-on-movement state.
-	# A fresh attempt after a fail calls _clear_maze() first, which frees this
-	# along with everything else, so it starts hidden again next time.
-	var route := Line2D.new()
-	route.width           = ROUTE_WIDTH
-	route.default_color   = ROUTE_COLOR
-	route.begin_cap_mode  = Line2D.LINE_CAP_ROUND
-	route.end_cap_mode    = Line2D.LINE_CAP_ROUND
-	route.joint_mode      = Line2D.LINE_JOINT_ROUND
-	for cell in _maze.path_cells:
-		route.add_point(_maze.cell_center(cell))
-	_maze_container.add_child(route)
 
 	var goal := ColorRect.new()
 	goal.color    = AMBER
@@ -648,6 +804,7 @@ func _fail_attempt(index: int) -> void:
 	_stop_word_audio()
 	_fail_player.play()
 	_clear_maze()
+	_clear_approach_path()
 	var slot : Dictionary = _slots[index]
 	slot["state"] = ST_BOBBING
 	_slots[index] = slot

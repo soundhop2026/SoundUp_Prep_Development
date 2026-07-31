@@ -80,11 +80,19 @@ class MazeData:
 	# One line segment per CLOSED edge (wall) — for Line2D rendering. Only
 	# emits walls immediately bordering the path corridor cells plus a
 	# one-cell margin, since Sound Quest never shows the full unvisited grid.
+	#
+	# The maze's outer boundary is otherwise fully sealed by construction —
+	# a col-0 cell's West bit and a col-(cols-1) cell's East bit are never
+	# set by generate() (there's no neighbor beyond the grid to open toward).
+	# So a single door is cut by skipping exactly one boundary segment: the
+	# West wall of start_cell (entry) and the East wall of goal_cell (exit),
+	# nowhere else — matching "no open contour except the entry and exit."
 	func wall_segments() -> Array:
 		var segs : Array = []
 		for y in range(rows):
 			for x in range(cols):
 				var open : int    = passages[y][x]
+				var cell : Vector2i = Vector2i(x, y)
 				var tl   : Vector2 = origin + Vector2(x * cell_size, y * cell_size)
 				var tr   : Vector2 = tl + Vector2(cell_size, 0)
 				var bl   : Vector2 = tl + Vector2(0, cell_size)
@@ -93,9 +101,9 @@ class MazeData:
 					segs.append([tl, tr])
 				if open & S == 0:
 					segs.append([bl, br])
-				if open & E == 0:
+				if open & E == 0 and not (cell == goal_cell and goal_cell.x == cols - 1):
 					segs.append([tr, br])
-				if open & W == 0:
+				if open & W == 0 and not (cell == start_cell and start_cell.x == 0):
 					segs.append([tl, bl])
 		return segs
 
@@ -118,7 +126,8 @@ const CLOCKWISE : Dictionary = {1: 4, 4: 2, 2: 8, 8: 1}
 
 static func generate(cols: int = DEFAULT_COLS, rows: int = DEFAULT_ROWS,
 		cell_size: float = 80.0, origin: Vector2 = Vector2.ZERO,
-		style: String = STYLE_CURVE) -> MazeData:
+		style: String = STYLE_CURVE, start_cell: Vector2i = Vector2i(0, 0),
+		goal_col: int = -1) -> MazeData:
 	var data : MazeData = MazeData.new()
 	data.cols      = cols
 	data.rows      = rows
@@ -136,7 +145,7 @@ static func generate(cols: int = DEFAULT_COLS, rows: int = DEFAULT_ROWS,
 		passages.append(prow)
 		visited.append(vrow)
 
-	var start : Vector2i = Vector2i(0, 0)
+	var start : Vector2i = start_cell
 	var stack : Array[Vector2i] = [start]
 	# Direction that led INTO each cell on the stack (0 = start, no direction
 	# yet), tracked per stack frame rather than as one running variable — this
@@ -167,9 +176,20 @@ static func generate(cols: int = DEFAULT_COLS, rows: int = DEFAULT_ROWS,
 
 	data.passages   = passages
 	data.start_cell = start
-	# Goal = the last cell carved by the backtracker — always the far end of
-	# some branch, never adjacent to start in a trivial way.
-	data.goal_cell  = order[-1]
+	# Goal defaults to the last cell carved by the backtracker — always the
+	# far end of some branch, never adjacent to start in a trivial way. When
+	# goal_col is given (Sound Quest's shared maze, exit always on the right
+	# edge), pick randomly among the visited cells in that column instead —
+	# every cell is visited by construction (full spanning tree), so that
+	# column always has at least one valid candidate.
+	if goal_col >= 0:
+		var candidates : Array[Vector2i] = []
+		for y in range(rows):
+			if visited[y][goal_col]:
+				candidates.append(Vector2i(goal_col, y))
+		data.goal_cell = candidates[randi() % candidates.size()] if not candidates.is_empty() else order[-1]
+	else:
+		data.goal_cell = order[-1]
 	data.path_cells = _trace_path(passages, data.start_cell, data.goal_cell)
 	return data
 

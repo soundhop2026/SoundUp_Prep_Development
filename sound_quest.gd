@@ -17,6 +17,7 @@ extends Node2D
 # ─────────────────────────────────────────────────────────────────────────────
 
 const FONT_PATH : String = "res://UI_assets/210 연필스케치R.ttf"
+const MUSIC_PATH : String = "res://soundquest/assets/quest_preplevel_bgm.mp3"
 
 const BG_COLOR     : Color = Color("#A8E063")   # same baby-green as Prep
 const PURPLE       : Color = Color("#4B0082")
@@ -103,6 +104,7 @@ var _phoneme_player : AudioStreamPlayer = null
 var _word_player     : AudioStreamPlayer = null
 var _success_player  : AudioStreamPlayer = null
 var _fail_player     : AudioStreamPlayer = null
+var _music_player     : AudioStreamPlayer = null
 
 var _word_audio_active : bool = false   # guards the manual play->finished->replay loop
 var _move_timer : Timer = null   # word audio pauses when no drag-motion arrives within MOVE_STOP_DELAY
@@ -126,6 +128,7 @@ func _ready() -> void:
 	_group_letter = PrepLevelProgress.set_labels[SoundQuestState.group_start_index][0]
 
 	_build_audio_players()
+	_start_music()
 	_build_header()
 	_maze_container = Node2D.new()
 	add_child(_maze_container)
@@ -160,6 +163,37 @@ func _build_audio_players() -> void:
 	_move_timer.wait_time  = MOVE_STOP_DELAY
 	_move_timer.timeout.connect(_on_move_stop_timeout)
 	add_child(_move_timer)
+
+
+# ─── Background music ───────────────────────────────────────────────────────
+# Loops for the whole Sound Quest scene lifetime — same manual loop-on-finished
+# idiom as level_transition.gd's _start_music()/_on_music_finished(). Keeps
+# playing straight through Quest Transitions (no scene change happens between
+# Quests), fades out once before handing control back to Prep progression.
+func _start_music() -> void:
+	if not ResourceLoader.exists(MUSIC_PATH):
+		return
+	_music_player           = AudioStreamPlayer.new()
+	_music_player.stream    = load(MUSIC_PATH)
+	_music_player.volume_db = 0.0
+	_music_player.finished.connect(_on_music_finished)
+	add_child(_music_player)
+	_music_player.play()
+
+
+func _on_music_finished() -> void:
+	if _music_player != null:
+		_music_player.play()
+
+
+func _stop_music() -> void:
+	if _music_player == null:
+		return
+	if _music_player.playing:
+		var fade := create_tween()
+		fade.tween_property(_music_player, "volume_db", -40.0, 1.0)
+		await fade.finished
+	_music_player.stop()
 
 
 func _build_header() -> void:
@@ -664,6 +698,7 @@ func _play_quest_transition() -> void:
 # helper either, per the plan's "no new SaveManager fields" persistence note.
 func _on_all_quests_complete() -> void:
 	_busy = true
+	await _stop_music()
 	if PrepLevelProgress.has_next():
 		PrepLevelProgress.advance()
 		get_tree().change_scene_to_file("res://prep_game.tscn")

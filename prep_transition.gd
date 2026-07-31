@@ -185,6 +185,15 @@ func _play_transition() -> void:
 
 	await _exit_play_button()
 
+	# ── Group boundary: mastery practice before moving to the next Group ─────
+	# Checked before the premium boundary below — with current constants the
+	# two can never coincide (premium triggers at index 1, the earliest Group
+	# boundary is index 3), but the order is deliberate and documented in
+	# case either constant changes later.
+	if PrepLevelProgress.is_main_set_boundary():
+		_route_to_sound_quest()
+		return
+
 	# ── Free → premium boundary: never auto-continues past here ──────────────
 	# Everything above this point (bounce, cubes, exit fade) is identical for
 	# every set, free or not. Only right here — after the transition has
@@ -206,6 +215,20 @@ func _continue_to_next_set() -> void:
 		LevelTransition.next_level_id = "level1"
 		LevelTransition.level_name    = "Level 1"
 		get_tree().change_scene_to_file("res://level_transition.tscn")
+
+
+# ─── Sound Quest — mastery practice after a Group's last sub-set ───────────
+# current_index is NOT advanced here — same as the premium boundary above,
+# PrepLevelProgress.advance() only ever runs inside _continue_to_next_set(),
+# which sound_quest.gd calls itself once its 4th Quest completes. If the
+# player quits mid-Sound-Quest, current_index stays parked on the Group's
+# last sub-set, so returning replays it and re-triggers Sound Quest again —
+# the same accepted behavior the premium boundary already has.
+func _route_to_sound_quest() -> void:
+	var range : Vector2i = PrepLevelProgress.current_group_range()
+	SoundQuestState.group_start_index = range.x
+	SoundQuestState.group_end_index   = range.y
+	get_tree().change_scene_to_file("res://sound_quest.tscn")
 
 
 # ─── "Keep Hopping!" — the one explicit choice before premium content ───────

@@ -94,6 +94,7 @@ func _build_scene_shortcuts() -> void:
 		{ "label": "Set Transition","fn": Callable(self, "_jump_set_transition") },
 		{ "label": "Coronation",    "fn": Callable(self, "_jump_coronation") },
 		{ "label": "Prep Set 2 (Boundary)", "fn": Callable(self, "_jump_prep_set2") },
+		{ "label": "Prep Set 4 (Group Boundary)", "fn": Callable(self, "_jump_prep_set4") },
 	]
 
 	const COL_W  : float = 560.0
@@ -227,6 +228,15 @@ func _jump_prep() -> void:
 # free/premium boundary: Transition -> Keep Hopping! -> Premium Intro -> Gate.
 func _jump_prep_set2() -> void:
 	PrepLevelProgress.current_index = 1
+	PrepLevelProgress.is_retry      = false
+	PrepLevelProgress.retry_rounds.clear()
+	get_tree().change_scene_to_file("res://prep_game.tscn")
+
+# Lands on Set A4 (index 3) — the last sub-set of Group A. Completing it
+# triggers the real Sound Quest routing hook: Transition -> is_main_set_
+# boundary() -> Sound Quest (Group A's combined word pool).
+func _jump_prep_set4() -> void:
+	PrepLevelProgress.current_index = 3
 	PrepLevelProgress.is_retry      = false
 	PrepLevelProgress.retry_rounds.clear()
 	get_tree().change_scene_to_file("res://prep_game.tscn")

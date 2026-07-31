@@ -88,6 +88,15 @@ static func main_set_number() -> int:
 			return i
 	return MAIN_SET_BOUNDARIES.size() - 1
 
+# Inclusive [start, end] sub-set index range for the Group current_index
+# belongs to (e.g. Group A -> [0, 3]) — used by Sound Quest to assemble a
+# Group's combined word pool once is_main_set_boundary() is true.
+static func current_group_range() -> Vector2i:
+	var group   : int = main_set_number()
+	var end_idx : int = MAIN_SET_BOUNDARIES[group]
+	var start_idx : int = 0 if group == 0 else MAIN_SET_BOUNDARIES[group - 1] + 1
+	return Vector2i(start_idx, end_idx)
+
 # ─── Routing ──────────────────────────────────────────────────────────────────
 
 static func current_set() -> String:

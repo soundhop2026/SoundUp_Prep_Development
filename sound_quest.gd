@@ -8,19 +8,15 @@ extends Node2D
 # 4 words visible at once in a row across the top, sitting still (no idle
 # animation). Tap = hear the phoneme (unlimited, exploration only). A maze
 # is already on screen the instant the round starts — ready and waiting
-# before any image is even touched. Press-and-drag past the bobbing area's
-# boundary begins a two-phase attempt, and this specific attempt gets its
-# own fresh maze the same instant (replacing whatever was showing), so the
-# child always has a visible destination before they start following the
-# path toward it:
+# before any image is even touched, entry visible as a gap in its top wall.
+# Press-and-drag past the bobbing area's boundary begins a two-phase
+# attempt, and this specific attempt gets its own fresh maze the same
+# instant (replacing whatever was showing):
 #
-#  1. Approach — each image has its own hidden, gently-curving path (a
-#     Catmull-Rom bend through 2-3 sideways-drifting waypoints) connecting
-#     it to the maze's single entry point. Invisible until this drag
-#     crosses the boundary, then revealed as a dashed purple trail;
-#     straying more than a small tolerance off it fails instantly. The
-#     dashes disappear the instant the image reaches the maze (the maze
-#     itself stays visible).
+#  1. Approach — free drag, no guide line at all: the maze (and its entry
+#     gap) is already fully visible, so the child just drags the image
+#     straight to it. Reaching the entry locks into the maze; releasing
+#     before then fails the attempt.
 #  2. Maze — one entry, one exit, everywhere else on its boundary sealed,
 #     with no visible line inside at all — pure hard-wall navigation by
 #     feel. Reaching the goal marks the word mastered.
@@ -29,9 +25,8 @@ extends Node2D
 # fail, or the next image's turn, each get their own new layout — but the
 # maze itself is never actually hidden once a round has started; a resolved
 # attempt just leaves it showing its last shape until the next selection
-# swaps it. The approach path is the only thing that disappears, the
-# instant its image reaches the maze. Failed words stay in the same visible
-# slot for immediate retry — never requeued.
+# swaps it. Failed words stay in the same visible slot for immediate
+# retry — never requeued.
 #
 # Words are grouped into Quest Rounds of exactly 4 — the whole round has to
 # finish (all 4 mastered) before the next round of 4 begins; nothing refills
@@ -53,9 +48,6 @@ const PURPLE       : Color = Color("#4B0082")
 const AMBER        : Color = Color("#FFB703")
 const WHITE        : Color = Color("#FFFFFF")
 const WALL_COLOR   : Color = Color("#2E2E2E")   # thick hand-drawn-style wall lines
-# Light violet, not the deep #4B0082 brand purple — deep purple against near-
-# black walls had too little contrast to actually read as a distinct path.
-const ROUTE_COLOR  : Color = Color("#B388FF")
 
 # 4 fixed slot centers in a single row across the top, feeding down into the
 # one shared maze near the bottom via each image's own approach path.
@@ -67,11 +59,11 @@ const SLOT_POSITIONS : Array[Vector2] = [
 ]
 
 const IMAGE_BOX     : float = 150.0    # word image fits within this box
-# The dragged image shrinks to roughly this size for the whole journey (both
-# the approach path and the maze) — at the full 150px IMAGE_BOX it would
-# blanket most of a 65px-cell corridor and hide whatever it's meant to be
-# following, visible route or not.
-const MAZE_DRAG_IMAGE_SIZE : float = 60.0
+# The dragged image shrinks for the whole journey through the maze — at the
+# full 150px IMAGE_BOX it would blanket most of a 65px-cell corridor. Half
+# of IMAGE_BOX, not smaller — small enough to fit the corridor, still large
+# enough that the child can tell what word it still is.
+const MAZE_DRAG_IMAGE_SIZE : float = IMAGE_BOX * 0.5
 const BOB_AREA_SIZE : Vector2 = Vector2(190, 190)   # boundary the drag must cross
 
 const TAP_MOVE_THRESHOLD : float = 14.0   # px — below this, a release counts as a tap
@@ -91,32 +83,14 @@ const MAZE_CELL_SIZE   : float    = 65.0
 const MAZE_ORIGIN      : Vector2  = Vector2(60, 420)
 const MAZE_START_CELL  : Vector2i = Vector2i(6, 0)   # the maze's one shared entry, top edge
 const MAZE_WALL_WIDTH  : float = 6.0
-const ROUTE_WIDTH      : float = 8.0
 const GOAL_MARKER_R    : float = 14.0
 
 const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window = "stopped"
 
-# ─── Approach path ──────────────────────────────────────────────────────────
-# The hidden, winding path connecting a chosen image to the maze's single
-# entry — invisible until that image is dragged past its bobbing boundary,
-# and hidden again the instant it reaches the maze. Distinct from the maze:
-# never grid-based, no hard walls — a smooth polyline the drag has to stay
-# within a tolerance band of, tracked by progress *along* the path (not raw
-# position), since the path loops back over itself and a plain "am I near
-# any purple pixel" check would get confused at those crossings.
-const APPROACH_TOLERANCE  : float = 40.0   # px — how far off the path still counts as "on" it
-const APPROACH_LOOKAHEAD  : int   = 6      # segments searched ahead of current progress each frame
-# A gentle Catmull-Rom curve through a couple of sideways-drifting waypoints
-# — smooth bends, not the sharp loop/zigzag chaos of an earlier pass, which
-# read as messy rather than fun to follow.
-const APPROACH_BEND_MIN     : int   = 2
-const APPROACH_BEND_MAX     : int   = 3
-const APPROACH_DRIFT        : float = 120.0   # how far a bend can drift sideways
-const APPROACH_SAMPLES_PER_SEGMENT : int = 12
-# Rendered as a dashed trail rather than one solid stroke — a continuous
-# line reads as a technical/debug overlay; dashes read as a path to follow.
-const APPROACH_DASH_LEN : float = 18.0
-const APPROACH_GAP_LEN  : float = 14.0
+# No guide line — the maze (and its entry) is already fully visible, so the
+# child just free-drags the image toward it. This is how close the drag has
+# to get to the entry cell's center to lock into the maze.
+const APPROACH_ENTRY_RADIUS : float = 45.0
 
 # A Quest Round is always exactly 4 images — never a partial round. If a
 # Quest's remaining new words run short of 4, the round is padded with review
@@ -155,7 +129,7 @@ const STYLE_WEIGHTS_BY_GROUP : Array[Dictionary] = [
 const ST_EMPTY         : String = "empty"
 const ST_BOBBING       : String = "bobbing"
 const ST_DRAG_IN_AREA  : String = "drag_in_area"
-const ST_DRAG_APPROACH : String = "drag_approach"   # following the revealed path toward the maze
+const ST_DRAG_APPROACH : String = "drag_approach"   # free-dragging toward the already-visible maze entry
 const ST_DRAG_MAZE     : String = "drag_maze"
 
 
@@ -182,10 +156,6 @@ var _drag_anchor_target  : Vector2 = Vector2.ZERO   # image center pos at that s
 
 var _maze          = null   # MazeGenerator.MazeData
 var _maze_container : Node2D = null
-
-var _approach_points    : Array    = []   # Array[Vector2] — this attempt's winding path, image -> maze entry
-var _approach_index     : int      = 0    # how far along _approach_points progress has been confirmed
-var _approach_container : Node2D   = null
 
 var _phoneme_player : AudioStreamPlayer = null
 var _word_player     : AudioStreamPlayer = null
@@ -214,8 +184,6 @@ func _ready() -> void:
 	_build_audio_players()
 	_maze_container = Node2D.new()
 	add_child(_maze_container)
-	_approach_container = Node2D.new()
-	add_child(_approach_container)
 
 	var pool : Array = SoundQuestState.build_word_pool(
 		SoundQuestState.group_start_index, SoundQuestState.group_end_index)
@@ -550,10 +518,10 @@ func _update_drag(pos: Vector2) -> void:
 		_update_maze_drag(idx, pos)
 
 
-# Following the revealed approach path — progress is tracked by how far
-# along the path the drag has confirmed reaching, not raw distance to "any"
-# point on it, since the path loops back over itself (see APPROACH_TOLERANCE
-# doc comment above).
+# Free drag toward the already-visible maze entry — no guide line, no fail
+# condition here at all (releasing early is what _end_drag() treats as a
+# fail). The image just follows the finger until it gets close enough to
+# the entry cell to lock into the maze.
 func _update_approach_drag(idx: int, pos: Vector2) -> void:
 	var slot : Dictionary = _slots[idx]
 	var btn  : TextureButton = slot["node"]
@@ -563,24 +531,7 @@ func _update_approach_drag(idx: int, pos: Vector2) -> void:
 	if _word_audio_active and not _word_player.playing:
 		_word_player.play()
 
-	var window_end : int   = mini(_approach_index + APPROACH_LOOKAHEAD, _approach_points.size() - 1)
-	var best_dist  : float = INF
-	var best_index : int   = _approach_index
-	for i in range(_approach_index, window_end):
-		var cp : Vector2 = _closest_point_on_segment(pos, _approach_points[i], _approach_points[i + 1])
-		var d  : float   = pos.distance_to(cp)
-		if d < best_dist:
-			best_dist  = d
-			best_index = i
-
-	if best_dist > APPROACH_TOLERANCE:
-		_fail_attempt(idx)
-		return
-
-	_approach_index = maxi(_approach_index, best_index)
-
-	var last_point : Vector2 = _approach_points[-1]
-	if _approach_index >= _approach_points.size() - 2 and pos.distance_to(last_point) <= APPROACH_TOLERANCE:
+	if pos.distance_to(_maze.start_pos()) <= APPROACH_ENTRY_RADIUS:
 		_enter_maze_from_approach(idx, pos)
 
 
@@ -609,15 +560,6 @@ func _update_maze_drag(idx: int, pos: Vector2) -> void:
 		return
 	if _maze.goal_pos().distance_to(center) <= _maze.cell_size * 0.5:
 		_succeed_attempt(idx)
-
-
-static func _closest_point_on_segment(p: Vector2, a: Vector2, b: Vector2) -> Vector2:
-	var ab     : Vector2 = b - a
-	var len_sq : float   = ab.length_squared()
-	if len_sq == 0.0:
-		return a
-	var t : float = clampf((p - a).dot(ab) / len_sq, 0.0, 1.0)
-	return a + ab * t
 
 
 func _end_drag(pos: Vector2) -> void:
@@ -665,11 +607,11 @@ func _pick_style() -> String:
 
 
 # Crossing the bobbing boundary — this attempt's maze reshapes immediately
-# (_reshape_maze()), before the approach path is even followed, so the
-# child can see the destination the moment they start dragging. Each
-# attempt (this image's first try, a retry after a fail, or the next
-# image's turn) gets its own fresh maze — but the maze itself, once a round
-# has started, is never actually hidden; it just keeps swapping shape.
+# (_reshape_maze()), so the child can see the destination the moment they
+# start dragging. Each attempt (this image's first try, a retry after a
+# fail, or the next image's turn) gets its own fresh maze — but the maze
+# itself, once a round has started, is never actually hidden; it just keeps
+# swapping shape.
 func _enter_approach_mode(index: int, drag_pos: Vector2) -> void:
 	var slot : Dictionary = _slots[index]
 	_stop_bob(index)
@@ -683,121 +625,14 @@ func _enter_approach_mode(index: int, drag_pos: Vector2) -> void:
 
 	_reshape_maze()
 
-	_approach_points = _generate_approach_path(drag_pos, _maze.start_pos())
-	_approach_index  = 0
-	_render_approach_path()
-
 	_start_word_audio(index)
 
 
-# A smooth, gentle curve from the image to the maze entry — 2-3 waypoints
-# drifting sideways along the way, connected with a Catmull-Rom spline so
-# the whole thing reads as one continuous flowing bend rather than sharp
-# turns or tight loops.
-func _generate_approach_path(image_pos: Vector2, entry_pos: Vector2) -> Array:
-	var waypoints : Array = [image_pos]
-	var bend_count : int = randi_range(APPROACH_BEND_MIN, APPROACH_BEND_MAX)
-	for i in range(1, bend_count + 1):
-		var t    : float   = float(i) / float(bend_count + 1)
-		var base : Vector2 = image_pos.lerp(entry_pos, t)
-		var drift : float  = randf_range(-APPROACH_DRIFT, APPROACH_DRIFT)
-		waypoints.append(base + Vector2(drift, 0.0))
-	waypoints.append(entry_pos)
-
-	# Catmull-Rom needs one padding control point before the first and after
-	# the last real waypoint to define the curve's starting/ending tangent.
-	var padded : Array = [waypoints[0] + (waypoints[0] - waypoints[1])]
-	padded.append_array(waypoints)
-	padded.append(waypoints[-1] + (waypoints[-1] - waypoints[-2]))
-
-	var points : Array = []
-	for i in range(1, padded.size() - 2):
-		var p0 : Vector2 = padded[i - 1]
-		var p1 : Vector2 = padded[i]
-		var p2 : Vector2 = padded[i + 1]
-		var p3 : Vector2 = padded[i + 2]
-		for s in range(APPROACH_SAMPLES_PER_SEGMENT):
-			var t : float = float(s) / float(APPROACH_SAMPLES_PER_SEGMENT)
-			points.append(_catmull_rom(p0, p1, p2, p3, t))
-	points.append(waypoints[-1])
-	return points
-
-
-static func _catmull_rom(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: float) -> Vector2:
-	var t2 : float = t * t
-	var t3 : float = t2 * t
-	return 0.5 * (
-		(2.0 * p1) +
-		(-p0 + p2) * t +
-		(2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 +
-		(-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
-	)
-
-
-# Dashed rather than one continuous Line2D — Godot's Line2D has no native
-# dash pattern, so this walks the polyline by arc length and emits a
-# separate short Line2D per "on" stretch, skipping the "off" gaps.
-func _render_approach_path() -> void:
-	for c in _approach_container.get_children():
-		c.queue_free()
-	if _approach_points.size() < 2:
-		return
-
-	var dash_on        : bool  = true
-	var dash_remaining  : float = APPROACH_DASH_LEN
-	var current_dash    : Line2D = null
-
-	for i in range(_approach_points.size() - 1):
-		var a : Vector2 = _approach_points[i]
-		var b : Vector2 = _approach_points[i + 1]
-		var seg_len : float = a.distance_to(b)
-		if seg_len <= 0.0:
-			continue
-		var traveled : float = 0.0
-		while traveled < seg_len:
-			var step : float = minf(dash_remaining, seg_len - traveled)
-			var p1 : Vector2 = a.lerp(b, traveled / seg_len)
-			var p2 : Vector2 = a.lerp(b, (traveled + step) / seg_len)
-			if dash_on:
-				if current_dash == null:
-					current_dash = _new_dash_segment()
-					current_dash.add_point(p1)
-				current_dash.add_point(p2)
-			traveled        += step
-			dash_remaining  -= step
-			if dash_remaining <= 0.0:
-				dash_on = not dash_on
-				dash_remaining = APPROACH_DASH_LEN if dash_on else APPROACH_GAP_LEN
-				if not dash_on:
-					current_dash = null
-
-
-func _new_dash_segment() -> Line2D:
-	var line := Line2D.new()
-	line.width          = ROUTE_WIDTH
-	line.default_color  = ROUTE_COLOR
-	line.begin_cap_mode = Line2D.LINE_CAP_ROUND
-	line.end_cap_mode   = Line2D.LINE_CAP_ROUND
-	_approach_container.add_child(line)
-	return line
-
-
-func _clear_approach_path() -> void:
-	_approach_points = []
-	_approach_index  = 0
-	for c in _approach_container.get_children():
-		c.queue_free()
-
-
-# The image has followed the approach path all the way to the maze entry —
-# only the purple approach line disappears here; the maze itself has already
-# been visible (with no line of its own) since the round started.
+# The image has been dragged to the maze entry — lock into maze navigation.
 func _enter_maze_from_approach(index: int, drag_pos: Vector2) -> void:
 	var slot : Dictionary = _slots[index]
 	slot["state"] = ST_DRAG_MAZE
 	_slots[index] = slot
-
-	_clear_approach_path()
 
 	# Anchor the image to the maze's actual start cell rather than the raw
 	# arrival point — see _update_maze_drag(), which maps further pointer
@@ -881,7 +716,6 @@ func _fail_attempt(index: int) -> void:
 	# it never disappears once a round has started. The next selection
 	# (a retry of this same image, or a different one) reshapes it fresh via
 	# _enter_approach_mode()'s _reshape_maze() call.
-	_clear_approach_path()
 	var slot : Dictionary = _slots[index]
 	slot["state"] = ST_BOBBING
 	_slots[index] = slot

@@ -88,13 +88,19 @@ const GOAL_MARKER_R    : float = 14.0
 # Success doesn't fire the instant the drag reaches the goal cell — the
 # child has to actually pull the image out through the exit and slightly
 # past the maze's boundary. EXIT_ZONE_DEPTH is how far past that boundary
-# still counts as "still exiting" rather than an instant fail; EXIT_
-# SUCCESS_THRESHOLD (smaller, well inside that safe depth) is how far past
-# it actually has to go before success triggers. EXIT_ZONE_Y_TOLERANCE
-# forgives imprecise vertical alignment with the exit row.
+# still counts as "still exiting" (movement allowed, past it the drag is
+# blocked same as any other wall — see _on_blocked()); EXIT_SUCCESS_
+# THRESHOLD (smaller, well inside that depth) is how far past it actually
+# has to go before success triggers. EXIT_ZONE_Y_TOLERANCE forgives
+# imprecise vertical alignment with the exit row.
 const EXIT_ZONE_DEPTH        : float = 60.0
 const EXIT_ZONE_Y_TOLERANCE  : float = 30.0
 const EXIT_SUCCESS_THRESHOLD : float = 25.0
+
+# Hitting a wall never resets the attempt — just a gentle bounce, debounced
+# so it doesn't spam every single frame while the drag is pressed against
+# one spot.
+const BLOCKED_FEEDBACK_COOLDOWN : float = 0.35
 
 const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window = "stopped"
 
@@ -176,6 +182,7 @@ var _music_player     : AudioStreamPlayer = null
 
 var _word_audio_active : bool = false   # guards the manual play->finished->replay loop
 var _move_timer : Timer = null   # word audio pauses when no drag-motion arrives within MOVE_STOP_DELAY
+var _last_blocked_time : float = -1000.0   # debounces the wall-bump feedback, see _on_blocked()
 
 var _busy : bool = false   # true during Quest Transition / group handoff — input ignored
 
@@ -546,6 +553,12 @@ func _update_approach_drag(idx: int, pos: Vector2) -> void:
 		_enter_maze_from_approach(idx, pos)
 
 
+# This is a discovery activity, not an assessment: hitting a wall never
+# resets the image back to the start. It blocks the move (the image simply
+# doesn't go there) with a gentle bounce, and the child keeps exploring from
+# wherever they are — the maze is a spanning tree with exactly one route, so
+# persistence always finds it eventually. Only actually letting go
+# (_end_drag()) ends the attempt.
 func _update_maze_drag(idx: int, pos: Vector2) -> void:
 	var slot : Dictionary = _slots[idx]
 	var btn  : TextureButton = slot["node"]
@@ -556,7 +569,6 @@ func _update_maze_drag(idx: int, pos: Vector2) -> void:
 	# pointer position — that keeps it inside the corridor's start cell
 	# regardless of exactly where the approach path happened to end.
 	var center : Vector2 = _drag_anchor_target + (pos - _drag_anchor_pointer)
-	btn.position = center - btn.pivot_offset
 
 	# Word audio is tied to active movement, not the whole attempt: every
 	# drag-motion event restarts the "still moving" timer and resumes
@@ -567,23 +579,49 @@ func _update_maze_drag(idx: int, pos: Vector2) -> void:
 		_word_player.play()
 
 	if _maze.is_point_in_corridor(center):
+		btn.position = center - btn.pivot_offset
 		return
 
-	# Outside the strict corridor — only OK if within the exit zone (passing
-	# through, or just past, the exit on the way out). Anything else off the
-	# corridor is a fail, same hard-wall rule as everywhere else in the maze.
+	# Outside the strict corridor — still OK if within the exit zone (passing
+	# through, or just past, the exit on the way out).
 	var goal_rect  : Rect2 = _maze.cell_rect(_maze.goal_cell)
 	var boundary_x : float = goal_rect.position.x + goal_rect.size.x
 	var exit_zone  : Rect2 = Rect2(
 		boundary_x, goal_rect.position.y - EXIT_ZONE_Y_TOLERANCE,
 		EXIT_ZONE_DEPTH, goal_rect.size.y + EXIT_ZONE_Y_TOLERANCE * 2.0)
 
-	if not exit_zone.has_point(center):
-		_fail_attempt(idx)
+	if exit_zone.has_point(center):
+		btn.position = center - btn.pivot_offset
+		if center.x >= boundary_x + EXIT_SUCCESS_THRESHOLD:
+			_succeed_attempt(idx)
 		return
 
-	if center.x >= boundary_x + EXIT_SUCCESS_THRESHOLD:
-		_succeed_attempt(idx)
+	# Blocked — leave the image exactly where it is (don't move it into the
+	# wall) and give a gentle bounce, then let the next drag event try again.
+	_on_blocked(idx, pos)
+
+
+# Re-anchors immediately (every blocked frame, not just when the bounce
+# animation fires) so the very next bit of finger movement is measured from
+# wherever the image is actually sitting — lets the child slide along the
+# wall and try a different direction without needing to first retrace
+# however far the finger already travelled into it. The visual/audio bounce
+# itself is debounced separately so it doesn't spam while pressed against
+# a wall.
+func _on_blocked(idx: int, pos: Vector2) -> void:
+	var slot : Dictionary = _slots[idx]
+	var btn  : TextureButton = slot["node"]
+	_drag_anchor_pointer = pos
+	_drag_anchor_target  = btn.position + btn.pivot_offset
+
+	var now : float = Time.get_ticks_msec() / 1000.0
+	if now - _last_blocked_time < BLOCKED_FEEDBACK_COOLDOWN:
+		return
+	_last_blocked_time = now
+
+	var bump := create_tween()
+	bump.tween_property(btn, "scale", Vector2(0.85, 0.85), 0.08)
+	bump.tween_property(btn, "scale", Vector2(1.0, 1.0), 0.12)
 
 
 func _end_drag(pos: Vector2) -> void:
@@ -642,21 +680,28 @@ func _enter_approach_mode(index: int, drag_pos: Vector2) -> void:
 	slot["state"] = ST_DRAG_APPROACH
 	_slots[index] = slot
 
+	# Stays full size for the whole free drag toward the maze — no rush, and
+	# the word stays fully recognizable while it's still just finding its
+	# way to the entrance. Only shrinks once it actually enters the maze,
+	# see _enter_maze_from_approach().
 	var btn : TextureButton = slot["node"]
-	btn.size         = Vector2(MAZE_DRAG_IMAGE_SIZE, MAZE_DRAG_IMAGE_SIZE)
-	btn.pivot_offset = btn.size / 2.0
-	btn.position     = drag_pos - btn.pivot_offset
+	btn.position = drag_pos - btn.pivot_offset
 
 	_reshape_maze()
 
 	_start_word_audio(index)
 
 
-# The image has been dragged to the maze entry — lock into maze navigation.
+# The image has been dragged to the maze entry — lock into maze navigation,
+# shrinking now so it fits the corridor without blanketing it.
 func _enter_maze_from_approach(index: int, drag_pos: Vector2) -> void:
 	var slot : Dictionary = _slots[index]
 	slot["state"] = ST_DRAG_MAZE
 	_slots[index] = slot
+
+	var btn : TextureButton = slot["node"]
+	btn.size         = Vector2(MAZE_DRAG_IMAGE_SIZE, MAZE_DRAG_IMAGE_SIZE)
+	btn.pivot_offset = btn.size / 2.0
 
 	# Anchor the image to the maze's actual start cell rather than the raw
 	# arrival point — see _update_maze_drag(), which maps further pointer
@@ -664,7 +709,6 @@ func _enter_maze_from_approach(index: int, drag_pos: Vector2) -> void:
 	_drag_anchor_pointer = drag_pos
 	_drag_anchor_target  = _maze.start_pos()
 
-	var btn : TextureButton = slot["node"]
 	btn.position = _drag_anchor_target - btn.pivot_offset
 
 

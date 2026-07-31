@@ -25,11 +25,13 @@ extends Node2D
 #     with no visible line inside at all — pure hard-wall navigation by
 #     feel. Reaching the goal marks the word mastered.
 #
-# Both the maze and the approach path are generated fresh per attempt
-# (_reshape_maze()) and disappear again the moment that attempt resolves —
-# a fresh word, a retry after a fail, or the next image's turn all get
-# their own maze, never one lingering from a previous attempt. Failed words
-# stay in the same visible slot for immediate retry — never requeued.
+# The maze reshapes fresh per attempt (_reshape_maze()) — a retry after a
+# fail, or the next image's turn, each get their own new layout — but the
+# maze itself is never actually hidden once a round has started; a resolved
+# attempt just leaves it showing its last shape until the next selection
+# swaps it. The approach path is the only thing that disappears, the
+# instant its image reaches the maze. Failed words stay in the same visible
+# slot for immediate retry — never requeued.
 #
 # Words are grouped into Quest Rounds of exactly 4 — the whole round has to
 # finish (all 4 mastered) before the next round of 4 begins; nothing refills
@@ -662,12 +664,12 @@ func _pick_style() -> String:
 	return MazeGenerator.STYLE_CURVE
 
 
-# Crossing the bobbing boundary — this attempt's maze appears immediately
+# Crossing the bobbing boundary — this attempt's maze reshapes immediately
 # (_reshape_maze()), before the approach path is even followed, so the
 # child can see the destination the moment they start dragging. Each
 # attempt (this image's first try, a retry after a fail, or the next
-# image's turn) gets its own fresh maze; it disappears again the instant
-# this attempt resolves (_fail_attempt()/_succeed_attempt()).
+# image's turn) gets its own fresh maze — but the maze itself, once a round
+# has started, is never actually hidden; it just keeps swapping shape.
 func _enter_approach_mode(index: int, drag_pos: Vector2) -> void:
 	var slot : Dictionary = _slots[index]
 	_stop_bob(index)
@@ -875,7 +877,10 @@ func _on_move_stop_timeout() -> void:
 func _fail_attempt(index: int) -> void:
 	_stop_word_audio()
 	_fail_player.play()
-	_clear_maze()
+	# The maze itself is left showing its current shape rather than hidden —
+	# it never disappears once a round has started. The next selection
+	# (a retry of this same image, or a different one) reshapes it fresh via
+	# _enter_approach_mode()'s _reshape_maze() call.
 	_clear_approach_path()
 	var slot : Dictionary = _slots[index]
 	slot["state"] = ST_BOBBING
@@ -888,7 +893,8 @@ func _fail_attempt(index: int) -> void:
 func _succeed_attempt(index: int) -> void:
 	_stop_word_audio()
 	_success_player.play()
-	_clear_maze()
+	# Same as _fail_attempt() — the maze stays visible in its current shape;
+	# the next selection reshapes it.
 	if _dragging_slot_index == index:
 		_dragging_slot_index = -1
 

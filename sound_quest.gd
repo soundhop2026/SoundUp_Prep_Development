@@ -177,7 +177,6 @@ var _maze_container : Node2D = null
 var _phoneme_player : AudioStreamPlayer = null
 var _word_player     : AudioStreamPlayer = null
 var _success_player  : AudioStreamPlayer = null
-var _fail_player     : AudioStreamPlayer = null
 var _music_player     : AudioStreamPlayer = null
 
 var _word_audio_active : bool = false   # guards the manual play->finished->replay loop
@@ -215,16 +214,12 @@ func _build_audio_players() -> void:
 	_phoneme_player = AudioStreamPlayer.new()
 	_word_player     = AudioStreamPlayer.new()
 	_success_player  = AudioStreamPlayer.new()
-	_fail_player     = AudioStreamPlayer.new()
 	add_child(_phoneme_player)
 	add_child(_word_player)
 	add_child(_success_player)
-	add_child(_fail_player)
 
 	if ResourceLoader.exists("res://BGM&effect/SoundUp_feedback/gayageum_correct.wav"):
 		_success_player.stream = load("res://BGM&effect/SoundUp_feedback/gayageum_correct.wav")
-	if ResourceLoader.exists("res://BGM&effect/SoundUp_feedback/oops_try_again.wav"):
-		_fail_player.stream = load("res://BGM&effect/SoundUp_feedback/oops_try_again.wav")
 
 	_word_player.finished.connect(_on_word_player_finished)
 
@@ -554,21 +549,24 @@ func _update_approach_drag(idx: int, pos: Vector2) -> void:
 
 
 # This is a discovery activity, not an assessment: hitting a wall never
-# resets the image back to the start. It blocks the move (the image simply
-# doesn't go there) with a gentle bounce, and the child keeps exploring from
-# wherever they are — the maze is a spanning tree with exactly one route, so
-# persistence always finds it eventually. Only actually letting go
-# (_end_drag()) ends the attempt.
+# resets the image back to the start, and never fully halts the drag either
+# — a move that's blocked diagonally still slides along whichever single
+# axis (X or Y) is still open, the same "slide along the wall" approach
+# most top-down games use, so trying a different direction keeps feeling
+# responsive instead of getting stuck until the child retraces back to
+# exactly where they were. Only a move blocked on BOTH axes at once holds
+# still (with a gentle bounce) for that one frame. The maze is a spanning
+# tree with exactly one route, so persistence always finds it eventually.
+# Only actually letting go (_end_drag()) ends the attempt.
 func _update_maze_drag(idx: int, pos: Vector2) -> void:
 	var slot : Dictionary = _slots[idx]
 	var btn  : TextureButton = slot["node"]
 
+	var current  : Vector2 = btn.position + btn.pivot_offset
 	# The maze sits at one fixed shared position, not centered on any slot,
-	# so the image tracks pointer movement relative to the anchor set in
-	# _enter_maze_from_approach() rather than jumping straight to the raw
-	# pointer position — that keeps it inside the corridor's start cell
-	# regardless of exactly where the approach path happened to end.
-	var center : Vector2 = _drag_anchor_target + (pos - _drag_anchor_pointer)
+	# so the proposed move tracks pointer movement relative to the anchor
+	# set below rather than jumping straight to the raw pointer position.
+	var proposed : Vector2 = _drag_anchor_target + (pos - _drag_anchor_pointer)
 
 	# Word audio is tied to active movement, not the whole attempt: every
 	# drag-motion event restarts the "still moving" timer and resumes
@@ -578,47 +576,54 @@ func _update_maze_drag(idx: int, pos: Vector2) -> void:
 	if _word_audio_active and not _word_player.playing:
 		_word_player.play()
 
-	if _maze.is_point_in_corridor(center):
-		btn.position = center - btn.pivot_offset
-		return
+	var resolved : Vector2 = current
+	if _maze_point_valid(proposed):
+		resolved = proposed
+	else:
+		var x_only : Vector2 = Vector2(proposed.x, current.y)
+		var y_only : Vector2 = Vector2(current.x, proposed.y)
+		if _maze_point_valid(x_only):
+			resolved = x_only
+		elif _maze_point_valid(y_only):
+			resolved = y_only
+		else:
+			_on_blocked(idx)
 
-	# Outside the strict corridor — still OK if within the exit zone (passing
-	# through, or just past, the exit on the way out).
+	btn.position = resolved - btn.pivot_offset
+	# Re-anchor every frame (not just when blocked) so the anchor always
+	# reflects exactly where the image is right now — recovery from a
+	# blocked moment is then immediate and precise on the very next frame.
+	_drag_anchor_pointer = pos
+	_drag_anchor_target  = resolved
+
 	var goal_rect  : Rect2 = _maze.cell_rect(_maze.goal_cell)
 	var boundary_x : float = goal_rect.position.x + goal_rect.size.x
-	var exit_zone  : Rect2 = Rect2(
+	if resolved.x >= boundary_x + EXIT_SUCCESS_THRESHOLD and _maze_exit_zone().has_point(resolved):
+		_succeed_attempt(idx)
+
+
+func _maze_exit_zone() -> Rect2:
+	var goal_rect  : Rect2 = _maze.cell_rect(_maze.goal_cell)
+	var boundary_x : float = goal_rect.position.x + goal_rect.size.x
+	return Rect2(
 		boundary_x, goal_rect.position.y - EXIT_ZONE_Y_TOLERANCE,
 		EXIT_ZONE_DEPTH, goal_rect.size.y + EXIT_ZONE_Y_TOLERANCE * 2.0)
 
-	if exit_zone.has_point(center):
-		btn.position = center - btn.pivot_offset
-		if center.x >= boundary_x + EXIT_SUCCESS_THRESHOLD:
-			_succeed_attempt(idx)
-		return
 
-	# Blocked — leave the image exactly where it is (don't move it into the
-	# wall) and give a gentle bounce, then let the next drag event try again.
-	_on_blocked(idx, pos)
+func _maze_point_valid(p: Vector2) -> bool:
+	return _maze.is_point_in_corridor(p) or _maze_exit_zone().has_point(p)
 
 
-# Re-anchors immediately (every blocked frame, not just when the bounce
-# animation fires) so the very next bit of finger movement is measured from
-# wherever the image is actually sitting — lets the child slide along the
-# wall and try a different direction without needing to first retrace
-# however far the finger already travelled into it. The visual/audio bounce
-# itself is debounced separately so it doesn't spam while pressed against
-# a wall.
-func _on_blocked(idx: int, pos: Vector2) -> void:
-	var slot : Dictionary = _slots[idx]
-	var btn  : TextureButton = slot["node"]
-	_drag_anchor_pointer = pos
-	_drag_anchor_target  = btn.position + btn.pivot_offset
-
+# Debounced so it doesn't spam while genuinely pinned in a corner (blocked
+# on both axes at once) — a gentle bounce, nothing punishing, no reset.
+func _on_blocked(idx: int) -> void:
 	var now : float = Time.get_ticks_msec() / 1000.0
 	if now - _last_blocked_time < BLOCKED_FEEDBACK_COOLDOWN:
 		return
 	_last_blocked_time = now
 
+	var slot : Dictionary = _slots[idx]
+	var btn  : TextureButton = slot["node"]
 	var bump := create_tween()
 	bump.tween_property(btn, "scale", Vector2(0.85, 0.85), 0.08)
 	bump.tween_property(btn, "scale", Vector2(1.0, 1.0), 0.12)
@@ -779,11 +784,11 @@ func _on_move_stop_timeout() -> void:
 
 func _fail_attempt(index: int) -> void:
 	_stop_word_audio()
-	_fail_player.play()
-	# The maze itself is left showing its current shape rather than hidden —
-	# it never disappears once a round has started. The next selection
-	# (a retry of this same image, or a different one) reshapes it fresh via
-	# _enter_approach_mode()'s _reshape_maze() call.
+	# No "oops try again" cue — this is a discovery activity, not an
+	# assessment. The maze itself is left showing its current shape rather
+	# than hidden — it never disappears once a round has started. The next
+	# selection (a retry of this same image, or a different one) reshapes it
+	# fresh via _enter_approach_mode()'s _reshape_maze() call.
 	var slot : Dictionary = _slots[index]
 	slot["state"] = ST_BOBBING
 	_slots[index] = slot

@@ -24,6 +24,10 @@ parents and adults who want to see the written words.
 
 Engine: **Godot 4.5**, GDScript 2.0, mobile renderer, 1280×720 canvas.
 
+**Working across Windows and Mac:** see [`Worklog.md`](Worklog.md) at the project root before
+starting a session on a new machine — it has machine-portable session history plus what does
+*not* travel via git (the production keystore, local tool paths) and needs separate handling.
+
 ---
 
 ## Scene Map

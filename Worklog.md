@@ -57,8 +57,9 @@ locked design rules; this file is for session-by-session history and handoff not
 ### Completed
 - Sound Quest exploration flow refinement — Sound Quest clarified as a mastery exploration
   activity, not an assessment:
-  - Maze solution path is hidden; the approach to the maze is a plain free-drag with no guide
-    line at all (the maze's entry gap is already fully visible, so no path indicator is needed).
+  - Maze solution path is hidden — no route line inside the maze. There is no approach path
+    either, hidden or visible: reaching the maze is a plain free-drag with no guide line or path
+    concept at all, since the maze's entry gap is already fully visible on its own.
   - Each image attempt generates a new maze layout (`_reshape_maze()` per attempt).
   - Wrong-route exploration inside the maze is allowed — wandering into a dead-end branch never
     fails or resets the attempt.

@@ -173,6 +173,7 @@ var _drag_anchor_target  : Vector2 = Vector2.ZERO   # image center pos at that s
 
 var _maze          = null   # MazeGenerator.MazeData
 var _maze_container : Node2D = null
+var _maze_current_cell : Vector2i = Vector2i.ZERO   # which maze cell the drag currently occupies
 
 var _phoneme_player : AudioStreamPlayer = null
 var _word_player     : AudioStreamPlayer = null
@@ -596,6 +597,13 @@ func _update_maze_drag(idx: int, pos: Vector2) -> void:
 	_drag_anchor_pointer = pos
 	_drag_anchor_target  = resolved
 
+	# Track which cell the drag actually occupies now, so the NEXT frame's
+	# _maze_point_valid() check compares against the correct starting cell.
+	# Skip this once inside the exit zone — points out there aren't a real
+	# maze cell, and the drag is past needing this check anyway.
+	if not _maze_exit_zone().has_point(resolved):
+		_maze_current_cell = _maze.cell_at(resolved)
+
 	var goal_rect  : Rect2 = _maze.cell_rect(_maze.goal_cell)
 	var boundary_x : float = goal_rect.position.x + goal_rect.size.x
 	if resolved.x >= boundary_x + EXIT_SUCCESS_THRESHOLD and _maze_exit_zone().has_point(resolved):
@@ -610,8 +618,20 @@ func _maze_exit_zone() -> Rect2:
 		EXIT_ZONE_DEPTH, goal_rect.size.y + EXIT_ZONE_Y_TOLERANCE * 2.0)
 
 
+# Cell-based, not rect-union: adjacent cells' rects always touch regardless
+# of wall state, so a plain "is this point inside a visited cell" test can't
+# tell a real dead end (freely explorable) apart from crossing a genuinely
+# closed wall (must block). Instead, only allow moving from the cell the
+# drag currently occupies (_maze_current_cell) into an adjacent cell when
+# that specific connecting wall is actually open. Wandering into a dead end
+# is real exploration, not a wall — only an actually closed wall segment
+# should ever block the drag. The maze challenge is navigation, not
+# punishment.
 func _maze_point_valid(p: Vector2) -> bool:
-	return _maze.is_point_in_corridor(p) or _maze_exit_zone().has_point(p)
+	if _maze_exit_zone().has_point(p):
+		return true
+	var cell : Vector2i = _maze.cell_at(p)
+	return _maze.can_move_between(_maze_current_cell, cell)
 
 
 # Debounced so it doesn't spam while genuinely pinned in a corner (blocked
@@ -713,6 +733,7 @@ func _enter_maze_from_approach(index: int, drag_pos: Vector2) -> void:
 	# motion relative to this anchor.
 	_drag_anchor_pointer = drag_pos
 	_drag_anchor_target  = _maze.start_pos()
+	_maze_current_cell   = _maze.start_cell
 
 	btn.position = _drag_anchor_target - btn.pivot_offset
 

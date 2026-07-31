@@ -77,9 +77,48 @@ class MazeData:
 				return true
 		return false
 
-	# One line segment per CLOSED edge (wall) — for Line2D rendering. Only
-	# emits walls immediately bordering the path corridor cells plus a
-	# one-cell margin, since Sound Quest never shows the full unvisited grid.
+	# ─── Full-maze gameplay collision ──────────────────────────────────────
+	# Wandering the WHOLE connected maze structure (every branch, dead ends
+	# included — wall_segments() below renders the whole grid, so a child
+	# can see and wander into any of them) needs a different check than
+	# corridor_rects() above: since adjacent cells' rects are geometrically
+	# contiguous (touching with zero gap — that's just grid geometry)
+	# regardless of whether the wall between them is open, a plain
+	# "is this point inside the union of every visited cell's rect" test
+	# can't actually tell a real dead end apart from crossing a genuinely
+	# closed wall — both cells' rects exist and touch either way. Instead,
+	# track which CELL the drag currently occupies and only allow moving to
+	# an adjacent cell when that specific connection is open per passages.
+	func cell_at(point: Vector2) -> Vector2i:
+		var local : Vector2 = point - origin
+		return Vector2i(int(floor(local.x / cell_size)), int(floor(local.y / cell_size)))
+
+	func is_cell_valid(cell: Vector2i) -> bool:
+		return cell.x >= 0 and cell.x < cols and cell.y >= 0 and cell.y < rows \
+			and passages[cell.y][cell.x] != 0
+
+	# True if the drag can move from cell a directly into cell b: staying
+	# in the same cell is always fine; moving to an orthogonally adjacent
+	# cell is fine only if that specific wall is open; anything else
+	# (diagonal jump, non-adjacent, out of bounds) is rejected — the caller
+	# is expected to break a big move into smaller per-axis steps instead
+	# (see sound_quest.gd's _update_maze_drag() sliding logic).
+	func can_move_between(a: Vector2i, b: Vector2i) -> bool:
+		if a == b:
+			return true
+		if not is_cell_valid(a) or not is_cell_valid(b):
+			return false
+		var dx : int = b.x - a.x
+		var dy : int = b.y - a.y
+		if abs(dx) + abs(dy) != 1:
+			return false
+		var dir : int = E if dx == 1 else (W if dx == -1 else (S if dy == 1 else N))
+		return (passages[a.y][a.x] & dir) != 0
+
+	# One line segment per CLOSED edge (wall) — for Line2D rendering. Renders
+	# the whole grid (every cell's closed edges), dead-end branches included
+	# — see can_move_between() above, which is what makes those branches
+	# actually explorable rather than just visually present.
 	#
 	# The maze's outer boundary is otherwise fully sealed by construction —
 	# an edge cell's bit facing outward is never set by generate() (there's

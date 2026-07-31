@@ -6,26 +6,28 @@ extends Node2D
 # is_main_set_boundary() branch). Reached via SoundQuestState's handoff.
 #
 # 4 words visible at once in a row across the top, each bobbing in its own
-# fixed area. Tap = hear the phoneme (unlimited, exploration only). The
-# single shared maze is visible continuously for the whole round — it
-# appears the moment the round starts and never hides again until the round
-# is over, so the child always has a visible destination. Press-and-drag
-# past the bobbing area's boundary begins a two-phase attempt:
+# fixed area. Tap = hear the phoneme (unlimited, exploration only). Press-
+# and-drag past the bobbing area's boundary begins a two-phase attempt —
+# and this specific attempt's maze appears immediately, in the same instant,
+# so the child can see the destination before they ever start following the
+# path toward it:
 #
-#  1. Approach — each image has its own hidden, winding path (loops + wide
-#     zigzags) connecting it to the maze's single entry point. Invisible
-#     until this drag crosses the boundary, then revealed as a dashed
-#     purple trail; straying more than a small tolerance off it fails
-#     instantly. The dashes disappear the instant the image reaches the
-#     maze — the maze itself was already visible the whole time.
+#  1. Approach — each image has its own hidden, gently-curving path (a
+#     Catmull-Rom bend through 2-3 sideways-drifting waypoints) connecting
+#     it to the maze's single entry point. Invisible until this drag
+#     crosses the boundary, then revealed as a dashed purple trail;
+#     straying more than a small tolerance off it fails instantly. The
+#     dashes disappear the instant the image reaches the maze (the maze
+#     itself stays visible).
 #  2. Maze — one entry, one exit, everywhere else on its boundary sealed,
 #     with no visible line inside at all — pure hard-wall navigation by
 #     feel. Reaching the goal marks the word mastered.
 #
-# The maze's *shape* regenerates fresh after every attempt (fail or
-# success, see _reshape_maze()) so nothing can be memorized, but the maze
-# itself never disappears and reappears — it reshapes in place. Failed
-# words stay in the same visible slot for immediate retry — never requeued.
+# Both the maze and the approach path are generated fresh per attempt
+# (_reshape_maze()) and disappear again the moment that attempt resolves —
+# a fresh word, a retry after a fail, or the next image's turn all get
+# their own maze, never one lingering from a previous attempt. Failed words
+# stay in the same visible slot for immediate retry — never requeued.
 #
 # Words are grouped into Quest Rounds of exactly 4 — the whole round has to
 # finish (all 4 mastered) before the next round of 4 begins; nothing refills
@@ -99,12 +101,13 @@ const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window
 # any purple pixel" check would get confused at those crossings.
 const APPROACH_TOLERANCE  : float = 40.0   # px — how far off the path still counts as "on" it
 const APPROACH_LOOKAHEAD  : int   = 6      # segments searched ahead of current progress each frame
-const APPROACH_LOOP_MIN   : int   = 1
-const APPROACH_LOOP_MAX   : int   = 2
-const APPROACH_ZIGZAG_MIN : int   = 3
-const APPROACH_ZIGZAG_MAX : int   = 5
-const APPROACH_ZIGZAG_LEFT_X  : float = 80.0
-const APPROACH_ZIGZAG_RIGHT_X : float = 1150.0
+# A gentle Catmull-Rom curve through a couple of sideways-drifting waypoints
+# — smooth bends, not the sharp loop/zigzag chaos of an earlier pass, which
+# read as messy rather than fun to follow.
+const APPROACH_BEND_MIN     : int   = 2
+const APPROACH_BEND_MAX     : int   = 3
+const APPROACH_DRIFT        : float = 120.0   # how far a bend can drift sideways
+const APPROACH_SAMPLES_PER_SEGMENT : int = 12
 # Rendered as a dashed trail rather than one solid stroke — a continuous
 # line reads as a technical/debug overlay; dashes read as a path to follow.
 const APPROACH_DASH_LEN : float = 18.0
@@ -334,7 +337,9 @@ func _start_round_or_finish() -> void:
 # pool runs short (see _pick_review_word()) — a round is never partial.
 func _start_round() -> void:
 	_clear_completed_row()
-	_reshape_maze()
+	# No maze yet — it appears the instant an image is selected
+	# (_enter_approach_mode()), not before, and disappears again once that
+	# attempt resolves (_fail_attempt()/_succeed_attempt()).
 
 	var round_words : Array = []
 	for i in range(ROUND_SIZE):
@@ -652,10 +657,12 @@ func _pick_style() -> String:
 	return MazeGenerator.STYLE_CURVE
 
 
-# Crossing the bobbing boundary — the maze is already visible (it appears at
-# round start and reshapes after every attempt, see _reshape_maze()), so this
-# just builds an approach path from the image to that already-showing maze's
-# entry, rather than generating a new maze of its own.
+# Crossing the bobbing boundary — this attempt's maze appears immediately
+# (_reshape_maze()), before the approach path is even followed, so the
+# child can see the destination the moment they start dragging. Each
+# attempt (this image's first try, a retry after a fail, or the next
+# image's turn) gets its own fresh maze; it disappears again the instant
+# this attempt resolves (_fail_attempt()/_succeed_attempt()).
 func _enter_approach_mode(index: int, drag_pos: Vector2) -> void:
 	var slot : Dictionary = _slots[index]
 	_stop_bob(index)
@@ -667,6 +674,8 @@ func _enter_approach_mode(index: int, drag_pos: Vector2) -> void:
 	btn.pivot_offset = btn.size / 2.0
 	btn.position     = drag_pos - btn.pivot_offset
 
+	_reshape_maze()
+
 	_approach_points = _generate_approach_path(drag_pos, _maze.start_pos())
 	_approach_index  = 0
 	_render_approach_path()
@@ -674,40 +683,48 @@ func _enter_approach_mode(index: int, drag_pos: Vector2) -> void:
 	_start_word_audio(index)
 
 
-# A wandering polyline from the image to the maze entry: one or two small
-# loops near the start, then a wide zigzag that never crosses back above the
-# image itself (min_y), scaled to actually reach the entry's height by the
-# time it settles there.
+# A smooth, gentle curve from the image to the maze entry — 2-3 waypoints
+# drifting sideways along the way, connected with a Catmull-Rom spline so
+# the whole thing reads as one continuous flowing bend rather than sharp
+# turns or tight loops.
 func _generate_approach_path(image_pos: Vector2, entry_pos: Vector2) -> Array:
-	var points  : Array  = [image_pos]
-	var min_y   : float   = image_pos.y + 15.0
-	var current : Vector2 = image_pos
+	var waypoints : Array = [image_pos]
+	var bend_count : int = randi_range(APPROACH_BEND_MIN, APPROACH_BEND_MAX)
+	for i in range(1, bend_count + 1):
+		var t    : float   = float(i) / float(bend_count + 1)
+		var base : Vector2 = image_pos.lerp(entry_pos, t)
+		var drift : float  = randf_range(-APPROACH_DRIFT, APPROACH_DRIFT)
+		waypoints.append(base + Vector2(drift, 0.0))
+	waypoints.append(entry_pos)
 
-	var loop_count : int = randi_range(APPROACH_LOOP_MIN, APPROACH_LOOP_MAX)
-	for i in range(loop_count):
-		var loop_cy     : float   = current.y + randf_range(35.0, 55.0)
-		var loop_center : Vector2 = Vector2(current.x + randf_range(-50.0, 50.0), loop_cy)
-		var loop_radius : float   = randf_range(30.0, 50.0)
-		var steps       : int     = 10
-		for s in range(1, steps + 1):
-			var angle : float  = (float(s) / steps) * TAU
-			var p     : Vector2 = loop_center + Vector2(cos(angle), sin(angle)) * loop_radius
-			p.y = maxf(p.y, min_y)
-			points.append(p)
-		current = points[-1]
+	# Catmull-Rom needs one padding control point before the first and after
+	# the last real waypoint to define the curve's starting/ending tangent.
+	var padded : Array = [waypoints[0] + (waypoints[0] - waypoints[1])]
+	padded.append_array(waypoints)
+	padded.append(waypoints[-1] + (waypoints[-1] - waypoints[-2]))
 
-	var zigzag_count : int   = randi_range(APPROACH_ZIGZAG_MIN, APPROACH_ZIGZAG_MAX)
-	var remaining_dy : float = maxf(entry_pos.y - current.y, 40.0)
-	var y_step       : float = remaining_dy / float(zigzag_count + 1)
-	var going_right  : bool  = current.x < (APPROACH_ZIGZAG_LEFT_X + APPROACH_ZIGZAG_RIGHT_X) * 0.5
-	for i in range(zigzag_count):
-		var target_x : float = APPROACH_ZIGZAG_RIGHT_X if going_right else APPROACH_ZIGZAG_LEFT_X
-		current = Vector2(target_x, current.y + y_step)
-		points.append(current)
-		going_right = not going_right
-
-	points.append(entry_pos)
+	var points : Array = []
+	for i in range(1, padded.size() - 2):
+		var p0 : Vector2 = padded[i - 1]
+		var p1 : Vector2 = padded[i]
+		var p2 : Vector2 = padded[i + 1]
+		var p3 : Vector2 = padded[i + 2]
+		for s in range(APPROACH_SAMPLES_PER_SEGMENT):
+			var t : float = float(s) / float(APPROACH_SAMPLES_PER_SEGMENT)
+			points.append(_catmull_rom(p0, p1, p2, p3, t))
+	points.append(waypoints[-1])
 	return points
+
+
+static func _catmull_rom(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: float) -> Vector2:
+	var t2 : float = t * t
+	var t3 : float = t2 * t
+	return 0.5 * (
+		(2.0 * p1) +
+		(-p0 + p2) * t +
+		(2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 +
+		(-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
+	)
 
 
 # Dashed rather than one continuous Line2D — Godot's Line2D has no native
@@ -809,12 +826,11 @@ func _render_maze() -> void:
 	_maze_container.add_child(goal)
 
 
-# The maze stays visible continuously for the whole round rather than
-# hiding and reappearing between attempts — this generates a fresh layout
-# and redraws in place. Called once at round start, then again after every
-# attempt resolves (fail or success) so the next attempt always gets its
-# own fresh shape, matching "every attempt generates a new maze" without
-# ever actually hiding the maze itself.
+# Generates a fresh maze layout and shows it immediately. Called once per
+# attempt, right when that attempt's approach path also reveals
+# (_enter_approach_mode()) — every attempt (a fresh word, a retry, or the
+# next image's turn) gets its own maze, matching "every attempt generates
+# a new maze."
 func _reshape_maze() -> void:
 	_maze = MazeGenerator.generate(MAZE_COLS, MAZE_ROWS, MAZE_CELL_SIZE, MAZE_ORIGIN,
 		_pick_style(), MAZE_START_CELL, MAZE_COLS - 1)
@@ -854,7 +870,7 @@ func _on_move_stop_timeout() -> void:
 func _fail_attempt(index: int) -> void:
 	_stop_word_audio()
 	_fail_player.play()
-	_reshape_maze()
+	_clear_maze()
 	_clear_approach_path()
 	var slot : Dictionary = _slots[index]
 	slot["state"] = ST_BOBBING
@@ -867,7 +883,7 @@ func _fail_attempt(index: int) -> void:
 func _succeed_attempt(index: int) -> void:
 	_stop_word_audio()
 	_success_player.play()
-	_reshape_maze()
+	_clear_maze()
 	if _dragging_slot_index == index:
 		_dragging_slot_index = -1
 

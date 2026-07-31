@@ -10,10 +10,18 @@ extends Node2D
 # area's boundary starts a maze attempt: a fresh maze is generated, the full
 # word loops while dragging, a hard wall means instant fail, reaching the
 # goal marks the word mastered. Failed words stay in the same visible slot
-# for immediate retry — never requeued. 4 Quests per Group; Quest Transition
-# is a purely decorative Play-Button-walks-a-maze celebration between them.
-# After Quest 4, hands back to normal Prep progression exactly like
-# prep_transition.gd's _continue_to_next_set().
+# for immediate retry — never requeued.
+#
+# Words are grouped into Quest Rounds of exactly 4 — the whole round has to
+# finish (all 4 mastered) before the next round of 4 begins; nothing refills
+# individually mid-round. A round is never partial: if a Quest's remaining
+# new words run short of 4, it's padded with review words already mastered
+# earlier in the Group. Each mastered image moves to a horizontal row on the
+# right instead of disappearing, staying visible there until the round ends.
+#
+# 4 Quests per Group; Quest Transition is a purely decorative Play-Button-
+# walks-a-maze celebration between them. After Quest 4, hands back to normal
+# Prep progression exactly like prep_transition.gd's _continue_to_next_set().
 # ─────────────────────────────────────────────────────────────────────────────
 
 const FONT_PATH : String = "res://UI_assets/210 연필스케치R.ttf"
@@ -57,6 +65,22 @@ const GOAL_MARKER_R    : float = 14.0
 
 const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window = "stopped"
 
+# A Quest Round is always exactly 4 images — never a partial round. If a
+# Quest's remaining new words run short of 4, the round is padded with review
+# words already mastered earlier in this Group (see _pick_review_word()).
+# All 4 of a round's images must exit before the next round begins.
+const ROUND_SIZE : int = 4
+
+# Completed images from the current round move here — a simple horizontal
+# row, capped at ROUND_SIZE since a round is never bigger than 4. Clears at
+# the start of every new round.
+const COMPLETED_ROW_Y       : float = 380.0
+const COMPLETED_ROW_START_X : float = 950.0
+const COMPLETED_ROW_STEP    : float = 90.0
+const COMPLETED_THUMB_SIZE  : float = 70.0
+const COMPLETED_MOVE_DUR    : float = 0.35
+const ROUND_COMPLETE_BEAT   : float = 0.4   # holds the full row on screen for a beat before it clears
+
 const QUEST_COUNT : int = 4
 
 # Route-style eligibility weights by Group (0=A ... 5=F). Weighted, not a hard
@@ -85,11 +109,16 @@ var _font : Font = null
 var _group_letter : String = "A"
 var _quests        : Array = []   # Array[Array[Dictionary]] — 4 quests of {image, word_audio, phoneme_audio}
 var _quest_index    : int   = 0
-var _quest_remaining : Array = []  # words in the current Quest not yet placed in a slot
+var _quest_remaining : Array = []  # new words in the current Quest not yet placed in a round
 var _quest_total_words : int = 0
 var _quest_done_words  : int = 0
 
+var _group_mastered : Array = []   # every word mastered so far this Group session — review-word source
+
 var _slots : Array = []   # per-slot Dictionary, see _make_slot()
+
+var _completed_this_round : int   = 0    # how many of the current round's 4 have exited so far
+var _completed_row_nodes  : Array = []   # parked TextureButtons, freed when the next round starts
 
 var _dragging_slot_index : int = -1
 var _drag_press_pos      : Vector2 = Vector2.ZERO
@@ -243,56 +272,99 @@ func _start_quest() -> void:
 	for i in range(SLOT_POSITIONS.size()):
 		_slots.append(_make_slot(i))
 
-	_fill_slots()
+	_start_round_or_finish()
 
 
+# No node is created here anymore — _place_word_in_slot() creates a fresh one
+# every round, since a mastered word's node is handed off to the completed
+# row (see _succeed_attempt()) rather than reused for the next occupant.
 func _make_slot(index: int) -> Dictionary:
-	var base_pos : Vector2 = SLOT_POSITIONS[index]
-	var btn := TextureButton.new()
-	btn.ignore_texture_size = true
-	btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	btn.size                = Vector2(IMAGE_BOX, IMAGE_BOX)
-	btn.pivot_offset        = Vector2(IMAGE_BOX, IMAGE_BOX) / 2.0
-	btn.position             = base_pos - btn.pivot_offset
-	btn.visible              = false
-	btn.mouse_filter         = Control.MOUSE_FILTER_STOP
-	add_child(btn)
-
 	return {
-		"node"      : btn,
-		"base_pos"  : base_pos,
+		"node"      : null,
+		"base_pos"  : SLOT_POSITIONS[index],
 		"word"      : {},
 		"state"     : ST_EMPTY,
 		"bob_tween" : null,
 	}
 
 
-func _fill_slots() -> void:
-	for i in range(_slots.size()):
-		var slot : Dictionary = _slots[i]
-		if slot["state"] != ST_EMPTY:
-			continue
-		if _quest_remaining.is_empty():
-			continue
-		var word : Dictionary = _quest_remaining.pop_front()
-		_place_word_in_slot(i, word)
-	_check_quest_complete()
+# Starts the next Quest Round, or — if this Quest has no new words left —
+# ends the Quest and moves to Quest Transition. A round is only ever started
+# with real new content; once _quest_remaining is empty there is nothing left
+# to introduce, so the Quest ends here rather than generating an all-review
+# round.
+func _start_round_or_finish() -> void:
+	if _quest_remaining.is_empty():
+		_clear_completed_row()
+		_quest_index += 1
+		_play_quest_transition()
+		return
+	_start_round()
+
+
+# Builds exactly ROUND_SIZE (4) words for the round: new words first, padded
+# with review words already mastered this Group if the Quest's remaining
+# pool runs short (see _pick_review_word()) — a round is never partial.
+func _start_round() -> void:
+	_clear_completed_row()
+
+	var round_words : Array = []
+	for i in range(ROUND_SIZE):
+		if not _quest_remaining.is_empty():
+			round_words.append(_quest_remaining.pop_front())
+		else:
+			round_words.append(_pick_review_word(round_words))
+
+	for i in range(ROUND_SIZE):
+		_place_word_in_slot(i, round_words[i])
+
+
+# Picks a word already mastered this Group session, excluding anything
+# already chosen for this round (both new and review picks so far) so a
+# round never shows the same image twice. Falls back to allowing a repeat
+# only if the distinct mastered pool is smaller than what's still needed —
+# not possible with the current word bank (every Quest that needs padding
+# already has at least 8 mastered words to draw from within itself, and
+# Group E's one 3-word Quest draws from its Group's earlier Quests) but kept
+# as a graceful degradation rather than a crash if content ever gets sparser.
+func _pick_review_word(exclude: Array) -> Dictionary:
+	if _group_mastered.is_empty():
+		return {}
+	var exclude_images : Dictionary = {}
+	for w in exclude:
+		exclude_images[w.get("image", "")] = true
+	var candidates : Array = []
+	for w in _group_mastered:
+		if not exclude_images.has(w.get("image", "")):
+			candidates.append(w)
+	if candidates.is_empty():
+		candidates = _group_mastered.duplicate()
+	return candidates[randi() % candidates.size()]
 
 
 func _place_word_in_slot(index: int, word: Dictionary) -> void:
-	var slot : Dictionary = _slots[index]
-	var btn  : TextureButton = slot["node"]
-	slot["word"]  = word
-	slot["state"] = ST_BOBBING
-	_slots[index] = slot
+	var base_pos : Vector2 = SLOT_POSITIONS[index]
+	var btn := TextureButton.new()
+	btn.ignore_texture_size = true
+	btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	btn.size                = Vector2(IMAGE_BOX, IMAGE_BOX)
+	btn.pivot_offset        = Vector2(IMAGE_BOX, IMAGE_BOX) / 2.0
+	btn.mouse_filter        = Control.MOUSE_FILTER_STOP
+	add_child(btn)
 
 	var tex : Texture2D = null
 	if word.get("image", "") != "" and ResourceLoader.exists(word["image"]):
 		tex = load(word["image"]) as Texture2D
 	btn.texture_normal = tex
-	btn.position        = slot["base_pos"] - btn.pivot_offset
+	btn.position        = base_pos - btn.pivot_offset
 	btn.modulate.a      = 0.0
 	btn.visible         = true
+
+	var slot : Dictionary = _slots[index]
+	slot["node"]  = btn
+	slot["word"]  = word
+	slot["state"] = ST_BOBBING
+	_slots[index] = slot
 
 	var fade := create_tween()
 	fade.tween_property(btn, "modulate:a", 1.0, 0.25)
@@ -300,15 +372,31 @@ func _place_word_in_slot(index: int, word: Dictionary) -> void:
 	_start_bob(index)
 
 
-func _check_quest_complete() -> void:
-	if not _quest_remaining.is_empty():
-		return
+func _completed_row_slot_pos(i: int) -> Vector2:
+	return Vector2(COMPLETED_ROW_START_X + i * COMPLETED_ROW_STEP, COMPLETED_ROW_Y)
+
+
+func _clear_completed_row() -> void:
+	for n in _completed_row_nodes:
+		if is_instance_valid(n):
+			n.queue_free()
+	_completed_row_nodes.clear()
+	_completed_this_round = 0
+
+
+# All 4 of the current round's slots are empty (every image has exited) —
+# hold the completed row on screen for a beat, then start the next round or
+# finish the Quest.
+func _check_round_complete() -> void:
 	for slot in _slots:
 		if slot["state"] != ST_EMPTY:
 			return
-	# All words in this Quest are done and no slot is occupied.
-	_quest_index += 1
-	_play_quest_transition()
+	_on_round_complete()
+
+
+func _on_round_complete() -> void:
+	await get_tree().create_timer(ROUND_COMPLETE_BEAT).timeout
+	_start_round_or_finish()
 
 
 # ─── Bobbing ────────────────────────────────────────────────────────────────
@@ -591,17 +679,30 @@ func _succeed_attempt(index: int) -> void:
 
 	var slot : Dictionary = _slots[index]
 	var btn  : TextureButton = slot["node"]
+	var word : Dictionary = slot["word"]
 	slot["state"] = ST_EMPTY
 	slot["word"]  = {}
+	slot["node"]  = null
 	_slots[index] = slot
 	_quest_done_words += 1
+	_group_mastered.append(word)
 
-	var fade := create_tween()
-	fade.tween_property(btn, "modulate:a", 0.0, 0.2)
-	fade.tween_callback(func():
-		btn.visible = false
-		_fill_slots()
-	)
+	# Hand this image off to the completed row instead of fading it away —
+	# it stays visible there as a record for the rest of the round. The slot
+	# itself stays empty until the whole round finishes (_check_round_complete).
+	btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_completed_row_nodes.append(btn)
+	var target_center : Vector2 = _completed_row_slot_pos(_completed_this_round)
+	_completed_this_round += 1
+
+	var move := create_tween()
+	move.set_parallel(true)
+	move.tween_property(btn, "position", target_center - Vector2(COMPLETED_THUMB_SIZE, COMPLETED_THUMB_SIZE) * 0.5, COMPLETED_MOVE_DUR) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	move.tween_property(btn, "size", Vector2(COMPLETED_THUMB_SIZE, COMPLETED_THUMB_SIZE), COMPLETED_MOVE_DUR)
+	await move.finished
+
+	_check_round_complete()
 
 
 func _clear_maze() -> void:

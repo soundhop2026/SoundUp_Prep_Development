@@ -5,11 +5,13 @@ extends Node2D
 # after that Group's last sub-set finishes (see prep_transition.gd's
 # is_main_set_boundary() branch). Reached via SoundQuestState's handoff.
 #
-# 4 words visible at once in a row across the top, each bobbing in its own
-# fixed area. Tap = hear the phoneme (unlimited, exploration only). Press-
-# and-drag past the bobbing area's boundary begins a two-phase attempt —
-# and this specific attempt's maze appears immediately, in the same instant,
-# so the child can see the destination before they ever start following the
+# 4 words visible at once in a row across the top, sitting still (no idle
+# animation). Tap = hear the phoneme (unlimited, exploration only). A maze
+# is already on screen the instant the round starts — ready and waiting
+# before any image is even touched. Press-and-drag past the bobbing area's
+# boundary begins a two-phase attempt, and this specific attempt gets its
+# own fresh maze the same instant (replacing whatever was showing), so the
+# child always has a visible destination before they start following the
 # path toward it:
 #
 #  1. Approach — each image has its own hidden, gently-curving path (a
@@ -69,8 +71,6 @@ const IMAGE_BOX     : float = 150.0    # word image fits within this box
 # following, visible route or not.
 const MAZE_DRAG_IMAGE_SIZE : float = 60.0
 const BOB_AREA_SIZE : Vector2 = Vector2(190, 190)   # boundary the drag must cross
-const BOB_AMPLITUDE : float = 8.0
-const BOB_HALF_DUR  : float = 0.9
 
 const TAP_MOVE_THRESHOLD : float = 14.0   # px — below this, a release counts as a tap
 
@@ -78,13 +78,16 @@ const TAP_MOVE_THRESHOLD : float = 14.0   # px — below this, a release counts 
 # route STYLE (see STYLE_WEIGHTS_BY_GROUP below), not by growing the box.
 # A wide, tall band near the bottom of the screen, well clear of the top
 # image row (which ends around y=255) and the completed row to its right.
-# Sealed on every side except one entry (left edge) and one exit (right
-# edge, feeding the completed row) — see maze_generator.gd's wall_segments().
+# Sealed on every side except one entry (top edge — the 4 images sit above
+# the maze, so an approach path coming down from any of them reaches this
+# directly without having to curve around the maze's own boundary the way
+# a side entry would force it to) and one exit (right edge, feeding the
+# completed row) — see maze_generator.gd's wall_segments().
 const MAZE_COLS       : int      = 12
 const MAZE_ROWS        : int      = 4
 const MAZE_CELL_SIZE   : float    = 65.0
 const MAZE_ORIGIN      : Vector2  = Vector2(60, 420)
-const MAZE_START_CELL  : Vector2i = Vector2i(0, 2)   # the maze's one shared entry, left edge
+const MAZE_START_CELL  : Vector2i = Vector2i(6, 0)   # the maze's one shared entry, top edge
 const MAZE_WALL_WIDTH  : float = 6.0
 const ROUTE_WIDTH      : float = 8.0
 const GOAL_MARKER_R    : float = 14.0
@@ -337,9 +340,13 @@ func _start_round_or_finish() -> void:
 # pool runs short (see _pick_review_word()) — a round is never partial.
 func _start_round() -> void:
 	_clear_completed_row()
-	# No maze yet — it appears the instant an image is selected
-	# (_enter_approach_mode()), not before, and disappears again once that
-	# attempt resolves (_fail_attempt()/_succeed_attempt()).
+	# A maze is ready and visible the moment the round starts, before any
+	# image is touched — _enter_approach_mode() still generates this
+	# attempt's own fresh maze the instant an image is actually selected
+	# (replacing this placeholder one), and _fail_attempt()/_succeed_attempt()
+	# still hide it once that attempt resolves — this only changes what's on
+	# screen during the gap before the very first selection of the round.
+	_reshape_maze()
 
 	var round_words : Array = []
 	for i in range(ROUND_SIZE):
@@ -432,21 +439,19 @@ func _on_round_complete() -> void:
 	_start_round_or_finish()
 
 
-# ─── Bobbing ────────────────────────────────────────────────────────────────
-
+# ─── Idle state ─────────────────────────────────────────────────────────────
+# The 4 top images sit still — no idle animation. Function/state name (and
+# the "bob_tween" dict key, always null now) kept as-is since ST_BOBBING is
+# the state the rest of the state machine (_hit_test_slot() etc.) checks for
+# "this slot holds an untouched, draggable image."
 func _start_bob(index: int) -> void:
 	var slot : Dictionary = _slots[index]
 	var btn  : TextureButton = slot["node"]
 	if slot["bob_tween"] != null:
 		slot["bob_tween"].kill()
-	btn.position = slot["base_pos"] - btn.pivot_offset
-	var t := create_tween().set_loops()
-	t.tween_property(btn, "position:y", btn.position.y - BOB_AMPLITUDE, BOB_HALF_DUR) \
-		.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
-	t.tween_property(btn, "position:y", btn.position.y + BOB_AMPLITUDE, BOB_HALF_DUR) \
-		.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
-	slot["bob_tween"] = t
-	slot["state"]     = ST_BOBBING
+		slot["bob_tween"] = null
+	btn.position  = slot["base_pos"] - btn.pivot_offset
+	slot["state"] = ST_BOBBING
 	_slots[index] = slot
 
 

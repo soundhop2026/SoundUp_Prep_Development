@@ -82,11 +82,12 @@ class MazeData:
 	# one-cell margin, since Sound Quest never shows the full unvisited grid.
 	#
 	# The maze's outer boundary is otherwise fully sealed by construction —
-	# a col-0 cell's West bit and a col-(cols-1) cell's East bit are never
-	# set by generate() (there's no neighbor beyond the grid to open toward).
-	# So a single door is cut by skipping exactly one boundary segment: the
-	# West wall of start_cell (entry) and the East wall of goal_cell (exit),
-	# nowhere else — matching "no open contour except the entry and exit."
+	# an edge cell's bit facing outward is never set by generate() (there's
+	# no neighbor beyond the grid to open toward). So a single door is cut by
+	# skipping exactly one boundary segment on whichever edge start_cell (the
+	# entry) or goal_cell (the exit) actually sits on — top, left, right, or
+	# bottom, whichever applies — nowhere else, matching "no open contour
+	# except the entry and exit."
 	func wall_segments() -> Array:
 		var segs : Array = []
 		for y in range(rows):
@@ -97,13 +98,15 @@ class MazeData:
 				var tr   : Vector2 = tl + Vector2(cell_size, 0)
 				var bl   : Vector2 = tl + Vector2(0, cell_size)
 				var br   : Vector2 = tl + Vector2(cell_size, cell_size)
-				if open & N == 0:
+				var is_entry : bool = cell == start_cell
+				var is_exit  : bool = cell == goal_cell
+				if open & N == 0 and not (is_entry and start_cell.y == 0):
 					segs.append([tl, tr])
-				if open & S == 0:
+				if open & S == 0 and not (is_exit and goal_cell.y == rows - 1):
 					segs.append([bl, br])
-				if open & E == 0 and not (cell == goal_cell and goal_cell.x == cols - 1):
+				if open & E == 0 and not (is_exit and goal_cell.x == cols - 1):
 					segs.append([tr, br])
-				if open & W == 0 and not (cell == start_cell and start_cell.x == 0):
+				if open & W == 0 and not (is_entry and start_cell.x == 0):
 					segs.append([tl, bl])
 		return segs
 

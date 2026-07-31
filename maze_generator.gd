@@ -20,7 +20,7 @@ const E : int = 4
 const W : int = 8
 
 const DIRS      : Array[int] = [N, S, E, W]
-const DX         : Dictionary = {1: 1, 2: 0, 4: 1, 8: -1}   # N,S,E,W -> dx  (E:1  W:-1)
+const DX         : Dictionary = {1: 0, 2: 0, 4: 1, 8: -1}   # N,S,E,W -> dx  (E:1  W:-1)
 const DY         : Dictionary = {1: -1, 2: 1, 4: 0, 8: 0}   # N,S,E,W -> dy  (N:-1 S:1)
 const OPPOSITE   : Dictionary = {1: 2, 2: 1, 4: 8, 8: 4}    # N<->S, E<->W
 
@@ -100,8 +100,25 @@ class MazeData:
 		return segs
 
 
+# Style presets bias the backtracker's neighbor choice, controlling whether
+# the resulting corridor reads as a gentle curve, a zigzag, a longer wind, or
+# a spiral-ish curl. Style never affects maze correctness — every style still
+# always produces a fully-connected spanning tree with exactly one path, it
+# only influences *which* valid tree gets generated. There is deliberately no
+# "straight" style: the maze box is compact, so a literal straight run would
+# neither use the space nor build any fine-motor-skill value.
+const STYLE_CURVE   : String = "curve"
+const STYLE_ZIGZAG  : String = "zigzag"
+const STYLE_WINDING : String = "winding"
+const STYLE_SPIRAL  : String = "spiral"
+
+# Clockwise rotation of the last direction (N->E->S->W->N) — used by the
+# spiral bias to favor consistently turning the same rotational way.
+const CLOCKWISE : Dictionary = {1: 4, 4: 2, 2: 8, 8: 1}
+
 static func generate(cols: int = DEFAULT_COLS, rows: int = DEFAULT_ROWS,
-		cell_size: float = 80.0, origin: Vector2 = Vector2.ZERO) -> MazeData:
+		cell_size: float = 80.0, origin: Vector2 = Vector2.ZERO,
+		style: String = STYLE_CURVE) -> MazeData:
 	var data : MazeData = MazeData.new()
 	data.cols      = cols
 	data.rows      = rows
@@ -121,22 +138,31 @@ static func generate(cols: int = DEFAULT_COLS, rows: int = DEFAULT_ROWS,
 
 	var start : Vector2i = Vector2i(0, 0)
 	var stack : Array[Vector2i] = [start]
+	# Direction that led INTO each cell on the stack (0 = start, no direction
+	# yet), tracked per stack frame rather than as one running variable — this
+	# keeps the style bias correct across backtracks: after popping back to an
+	# earlier cell, its "last direction" is whatever direction originally led
+	# into it, not the direction of the branch that was just abandoned.
+	var dir_stack : Array[int] = [0]
 	visited[start.y][start.x] = true
 	var order : Array[Vector2i] = [start]
 
 	while stack.size() > 0:
-		var current : Vector2i = stack[-1]
+		var current  : Vector2i = stack[-1]
+		var last_dir : int      = dir_stack[-1]
 		var neighbors : Array = _unvisited_neighbors(current, cols, rows, visited)
 		if neighbors.is_empty():
 			stack.pop_back()
+			dir_stack.pop_back()
 			continue
-		var choice : Array = neighbors[randi() % neighbors.size()]
+		var choice : Array = _weighted_pick(neighbors, last_dir, style)
 		var dir  : int     = choice[0]
 		var next : Vector2i = choice[1]
 		passages[current.y][current.x] |= dir
 		passages[next.y][next.x]       |= OPPOSITE[dir]
 		visited[next.y][next.x] = true
 		stack.append(next)
+		dir_stack.append(dir)
 		order.append(next)
 
 	data.passages   = passages
@@ -146,6 +172,40 @@ static func generate(cols: int = DEFAULT_COLS, rows: int = DEFAULT_ROWS,
 	data.goal_cell  = order[-1]
 	data.path_cells = _trace_path(passages, data.start_cell, data.goal_cell)
 	return data
+
+
+# Weighted neighbor choice: how strongly a style favors continuing last_dir
+# (or, for spiral, favors the clockwise-rotated direction) over turning.
+static func _weighted_pick(neighbors: Array, last_dir: int, style: String) -> Array:
+	if last_dir == 0 or neighbors.size() == 1:
+		return neighbors[randi() % neighbors.size()]
+	var weights : Array[float] = []
+	var total   : float        = 0.0
+	for n in neighbors:
+		var dir : int   = n[0]
+		var w   : float = 1.0
+		match style:
+			STYLE_CURVE:
+				w = 3.0 if dir == last_dir else 1.0
+			STYLE_ZIGZAG:
+				w = 0.2 if dir == last_dir else 1.0
+			STYLE_WINDING:
+				w = 1.3 if dir == last_dir else 1.0
+			STYLE_SPIRAL:
+				if dir == CLOCKWISE.get(last_dir, -1):
+					w = 6.0
+				elif dir == last_dir:
+					w = 2.0
+				else:
+					w = 1.0
+		weights.append(w)
+		total += w
+	var r : float = randf() * total
+	for i in range(neighbors.size()):
+		r -= weights[i]
+		if r <= 0.0:
+			return neighbors[i]
+	return neighbors[-1]
 
 
 static func _unvisited_neighbors(cell: Vector2i, cols: int, rows: int, visited: Array) -> Array:

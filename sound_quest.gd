@@ -11,8 +11,8 @@ extends Node2D
 # word loops while dragging, a hard wall means instant fail, reaching the
 # goal marks the word mastered. Failed words stay in the same visible slot
 # for immediate retry — never requeued. 4 Quests per Group; Quest Transition
-# is a purely decorative Louis-walks-a-maze celebration between them. After
-# Quest 4, hands back to normal Prep progression exactly like
+# is a purely decorative Play-Button-walks-a-maze celebration between them.
+# After Quest 4, hands back to normal Prep progression exactly like
 # prep_transition.gd's _continue_to_next_set().
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -23,6 +23,7 @@ const PURPLE       : Color = Color("#4B0082")
 const AMBER        : Color = Color("#FFB703")
 const WHITE        : Color = Color("#FFFFFF")
 const WALL_COLOR   : Color = Color("#2E2E2E")   # thick hand-drawn-style wall lines
+const ROUTE_COLOR  : Color = Color("#4B0082")   # hidden route, once revealed — brand purple
 
 # 4 fixed slot centers — same quadrant layout game.gd uses for 4-choice rounds.
 const SLOT_POSITIONS : Array[Vector2] = [
@@ -39,13 +40,37 @@ const BOB_HALF_DUR  : float = 0.9
 
 const TAP_MOVE_THRESHOLD : float = 14.0   # px — below this, a release counts as a tap
 
-const MAZE_COLS      : int   = 5
-const MAZE_ROWS       : int   = 5
-const MAZE_CELL_SIZE  : float = 52.0
-const MAZE_WALL_WIDTH : float = 6.0
-const GOAL_MARKER_R   : float = 14.0
+# One shared maze box for every Group — difficulty is carried by route STYLE
+# (see STYLE_WEIGHTS_BY_GROUP below), not by growing the box. Sized from the
+# real slot layout: only one maze is ever active at a time (the drag state
+# machine allows just one slot in ST_DRAG_MAZE), so it only has to clear the
+# other 3 idle bobbing images (190x190 each) and the screen edges — measured
+# clearance around any of the 4 slots is ~325px horizontally but only
+# ~115-125px vertically, so the box is landscape rather than square.
+const MAZE_COLS       : int   = 8
+const MAZE_ROWS        : int   = 4
+const MAZE_CELL_SIZE   : float = 50.0
+const MAZE_WALL_WIDTH  : float = 6.0
+const ROUTE_WIDTH      : float = 5.0
+const GOAL_MARKER_R    : float = 14.0
+
+const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window = "stopped"
 
 const QUEST_COUNT : int = 4
+
+# Route-style eligibility weights by Group (0=A ... 5=F). Weighted, not a hard
+# per-Group cutoff, so the spectrum widens gradually — no abrupt jump between
+# adjacent Groups. Group A does not start at the gentlest possible maze: it
+# leans toward MazeGenerator.STYLE_CURVE but already mixes in zigzag/winding;
+# every later Group shifts more weight toward zigzag/winding/spiral.
+const STYLE_WEIGHTS_BY_GROUP : Array[Dictionary] = [
+	{"curve": 6, "zigzag": 3, "winding": 1, "spiral": 0},   # A
+	{"curve": 5, "zigzag": 3, "winding": 2, "spiral": 0},   # B
+	{"curve": 3, "zigzag": 4, "winding": 3, "spiral": 1},   # C
+	{"curve": 2, "zigzag": 4, "winding": 4, "spiral": 2},   # D
+	{"curve": 1, "zigzag": 3, "winding": 4, "spiral": 3},   # E
+	{"curve": 1, "zigzag": 2, "winding": 4, "spiral": 4},   # F
+]
 
 # Per-slot state
 const ST_EMPTY         : String = "empty"
@@ -80,6 +105,7 @@ var _success_player  : AudioStreamPlayer = null
 var _fail_player     : AudioStreamPlayer = null
 
 var _word_audio_active : bool = false   # guards the manual play->finished->replay loop
+var _move_timer : Timer = null   # word audio pauses when no drag-motion arrives within MOVE_STOP_DELAY
 
 var _header_label : Label = null
 var _busy : bool = false   # true during Quest Transition / group handoff — input ignored
@@ -128,6 +154,12 @@ func _build_audio_players() -> void:
 		_fail_player.stream = load("res://BGM&effect/SoundUp_feedback/oops_try_again.wav")
 
 	_word_player.finished.connect(_on_word_player_finished)
+
+	_move_timer = Timer.new()
+	_move_timer.one_shot   = true
+	_move_timer.wait_time  = MOVE_STOP_DELAY
+	_move_timer.timeout.connect(_on_move_stop_timeout)
+	add_child(_move_timer)
 
 
 func _build_header() -> void:
@@ -352,6 +384,15 @@ func _update_drag(pos: Vector2) -> void:
 		# the maze fully on-screen regardless of which edge was crossed.
 		var center : Vector2 = _drag_anchor_target + (pos - _drag_anchor_pointer)
 		btn.position = center - btn.pivot_offset
+
+		# Word audio is tied to active movement, not the whole attempt: every
+		# drag-motion event restarts the "still moving" timer and resumes
+		# playback if a prior pause already stopped it. _on_move_stop_timeout()
+		# stops playback again once no motion arrives for MOVE_STOP_DELAY.
+		_move_timer.start()
+		if _word_audio_active and not _word_player.playing:
+			_word_player.play()
+
 		if not _maze.is_point_in_corridor(center):
 			_fail_attempt(idx)
 			return
@@ -387,6 +428,22 @@ func _play_phoneme(index: int) -> void:
 
 # ─── Maze gameplay ──────────────────────────────────────────────────────────
 
+# Weighted-random style pick, eligible set widening by Group. See
+# STYLE_WEIGHTS_BY_GROUP above and maze_generator.gd's style constants.
+func _pick_style() -> String:
+	var group   : int        = clampi(PrepLevelProgress.main_set_number(), 0, STYLE_WEIGHTS_BY_GROUP.size() - 1)
+	var weights : Dictionary = STYLE_WEIGHTS_BY_GROUP[group]
+	var total   : float      = 0.0
+	for w in weights.values():
+		total += w
+	var r : float = randf() * total
+	for style_id in weights.keys():
+		r -= weights[style_id]
+		if r <= 0.0:
+			return style_id
+	return MazeGenerator.STYLE_CURVE
+
+
 func _enter_maze_mode(index: int, drag_pos: Vector2) -> void:
 	var slot : Dictionary = _slots[index]
 	_stop_bob(index)
@@ -395,7 +452,7 @@ func _enter_maze_mode(index: int, drag_pos: Vector2) -> void:
 
 	var maze_size : Vector2 = Vector2(MAZE_COLS, MAZE_ROWS) * MAZE_CELL_SIZE
 	var origin    : Vector2 = slot["base_pos"] - maze_size / 2.0
-	_maze = MazeGenerator.generate(MAZE_COLS, MAZE_ROWS, MAZE_CELL_SIZE, origin)
+	_maze = MazeGenerator.generate(MAZE_COLS, MAZE_ROWS, MAZE_CELL_SIZE, origin, _pick_style())
 	_render_maze()
 
 	# Anchor the image to the maze's actual start cell rather than the raw
@@ -426,6 +483,21 @@ func _render_maze() -> void:
 		line.add_point(seg[1])
 		_maze_container.add_child(line)
 
+	# The hidden route becomes visible the instant the maze itself does — both
+	# share the same trigger (crossing the bobbing-area boundary) — so it's
+	# drawn right alongside the walls, no separate reveal-on-movement state.
+	# A fresh attempt after a fail calls _clear_maze() first, which frees this
+	# along with everything else, so it starts hidden again next time.
+	var route := Line2D.new()
+	route.width           = ROUTE_WIDTH
+	route.default_color   = ROUTE_COLOR
+	route.begin_cap_mode  = Line2D.LINE_CAP_ROUND
+	route.end_cap_mode    = Line2D.LINE_CAP_ROUND
+	route.joint_mode      = Line2D.LINE_JOINT_ROUND
+	for cell in _maze.path_cells:
+		route.add_point(_maze.cell_center(cell))
+	_maze_container.add_child(route)
+
 	var goal := ColorRect.new()
 	goal.color    = AMBER
 	goal.size     = Vector2(GOAL_MARKER_R, GOAL_MARKER_R) * 2.0
@@ -446,6 +518,7 @@ func _start_word_audio(index: int) -> void:
 
 func _stop_word_audio() -> void:
 	_word_audio_active = false
+	_move_timer.stop()
 	if _word_player.playing:
 		_word_player.stop()
 
@@ -453,6 +526,14 @@ func _stop_word_audio() -> void:
 func _on_word_player_finished() -> void:
 	if _word_audio_active:
 		_word_player.play()
+
+
+# No drag-motion event arrived within MOVE_STOP_DELAY — the child is holding
+# still mid-maze (not released, just paused). Pause the word audio; it
+# resumes the instant _update_drag() sees movement again.
+func _on_move_stop_timeout() -> void:
+	if _word_player.playing:
+		_word_player.stop()
 
 
 func _fail_attempt(index: int) -> void:
@@ -496,17 +577,17 @@ func _clear_maze() -> void:
 
 
 # ─── Quest Transition — decorative only ─────────────────────────────────────
-# Louis hops through his own independent maze between Quests 1->2->3->4. This
-# maze is never played by the child and never shares state with the gameplay
-# maze/collision above — it exists purely so the child sees Louis "finish"
-# something each time a Quest ends, same spirit as the cube-dance beat between
-# Prep sub-sets.
+# The Play Button character hops through its own independent maze between
+# Quests 1->2->3->4. This maze is never played by the child and never shares
+# state with the gameplay maze/collision above — it exists purely so the
+# child sees the Play Button "finish" something each time a Quest ends, same
+# spirit as the cube-dance beat between Prep sub-sets.
 
-const QT_MAZE_COLS   : int   = 4
-const QT_MAZE_ROWS    : int   = 3
-const QT_CELL_SIZE    : float = 60.0
-const QT_HOP_DUR      : float = 0.22
-const QT_LOUIS_SIZE    : float = 70.0
+const QT_MAZE_COLS        : int   = 4
+const QT_MAZE_ROWS         : int   = 3
+const QT_CELL_SIZE         : float = 60.0
+const QT_HOP_DUR           : float = 0.22
+const QT_PLAY_BUTTON_SIZE  : float = 70.0
 
 func _play_quest_transition() -> void:
 	_busy = true
@@ -527,46 +608,46 @@ func _play_quest_transition() -> void:
 		line.add_point(seg[1])
 		deco_container.add_child(line)
 
-	var louis := TextureButton.new()
-	louis.ignore_texture_size = true
-	louis.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	louis.size                = Vector2(QT_LOUIS_SIZE, QT_LOUIS_SIZE)
-	louis.pivot_offset        = louis.size / 2.0
-	louis.mouse_filter        = Control.MOUSE_FILTER_IGNORE
+	var play_button := TextureButton.new()
+	play_button.ignore_texture_size = true
+	play_button.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	play_button.size                = Vector2(QT_PLAY_BUTTON_SIZE, QT_PLAY_BUTTON_SIZE)
+	play_button.pivot_offset        = play_button.size / 2.0
+	play_button.mouse_filter        = Control.MOUSE_FILTER_IGNORE
 	if ResourceLoader.exists("res://UI_assets/playbutton.png"):
-		louis.texture_normal = load("res://UI_assets/playbutton.png")
-	louis.position   = deco_maze.start_pos() - louis.pivot_offset
-	louis.modulate.a = 0.0
-	deco_container.add_child(louis)
+		play_button.texture_normal = load("res://UI_assets/playbutton.png")
+	play_button.position   = deco_maze.start_pos() - play_button.pivot_offset
+	play_button.modulate.a = 0.0
+	deco_container.add_child(play_button)
 
 	var enter := create_tween()
-	enter.tween_property(louis, "modulate:a", 1.0, 0.25)
+	enter.tween_property(play_button, "modulate:a", 1.0, 0.25)
 	await enter.finished
 
 	for cell in deco_maze.path_cells:
-		var target : Vector2 = deco_maze.cell_center(cell) - louis.pivot_offset
+		var target : Vector2 = deco_maze.cell_center(cell) - play_button.pivot_offset
 		var hop := create_tween()
 		hop.set_parallel(true)
-		hop.tween_property(louis, "position", target, QT_HOP_DUR) \
+		hop.tween_property(play_button, "position", target, QT_HOP_DUR) \
 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		hop.tween_property(louis, "scale", Vector2(1.15, 0.85), QT_HOP_DUR * 0.5)
+		hop.tween_property(play_button, "scale", Vector2(1.15, 0.85), QT_HOP_DUR * 0.5)
 		await hop.finished
 		var settle := create_tween()
-		settle.tween_property(louis, "scale", Vector2(1.0, 1.0), QT_HOP_DUR * 0.5)
+		settle.tween_property(play_button, "scale", Vector2(1.0, 1.0), QT_HOP_DUR * 0.5)
 		await settle.finished
 
 	# Celebration hop at the goal.
 	for _b in range(3):
 		var up := create_tween()
-		up.tween_property(louis, "position:y", louis.position.y - 18.0, 0.15).set_ease(Tween.EASE_OUT)
+		up.tween_property(play_button, "position:y", play_button.position.y - 18.0, 0.15).set_ease(Tween.EASE_OUT)
 		await up.finished
 		var down := create_tween()
-		down.tween_property(louis, "position:y", louis.position.y + 18.0, 0.15).set_ease(Tween.EASE_IN)
+		down.tween_property(play_button, "position:y", play_button.position.y + 18.0, 0.15).set_ease(Tween.EASE_IN)
 		await down.finished
 
 	var ext := create_tween()
 	ext.set_parallel(true)
-	ext.tween_property(louis, "modulate:a", 0.0, 0.25)
+	ext.tween_property(play_button, "modulate:a", 0.0, 0.25)
 	ext.tween_property(deco_container, "modulate:a", 0.0, 0.25)
 	await ext.finished
 

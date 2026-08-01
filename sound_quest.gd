@@ -972,29 +972,32 @@ func _clear_maze() -> void:
 # Six beats, in order:
 #   1. Play Button appears large/noticeable at the top of the screen, bobs
 #      in place (QT_TOP_BOB_DUR).
-#   2. 3 hops carry it down to the maze's entrance (QT_DESCEND_DUR total),
-#      shrinking to corridor size right as it arrives.
+#   2. 3 dramatic, swirling hops carry it down to the maze's entrance
+#      (QT_DESCEND_DUR total; see _qt_dramatic_hop()), shrinking to corridor
+#      size right as it arrives.
 #   3/4. Wanders the maze like a kid exploring — ducking into a dead-end
-#      branch here and there, not a beeline — before finally landing on the
+#      branch here and there, occasionally banging into a wall and bouncing
+#      back (see _qt_bump()), not a beeline — before finally landing on the
 #      real path through to the goal (QT_WANDER_DUR total; see
 #      _build_wander_sequence()).
 #   5. One hop carries it out past the exit boundary (QT_EXIT_DUR).
 #   6. Grows back to full size, bobs again (QT_END_BOB_DUR), then fades out
 #      gently rather than disappearing abruptly (QT_FADE_DUR).
 
-# Cell size 2.5x bigger (60 -> 150) so the Play Button doesn't have to shrink
-# nearly as small to fit inside it — stays a tangible, recognizable size the
-# whole time. Grid kept at 3x3 (9 cells) rather than shrinking further to
-# match the size increase exactly, since fewer cells leaves no spare room
-# for a dead-end branch to wander into (a 3x2 grid tried first frequently
-# had the path cover every cell, killing the "explore a dead end" beat).
-const QT_MAZE_COLS   : int   = 3
-const QT_MAZE_ROWS   : int   = 3
-const QT_CELL_SIZE   : float = 150.0
+# Wide/rectangular grid (5x2, not square) rather than a compact one — more
+# lateral room for the wander to actually move around in, and per direct
+# feedback, more visually interesting than a boxy square. STYLE_WINDING
+# (more turns than the default curve style) means more decision points for
+# the wander phase to explore and bump against.
+const QT_MAZE_COLS   : int   = 5
+const QT_MAZE_ROWS   : int   = 2
+const QT_CELL_SIZE   : float = 160.0
+const QT_MAZE_STYLE  : String = MazeGenerator.STYLE_WINDING
 
-const QT_TOP_SIZE  : float   = 160.0                  # noticeable size while on display up top
-const QT_MAZE_SIZE : float   = 110.0                  # shrunk just enough to clear the corridor
-const QT_TOP_POS   : Vector2 = Vector2(640, 130)
+const QT_TOP_SIZE   : float   = 300.0                 # noticeable size while on display up top
+const QT_MAZE_SIZE  : float   = 150.0                 # shrunk just enough to clear the corridor
+const QT_TOP_POS    : Vector2 = Vector2(640, 180)
+const QT_MAZE_CENTER: Vector2 = Vector2(640, 530)
 
 const QT_TOP_BOB_DUR   : float = 3.0
 const QT_DESCEND_DUR   : float = 4.0
@@ -1004,14 +1007,16 @@ const QT_EXIT_DUR      : float = 2.0
 const QT_END_BOB_DUR   : float = 3.0
 const QT_FADE_DUR      : float = 1.0
 const QT_RESIZE_DUR    : float = 0.2
+const QT_BUMP_CHANCE   : float = 0.4    # per wander step, odds of a wall-bang struggle beat
+const QT_BUMP_DUR      : float = 0.35
 
 func _play_quest_transition() -> void:
 	_busy = true
 	_start_music()
 
 	var maze_size : Vector2 = Vector2(QT_MAZE_COLS, QT_MAZE_ROWS) * QT_CELL_SIZE
-	var origin    : Vector2 = Vector2(640, 470) - maze_size / 2.0
-	var deco_maze = MazeGenerator.generate(QT_MAZE_COLS, QT_MAZE_ROWS, QT_CELL_SIZE, origin)
+	var origin    : Vector2 = QT_MAZE_CENTER - maze_size / 2.0
+	var deco_maze = MazeGenerator.generate(QT_MAZE_COLS, QT_MAZE_ROWS, QT_CELL_SIZE, origin, QT_MAZE_STYLE)
 
 	var deco_container := Node2D.new()
 	add_child(deco_container)
@@ -1044,24 +1049,35 @@ func _play_quest_transition() -> void:
 	# 1. Bob at the top, big and noticeable, before anything else happens.
 	await _qt_bob(play_button, QT_TOP_BOB_DUR)
 
-	# 2. 3 hops down to the maze's entrance.
+	# 2. 3 dramatic, swirling hops down to the maze's entrance.
 	var top_pos          : Vector2 = play_button.position
 	var entrance_target  : Vector2 = deco_maze.start_pos() - play_button.pivot_offset
 	var descend_hop_dur  : float   = QT_DESCEND_DUR / float(QT_DESCEND_HOPS)
 	for i in range(QT_DESCEND_HOPS):
 		var t      : float   = float(i + 1) / float(QT_DESCEND_HOPS)
 		var target : Vector2 = top_pos.lerp(entrance_target, t)
-		await _qt_hop(play_button, target, descend_hop_dur)
+		await _qt_dramatic_hop(play_button, target, descend_hop_dur)
 
 	# Shrink to corridor size right as it enters — same "full size until it
 	# actually enters, then shrinks" idea as the real gameplay maze.
 	await _qt_resize(play_button, QT_MAZE_SIZE)
 
-	# 3/4. Wander like a kid exploring, not a straight line to the goal.
-	var seq            : Array = _build_wander_sequence(deco_maze)
-	var wander_hop_dur : float = QT_WANDER_DUR / float(seq.size())
-	for cell in seq:
-		var target : Vector2 = deco_maze.cell_center(cell) - play_button.pivot_offset
+	# 3/4. Wander like a kid exploring, not a straight line to the goal —
+	# occasionally banging into a wall and bouncing back before the actual
+	# hop, for visible struggle.
+	var seq   : Array = _build_wander_sequence(deco_maze)
+	var bumps : Array = []
+	for i in range(seq.size()):
+		bumps.append(randf() < QT_BUMP_CHANCE)
+	var bump_count : int = 0
+	for b in bumps:
+		if b:
+			bump_count += 1
+	var wander_hop_dur : float = max(0.15, (QT_WANDER_DUR - bump_count * QT_BUMP_DUR) / float(seq.size()))
+	for i in range(seq.size()):
+		if bumps[i]:
+			await _qt_bump(play_button)
+		var target : Vector2 = deco_maze.cell_center(seq[i]) - play_button.pivot_offset
 		await _qt_hop(play_button, target, wander_hop_dur)
 
 	# 5. Carry it out past the exit boundary.
@@ -1082,6 +1098,57 @@ func _play_quest_transition() -> void:
 	await _stop_music()
 	_busy = false
 	_start_quest()
+
+
+# A visible arc-and-swirl hop, not a flat straight-line slide: rises to a
+# peak offset sideways from the direct midpoint (alternating left/right per
+# call), with a spin and a bigger squash/stretch than the plain _qt_hop() —
+# reads as a deliberate, dramatic hop rather than a glide.
+func _qt_dramatic_hop(node: Control, target: Vector2, duration: float) -> void:
+	var start : Vector2 = node.position
+	var dir   : Vector2 = target - start
+	var perp  : Vector2 = Vector2(-dir.y, dir.x)
+	perp = perp.normalized() if perp.length() > 0.01 else Vector2.RIGHT
+	var swirl_side : float = 1.0 if randf() < 0.5 else -1.0
+	var peak  : Vector2 = start.lerp(target, 0.55) + Vector2(0, -70) + perp * 55.0 * swirl_side
+	var spin  : float = 40.0 * swirl_side
+
+	var pos_tw := create_tween()
+	pos_tw.tween_property(node, "position", peak, duration * 0.55) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	pos_tw.tween_property(node, "position", target, duration * 0.45) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+	var fx_tw := create_tween()
+	fx_tw.set_parallel(true)
+	fx_tw.tween_property(node, "scale", Vector2(1.35, 0.7), duration * 0.3).set_ease(Tween.EASE_OUT)
+	fx_tw.tween_property(node, "rotation_degrees", node.rotation_degrees + spin, duration * 0.5)
+	await pos_tw.finished
+
+	var settle := create_tween()
+	settle.set_parallel(true)
+	settle.tween_property(node, "scale", Vector2(1.0, 1.0), duration * 0.35)
+	settle.tween_property(node, "rotation_degrees", 0.0, duration * 0.35)
+	await settle.finished
+
+
+# A quick "bang into a wall and bounce back" beat — a directional nudge and
+# recoil, purely cosmetic (the actual path is decided by
+# _build_wander_sequence(), this never changes where it ends up), reads as
+# a moment of struggle before the real hop that follows it.
+func _qt_bump(node: Control) -> void:
+	var start_pos : Vector2 = node.position
+	var nudge : Vector2 = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)).normalized() * 20.0
+	var bump := create_tween()
+	bump.set_parallel(true)
+	bump.tween_property(node, "position", start_pos + nudge, QT_BUMP_DUR * 0.35).set_ease(Tween.EASE_OUT)
+	bump.tween_property(node, "scale", Vector2(0.85, 0.85), QT_BUMP_DUR * 0.3)
+	await bump.finished
+	var recoil := create_tween()
+	recoil.set_parallel(true)
+	recoil.tween_property(node, "position", start_pos, QT_BUMP_DUR * 0.65).set_ease(Tween.EASE_IN)
+	recoil.tween_property(node, "scale", Vector2(1.0, 1.0), QT_BUMP_DUR * 0.55)
+	await recoil.finished
 
 
 # Gentle up/down bob in place for roughly `duration` seconds (whole cycles

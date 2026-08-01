@@ -972,10 +972,13 @@ func _clear_maze() -> void:
 # Six beats, in order:
 #   1. Play Button appears large/noticeable at the top of the screen, bobs
 #      in place (QT_TOP_BOB_DUR).
-#   2. 3 clean vertical jumps carry it down to the maze's entrance
-#      (QT_DESCEND_DUR total; see _qt_dramatic_hop()), shrinking to corridor
-#      size right as it arrives. Position-only (no swirl or squash/stretch)
-#      so it never visually clips through a nearby wall or loses its shape.
+#   2. Traces the maze's outline down to its entrance (QT_DESCEND_DUR
+#      total): 2 clean jumps (see _qt_dramatic_hop()) land it above the
+#      roof then well clear of the corner, then it WALKS the rest of the
+#      way in (see _qt_walk()) — no more hopping once it's past the
+#      corner. Shrinks to corridor size right as it arrives. Position-only
+#      throughout (no swirl or squash/stretch) so it never visually clips
+#      through a nearby wall or loses its shape.
 #   3/4. Wanders the maze like a kid exploring — ducking into a dead-end
 #      branch here and there, occasionally banging into a wall and bouncing
 #      back (see _qt_bump()), not a beeline — before finally landing on the
@@ -1073,20 +1076,21 @@ func _play_quest_transition() -> void:
 	# 1. Bob at the top, big and noticeable, before anything else happens.
 	await _qt_bob(play_button, QT_TOP_BOB_DUR)
 
-	# 2. 3 jumps that trace the maze's own outline rather than cutting a
-	# diagonal straight at the entrance (which sits on the WEST edge, not
-	# below the top display): land above the roof, hop left along the top
-	# to the corner, then drop down the side wall into the entrance.
+	# 2. Traces the maze's own outline rather than cutting a diagonal
+	# straight at the entrance (which sits on the WEST edge, not below the
+	# top display): 2 jumps land it above the roof then well clear of the
+	# corner, then it WALKS (no more hopping) from there down to the
+	# entrance — a smooth glide along the side wall, not another bounce.
 	var entrance_target : Vector2 = deco_maze.start_pos() - play_button.pivot_offset
 	var above_roof : Vector2 = Vector2(QT_MAZE_CENTER.x, origin.y - 60) - play_button.pivot_offset
 	# Cleared well past the corner, not just nudged past it — a small offset
 	# still visually reads as clipping/walking along the wall, especially at
 	# this large a size. Pushed much further out per direct feedback.
 	var corner_pt  : Vector2 = Vector2(origin.x - 180, origin.y - 70) - play_button.pivot_offset
-	var descend_waypoints : Array = [above_roof, corner_pt, entrance_target]
-	var descend_hop_dur   : float = QT_DESCEND_DUR / float(QT_DESCEND_HOPS)
-	for wp in descend_waypoints:
-		await _qt_dramatic_hop(play_button, wp, descend_hop_dur)
+	var descend_hop_dur : float = QT_DESCEND_DUR / float(QT_DESCEND_HOPS)
+	await _qt_dramatic_hop(play_button, above_roof, descend_hop_dur)
+	await _qt_dramatic_hop(play_button, corner_pt, descend_hop_dur)
+	await _qt_walk(play_button, entrance_target, descend_hop_dur)
 
 	# Shrink to corridor size right as it enters — same "full size until it
 	# actually enters, then shrinks" idea as the real gameplay maze.
@@ -1144,6 +1148,16 @@ func _qt_dramatic_hop(node: Control, target: Vector2, duration: float) -> void:
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tw.tween_property(node, "position", target, duration * 0.5) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	await tw.finished
+
+
+# A smooth glide straight to `target`, no arc — reads as walking rather
+# than hopping. No scale/rotation change either, same "don't distort the
+# shape" reasoning as _qt_dramatic_hop().
+func _qt_walk(node: Control, target: Vector2, duration: float) -> void:
+	var tw := create_tween()
+	tw.tween_property(node, "position", target, duration) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	await tw.finished
 
 

@@ -109,6 +109,19 @@ const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window
 # to get to the entry cell's center to lock into the maze.
 const APPROACH_ENTRY_RADIUS : float = 45.0
 
+# Pointed-hand guides at the maze's entry and exit gaps — same asset/scale as
+# prep_game.gd's PointedHand. Entry hovers above-right of the entry gap and
+# vanishes the instant a real drag toward the maze begins (its job — "here's
+# where to start" — is done once the child is actually underway). Exit
+# hovers to the right of the exit gap and stays up longer, since finding the
+# exit is the actual challenge — it only vanishes once the drag actually
+# arrives at the goal cell (see _update_maze_drag()), not on release/success.
+const HAND_TEXTURE_PATH : String  = "res://UI_assets/handsigns/pointed.png"
+const HAND_SCALE        : Vector2 = Vector2(0.08, 0.08)
+const HAND_ROTATION_DEG : float   = -30.0
+const ENTRY_HAND_OFFSET : Vector2 = Vector2(40, -55)   # relative to the entry gap
+const EXIT_HAND_OFFSET  : Vector2 = Vector2(45, -40)   # relative to the exit gap
+
 # A Quest Round is always exactly 4 images — never a partial round. If a
 # Quest's remaining new words run short of 4, the round is padded with review
 # words already mastered earlier in this Group (see _pick_review_word()).
@@ -174,6 +187,8 @@ var _drag_anchor_target  : Vector2 = Vector2.ZERO   # image center pos at that s
 var _maze          = null   # MazeGenerator.MazeData
 var _maze_container : Node2D = null
 var _maze_current_cell : Vector2i = Vector2i.ZERO   # which maze cell the drag currently occupies
+var _entry_hand : Sprite2D = null
+var _exit_hand  : Sprite2D = null
 
 var _phoneme_player : AudioStreamPlayer = null
 var _word_player     : AudioStreamPlayer = null
@@ -202,6 +217,10 @@ func _ready() -> void:
 	_build_audio_players()
 	_maze_container = Node2D.new()
 	add_child(_maze_container)
+	_entry_hand = _make_hand_sprite()
+	_exit_hand  = _make_hand_sprite()
+	add_child(_entry_hand)
+	add_child(_exit_hand)
 
 	var pool : Array = SoundQuestState.build_word_pool(
 		SoundQuestState.group_start_index, SoundQuestState.group_end_index)
@@ -331,6 +350,7 @@ func _start_round() -> void:
 	# still hide it once that attempt resolves — this only changes what's on
 	# screen during the gap before the very first selection of the round.
 	_reshape_maze()
+	_show_entry_hand()
 
 	var round_words : Array = []
 	for i in range(ROUND_SIZE):
@@ -408,14 +428,19 @@ func _clear_completed_row() -> void:
 	_completed_this_round = 0
 
 
+func _all_slots_empty() -> bool:
+	for slot in _slots:
+		if slot["state"] != ST_EMPTY:
+			return false
+	return true
+
+
 # All 4 of the current round's slots are empty (every image has exited) —
 # hold the completed row on screen for a beat, then start the next round or
 # finish the Quest.
 func _check_round_complete() -> void:
-	for slot in _slots:
-		if slot["state"] != ST_EMPTY:
-			return
-	_on_round_complete()
+	if _all_slots_empty():
+		_on_round_complete()
 
 
 func _on_round_complete() -> void:
@@ -603,6 +628,11 @@ func _update_maze_drag(idx: int, pos: Vector2) -> void:
 	# maze cell, and the drag is past needing this check anyway.
 	if not _maze_exit_zone().has_point(resolved):
 		_maze_current_cell = _maze.cell_at(resolved)
+		# Arrived at the goal cell for the first time this attempt — the exit
+		# hand's job ("here's where to head") is done; actually pulling the
+		# image out through the exit is the remaining action.
+		if _maze_current_cell == _maze.goal_cell:
+			_hide_exit_hand()
 
 	var goal_rect  : Rect2 = _maze.cell_rect(_maze.goal_cell)
 	var boundary_x : float = goal_rect.position.x + goal_rect.size.x
@@ -705,6 +735,9 @@ func _enter_approach_mode(index: int, drag_pos: Vector2) -> void:
 	slot["state"] = ST_DRAG_APPROACH
 	_slots[index] = slot
 
+	# The child is actually underway now — the entry hand's job is done.
+	_hide_entry_hand()
+
 	# Stays full size for the whole free drag toward the maze — no rush, and
 	# the word stays fully recognizable while it's still just finding its
 	# way to the entrance. Only shrinks once it actually enters the maze,
@@ -761,6 +794,54 @@ func _render_maze() -> void:
 	goal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_maze_container.add_child(goal)
 
+	# The exit hand reappears fresh with every new maze, regardless of
+	# whether the previous attempt's hand had already been hidden on
+	# arrival — a new attempt means a new (possibly relocated) exit to find.
+	_show_exit_hand()
+
+
+func _make_hand_sprite() -> Sprite2D:
+	var hand := Sprite2D.new()
+	if ResourceLoader.exists(HAND_TEXTURE_PATH):
+		hand.texture = load(HAND_TEXTURE_PATH)
+	hand.scale            = HAND_SCALE
+	hand.rotation_degrees = HAND_ROTATION_DEG
+	hand.z_index          = 5
+	hand.visible          = false
+	return hand
+
+
+# Midpoint of the actual missing wall segment (the door), not the cell
+# center, so the hand points at the real opening.
+func _entry_gap_pos() -> Vector2:
+	return Vector2(_maze.cell_center(_maze.start_cell).x, _maze.origin.y)
+
+
+func _exit_gap_pos() -> Vector2:
+	return Vector2(_maze.origin.x + _maze.cols * _maze.cell_size, _maze.cell_center(_maze.goal_cell).y)
+
+
+func _show_entry_hand() -> void:
+	if _maze == null:
+		return
+	_entry_hand.position = _entry_gap_pos() + ENTRY_HAND_OFFSET
+	_entry_hand.visible  = true
+
+
+func _hide_entry_hand() -> void:
+	_entry_hand.visible = false
+
+
+func _show_exit_hand() -> void:
+	if _maze == null:
+		return
+	_exit_hand.position = _exit_gap_pos() + EXIT_HAND_OFFSET
+	_exit_hand.visible  = true
+
+
+func _hide_exit_hand() -> void:
+	_exit_hand.visible = false
+
 
 # Generates a fresh maze layout and shows it immediately. Called once per
 # attempt, right when that attempt's approach path also reveals
@@ -816,6 +897,8 @@ func _fail_attempt(index: int) -> void:
 	_snap_back(index)
 	if _dragging_slot_index == index:
 		_dragging_slot_index = -1
+	# Back to idle — the entry hand's guidance is relevant again.
+	_show_entry_hand()
 
 
 func _succeed_attempt(index: int) -> void:
@@ -851,6 +934,12 @@ func _succeed_attempt(index: int) -> void:
 	move.tween_property(btn, "size", Vector2(COMPLETED_THUMB_SIZE, COMPLETED_THUMB_SIZE), COMPLETED_MOVE_DUR)
 	await move.finished
 
+	# Only reshow if the round is still going — if this was the round's last
+	# image, leave it hidden rather than flashing it briefly before the
+	# round-complete beat/transition takes over.
+	if not _all_slots_empty():
+		_show_entry_hand()
+
 	_check_round_complete()
 
 
@@ -858,6 +947,8 @@ func _clear_maze() -> void:
 	_maze = null
 	for c in _maze_container.get_children():
 		c.queue_free()
+	_hide_entry_hand()
+	_hide_exit_hand()
 
 
 # ─── Quest Transition — decorative only ─────────────────────────────────────

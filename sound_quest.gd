@@ -1079,7 +1079,10 @@ func _play_quest_transition() -> void:
 	# to the corner, then drop down the side wall into the entrance.
 	var entrance_target : Vector2 = deco_maze.start_pos() - play_button.pivot_offset
 	var above_roof : Vector2 = Vector2(QT_MAZE_CENTER.x, origin.y - 60) - play_button.pivot_offset
-	var corner_pt  : Vector2 = Vector2(origin.x - 25, origin.y - 25) - play_button.pivot_offset
+	# Cleared well past the corner, not just nudged past it — a small offset
+	# still visually reads as clipping/walking along the wall, especially at
+	# this large a size. Pushed much further out per direct feedback.
+	var corner_pt  : Vector2 = Vector2(origin.x - 180, origin.y - 70) - play_button.pivot_offset
 	var descend_waypoints : Array = [above_roof, corner_pt, entrance_target]
 	var descend_hop_dur   : float = QT_DESCEND_DUR / float(QT_DESCEND_HOPS)
 	for wp in descend_waypoints:

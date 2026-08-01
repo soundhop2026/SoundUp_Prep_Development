@@ -1055,6 +1055,11 @@ func _play_quest_transition() -> void:
 	play_button.size                = Vector2(QT_TOP_SIZE, QT_TOP_SIZE)
 	play_button.pivot_offset        = play_button.size / 2.0
 	play_button.mouse_filter        = Control.MOUSE_FILTER_IGNORE
+	# Explicit z_index so it always draws above the wall Line2Ds regardless
+	# of add-child order — same convention as the entry/exit hand sprites
+	# in the real gameplay maze, which need this same "always on top of the
+	# walls" guarantee.
+	play_button.z_index = 5
 	if ResourceLoader.exists("res://UI_assets/playbutton.png"):
 		play_button.texture_normal = load("res://UI_assets/playbutton.png")
 	play_button.position   = QT_TOP_POS - play_button.pivot_offset

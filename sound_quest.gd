@@ -45,7 +45,6 @@ const MUSIC_PATH : String = "res://soundquest/assets/quest_preplevel_bgm.mp3"
 
 const BG_COLOR     : Color = Color("#A8E063")   # same baby-green as Prep
 const PURPLE       : Color = Color("#4B0082")
-const AMBER        : Color = Color("#FFB703")
 const WHITE        : Color = Color("#FFFFFF")
 const WALL_COLOR   : Color = Color("#2E2E2E")   # thick hand-drawn-style wall lines
 
@@ -83,7 +82,6 @@ const MAZE_CELL_SIZE   : float    = 65.0
 const MAZE_ORIGIN      : Vector2  = Vector2(60, 420)
 const MAZE_START_CELL  : Vector2i = Vector2i(6, 0)   # the maze's one shared entry, top edge
 const MAZE_WALL_WIDTH  : float = 6.0
-const GOAL_MARKER_R    : float = 14.0
 
 # Success doesn't fire the instant the drag reaches the goal cell — the
 # child has to actually pull the image out through the exit and slightly
@@ -127,9 +125,9 @@ const APPROACH_ENTRY_RADIUS : float = 45.0
 const HAND_TEXTURE_PATH : String  = "res://UI_assets/handsigns/pointed.png"
 const HAND_SCALE         : Vector2 = Vector2(0.08, 0.08)
 const ENTRY_HAND_ROTATION_DEG : float = 167.0    # finger points southeast (down-right)
-const EXIT_HAND_ROTATION_DEG  : float = 66.4     # -13.0 + 79.5 clockwise, per hands-on look
+const EXIT_HAND_ROTATION_DEG  : float = 90.0
 const ENTRY_HAND_OFFSET : Vector2 = Vector2(-35, -40)   # up-left of the entry gap
-const EXIT_HAND_OFFSET  : Vector2 = Vector2(35, 40)     # down-right of the exit gap
+const EXIT_HAND_OFFSET  : Vector2 = Vector2(18, 15)     # close, just past the exit gap
 
 # A Quest Round is always exactly 4 images — never a partial round. If a
 # Quest's remaining new words run short of 4, the round is padded with review
@@ -796,12 +794,8 @@ func _render_maze() -> void:
 		line.add_point(seg[1])
 		_maze_container.add_child(line)
 
-	var goal := ColorRect.new()
-	goal.color    = AMBER
-	goal.size     = Vector2(GOAL_MARKER_R, GOAL_MARKER_R) * 2.0
-	goal.position = _maze.goal_pos() - goal.size / 2.0
-	goal.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_maze_container.add_child(goal)
+	# No goal marker drawn — the exit hand itself points to the target now,
+	# so a separate amber square would be redundant clutter right next to it.
 
 	# The exit hand reappears fresh with every new maze, regardless of
 	# whether the previous attempt's hand had already been hidden on

@@ -139,13 +139,15 @@ func _build_utilities() -> void:
 func _build_premium_gate_demo() -> void:
 	_make_label("Demo Shortcuts", Vector2(70, 610), Vector2(600, 24), 18, AMBER)
 
-	const BTN_W : float = 380.0
-	const GAP   : float =  20.0
-	var start_x : float = (1280.0 - BTN_W * 2.0 - GAP) / 2.0
+	const BTN_W : float = 350.0
+	const GAP   : float =  15.0
+	var start_x : float = (1280.0 - BTN_W * 3.0 - GAP * 2.0) / 2.0
 	_make_action_button("Test Premium Intro → Choose Plan", Vector2(start_x, 640),
 		Vector2(BTN_W, 60.0), Callable(self, "_on_test_premium_flow_pressed"))
-	_make_action_button("Test Sound Quest (Group A)", Vector2(start_x + BTN_W + GAP, 640),
+	_make_action_button("Test Sound Quest (Group A)", Vector2(start_x + (BTN_W + GAP), 640),
 		Vector2(BTN_W, 60.0), Callable(self, "_on_test_sound_quest_pressed"))
+	_make_action_button("Test Quest Transition", Vector2(start_x + (BTN_W + GAP) * 2.0, 640),
+		Vector2(BTN_W, 60.0), Callable(self, "_on_test_quest_transition_pressed"))
 
 
 func _on_test_premium_flow_pressed() -> void:
@@ -159,6 +161,15 @@ func _on_test_premium_flow_pressed() -> void:
 func _on_test_sound_quest_pressed() -> void:
 	SoundQuestState.group_start_index = 0
 	SoundQuestState.group_end_index   = 3
+	get_tree().change_scene_to_file("res://sound_quest.tscn")
+
+
+# Jumps straight into the Quest Transition celebration itself, skipping the
+# need to actually play through a full Quest to trigger it.
+func _on_test_quest_transition_pressed() -> void:
+	SoundQuestState.group_start_index        = 0
+	SoundQuestState.group_end_index          = 3
+	SoundQuestState.debug_skip_to_transition = true
 	get_tree().change_scene_to_file("res://sound_quest.tscn")
 
 

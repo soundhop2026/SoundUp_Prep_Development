@@ -234,7 +234,15 @@ func _ready() -> void:
 	_quests = SoundQuestState.split_into_quests(pool)
 
 	_quest_index = 0
-	_start_quest()
+	if SoundQuestState.debug_skip_to_transition:
+		SoundQuestState.debug_skip_to_transition = false
+		# _quest_remaining is already empty at this point (never populated
+		# yet) — routes straight into the Quest Transition celebration the
+		# same way a real Quest 1 completion would, then continues normally
+		# into Quest 2 afterward.
+		_start_round_or_finish()
+	else:
+		_start_quest()
 
 
 func _build_audio_players() -> void:

@@ -10,6 +10,13 @@ class_name SoundQuestState
 static var group_start_index : int = 0
 static var group_end_index   : int = 0
 
+# QA-only: when true, sound_quest.gd's _ready() skips straight to Quest 1's
+# Quest Transition celebration instead of playing through the quest itself —
+# lets the debug menu preview the transition without grinding a full quest.
+# Read once and reset to false immediately, same one-shot handoff pattern as
+# the group indices above.
+static var debug_skip_to_transition : bool = false
+
 
 # ─── Word pool ──────────────────────────────────────────────────────────────
 # Reads every sub-set JSON in [start_index, end_index] and returns the unique

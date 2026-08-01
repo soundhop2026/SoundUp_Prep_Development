@@ -968,19 +968,49 @@ func _clear_maze() -> void:
 # state with the gameplay maze/collision above — it exists purely so the
 # child sees the Play Button "finish" something each time a Quest ends, same
 # spirit as the cube-dance beat between Prep sub-sets.
+#
+# Six beats, in order:
+#   1. Play Button appears large/noticeable at the top of the screen, bobs
+#      in place (QT_TOP_BOB_DUR).
+#   2. 3 hops carry it down to the maze's entrance (QT_DESCEND_DUR total),
+#      shrinking to corridor size right as it arrives.
+#   3/4. Wanders the maze like a kid exploring — ducking into a dead-end
+#      branch here and there, not a beeline — before finally landing on the
+#      real path through to the goal (QT_WANDER_DUR total; see
+#      _build_wander_sequence()).
+#   5. One hop carries it out past the exit boundary (QT_EXIT_DUR).
+#   6. Grows back to full size, bobs again (QT_END_BOB_DUR), then fades out
+#      gently rather than disappearing abruptly (QT_FADE_DUR).
 
-const QT_MAZE_COLS        : int   = 4
-const QT_MAZE_ROWS         : int   = 3
-const QT_CELL_SIZE         : float = 60.0
-const QT_HOP_DUR           : float = 0.22
-const QT_PLAY_BUTTON_SIZE  : float = 70.0
+# Cell size 2.5x bigger (60 -> 150) so the Play Button doesn't have to shrink
+# nearly as small to fit inside it — stays a tangible, recognizable size the
+# whole time. Grid kept at 3x3 (9 cells) rather than shrinking further to
+# match the size increase exactly, since fewer cells leaves no spare room
+# for a dead-end branch to wander into (a 3x2 grid tried first frequently
+# had the path cover every cell, killing the "explore a dead end" beat).
+const QT_MAZE_COLS   : int   = 3
+const QT_MAZE_ROWS   : int   = 3
+const QT_CELL_SIZE   : float = 150.0
+
+const QT_TOP_SIZE  : float   = 160.0                  # noticeable size while on display up top
+const QT_MAZE_SIZE : float   = 110.0                  # shrunk just enough to clear the corridor
+const QT_TOP_POS   : Vector2 = Vector2(640, 130)
+
+const QT_TOP_BOB_DUR   : float = 3.0
+const QT_DESCEND_DUR   : float = 4.0
+const QT_DESCEND_HOPS  : int   = 3
+const QT_WANDER_DUR    : float = 8.0
+const QT_EXIT_DUR      : float = 2.0
+const QT_END_BOB_DUR   : float = 3.0
+const QT_FADE_DUR      : float = 1.0
+const QT_RESIZE_DUR    : float = 0.2
 
 func _play_quest_transition() -> void:
 	_busy = true
 	_start_music()
 
 	var maze_size : Vector2 = Vector2(QT_MAZE_COLS, QT_MAZE_ROWS) * QT_CELL_SIZE
-	var origin    : Vector2 = Vector2(640, 380) - maze_size / 2.0
+	var origin    : Vector2 = Vector2(640, 470) - maze_size / 2.0
 	var deco_maze = MazeGenerator.generate(QT_MAZE_COLS, QT_MAZE_ROWS, QT_CELL_SIZE, origin)
 
 	var deco_container := Node2D.new()
@@ -998,50 +1028,147 @@ func _play_quest_transition() -> void:
 	var play_button := TextureButton.new()
 	play_button.ignore_texture_size = true
 	play_button.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	play_button.size                = Vector2(QT_PLAY_BUTTON_SIZE, QT_PLAY_BUTTON_SIZE)
+	play_button.size                = Vector2(QT_TOP_SIZE, QT_TOP_SIZE)
 	play_button.pivot_offset        = play_button.size / 2.0
 	play_button.mouse_filter        = Control.MOUSE_FILTER_IGNORE
 	if ResourceLoader.exists("res://UI_assets/playbutton.png"):
 		play_button.texture_normal = load("res://UI_assets/playbutton.png")
-	play_button.position   = deco_maze.start_pos() - play_button.pivot_offset
+	play_button.position   = QT_TOP_POS - play_button.pivot_offset
 	play_button.modulate.a = 0.0
 	deco_container.add_child(play_button)
 
 	var enter := create_tween()
-	enter.tween_property(play_button, "modulate:a", 1.0, 0.25)
+	enter.tween_property(play_button, "modulate:a", 1.0, 0.3)
 	await enter.finished
 
-	for cell in deco_maze.path_cells:
-		var target : Vector2 = deco_maze.cell_center(cell) - play_button.pivot_offset
-		var hop := create_tween()
-		hop.set_parallel(true)
-		hop.tween_property(play_button, "position", target, QT_HOP_DUR) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		hop.tween_property(play_button, "scale", Vector2(1.15, 0.85), QT_HOP_DUR * 0.5)
-		await hop.finished
-		var settle := create_tween()
-		settle.tween_property(play_button, "scale", Vector2(1.0, 1.0), QT_HOP_DUR * 0.5)
-		await settle.finished
+	# 1. Bob at the top, big and noticeable, before anything else happens.
+	await _qt_bob(play_button, QT_TOP_BOB_DUR)
 
-	# Celebration hop at the goal.
-	for _b in range(3):
-		var up := create_tween()
-		up.tween_property(play_button, "position:y", play_button.position.y - 18.0, 0.15).set_ease(Tween.EASE_OUT)
-		await up.finished
-		var down := create_tween()
-		down.tween_property(play_button, "position:y", play_button.position.y + 18.0, 0.15).set_ease(Tween.EASE_IN)
-		await down.finished
+	# 2. 3 hops down to the maze's entrance.
+	var top_pos          : Vector2 = play_button.position
+	var entrance_target  : Vector2 = deco_maze.start_pos() - play_button.pivot_offset
+	var descend_hop_dur  : float   = QT_DESCEND_DUR / float(QT_DESCEND_HOPS)
+	for i in range(QT_DESCEND_HOPS):
+		var t      : float   = float(i + 1) / float(QT_DESCEND_HOPS)
+		var target : Vector2 = top_pos.lerp(entrance_target, t)
+		await _qt_hop(play_button, target, descend_hop_dur)
+
+	# Shrink to corridor size right as it enters — same "full size until it
+	# actually enters, then shrinks" idea as the real gameplay maze.
+	await _qt_resize(play_button, QT_MAZE_SIZE)
+
+	# 3/4. Wander like a kid exploring, not a straight line to the goal.
+	var seq            : Array = _build_wander_sequence(deco_maze)
+	var wander_hop_dur : float = QT_WANDER_DUR / float(seq.size())
+	for cell in seq:
+		var target : Vector2 = deco_maze.cell_center(cell) - play_button.pivot_offset
+		await _qt_hop(play_button, target, wander_hop_dur)
+
+	# 5. Carry it out past the exit boundary.
+	var exit_target : Vector2 = deco_maze.goal_pos() + Vector2(QT_CELL_SIZE, 0) - play_button.pivot_offset
+	await _qt_hop(play_button, exit_target, QT_EXIT_DUR)
+
+	# 6. Back to full size, bob once more, then fade out gently.
+	await _qt_resize(play_button, QT_TOP_SIZE)
+	await _qt_bob(play_button, QT_END_BOB_DUR)
 
 	var ext := create_tween()
 	ext.set_parallel(true)
-	ext.tween_property(play_button, "modulate:a", 0.0, 0.25)
-	ext.tween_property(deco_container, "modulate:a", 0.0, 0.25)
+	ext.tween_property(play_button, "modulate:a", 0.0, QT_FADE_DUR)
+	ext.tween_property(deco_container, "modulate:a", 0.0, QT_FADE_DUR)
 	await ext.finished
 
 	deco_container.queue_free()
 	await _stop_music()
 	_busy = false
 	_start_quest()
+
+
+# Gentle up/down bob in place for roughly `duration` seconds (whole cycles
+# only, so it never cuts off mid-motion) — same relative position:y idiom
+# already used for the old goal-bounce beat.
+func _qt_bob(node: Control, duration: float) -> void:
+	const CYCLE : float = 0.6
+	var cycles : int = int(round(duration / CYCLE))
+	for _c in range(cycles):
+		var up := create_tween()
+		up.tween_property(node, "position:y", node.position.y - 14.0, CYCLE * 0.5).set_ease(Tween.EASE_OUT)
+		await up.finished
+		var down := create_tween()
+		down.tween_property(node, "position:y", node.position.y + 14.0, CYCLE * 0.5).set_ease(Tween.EASE_IN)
+		await down.finished
+
+
+# One hop-with-squash to `target`, taking exactly `duration` seconds total.
+func _qt_hop(node: Control, target: Vector2, duration: float) -> void:
+	var hop := create_tween()
+	hop.set_parallel(true)
+	hop.tween_property(node, "position", target, duration) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	hop.tween_property(node, "scale", Vector2(1.15, 0.85), duration * 0.5)
+	await hop.finished
+	var settle := create_tween()
+	settle.tween_property(node, "scale", Vector2(1.0, 1.0), duration * 0.5)
+	await settle.finished
+
+
+# Grows/shrinks to `new_size` while holding the visual CENTER point fixed —
+# size, pivot_offset, and position all tween together from/to matching
+# center values, so the resize never makes it jump sideways.
+func _qt_resize(node: Control, new_size: float) -> void:
+	var center     : Vector2 = node.position + node.pivot_offset
+	var new_pivot  : Vector2 = Vector2(new_size, new_size) / 2.0
+	var new_pos    : Vector2 = center - new_pivot
+	var resize := create_tween()
+	resize.set_parallel(true)
+	resize.tween_property(node, "size", Vector2(new_size, new_size), QT_RESIZE_DUR)
+	resize.tween_property(node, "pivot_offset", new_pivot, QT_RESIZE_DUR)
+	resize.tween_property(node, "position", new_pos, QT_RESIZE_DUR)
+	await resize.finished
+
+
+# Builds a hop sequence that visits the maze's real start->goal path but
+# occasionally ducks into a dead-end branch and backs out first — reads as
+# a kid exploring rather than a beeline to the exit. When there's no branch
+# to duck into at a given step (small mazes can have the true path cover
+# every cell, leaving nothing spare to wander into), falls back to a step
+# back along the path itself and forward again — still reads as "pausing to
+# reconsider" rather than a silent no-op.
+func _build_wander_sequence(maze) -> Array:
+	var path : Array = maze.path_cells
+	var on_path : Dictionary = {}
+	for c in path:
+		on_path[c] = true
+
+	var seq : Array = [path[0]]
+	for i in range(1, path.size()):
+		var prev : Vector2i = path[i - 1]
+		if randf() < 0.6:
+			var detour : Vector2i = _qt_find_dead_end(maze, prev, on_path)
+			if detour != Vector2i(-1, -1):
+				seq.append(detour)
+				seq.append(prev)
+			elif i >= 2:
+				seq.append(path[i - 2])
+				seq.append(prev)
+		seq.append(path[i])
+	return seq
+
+
+func _qt_find_dead_end(maze, cell: Vector2i, on_path: Dictionary) -> Vector2i:
+	var open : int = maze.passages[cell.y][cell.x]
+	var candidates : Array = []
+	if open & 1 != 0: candidates.append(Vector2i(cell.x, cell.y - 1))
+	if open & 2 != 0: candidates.append(Vector2i(cell.x, cell.y + 1))
+	if open & 4 != 0: candidates.append(Vector2i(cell.x + 1, cell.y))
+	if open & 8 != 0: candidates.append(Vector2i(cell.x - 1, cell.y))
+	var branches : Array = []
+	for c in candidates:
+		if not on_path.has(c):
+			branches.append(c)
+	if branches.is_empty():
+		return Vector2i(-1, -1)
+	return branches[randi() % branches.size()]
 
 
 # ─── Group complete — hand back to normal Prep progression ─────────────────

@@ -110,17 +110,26 @@ const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window
 const APPROACH_ENTRY_RADIUS : float = 45.0
 
 # Pointed-hand guides at the maze's entry and exit gaps — same asset/scale as
-# prep_game.gd's PointedHand. Entry hovers above-right of the entry gap and
-# vanishes the instant a real drag toward the maze begins (its job — "here's
-# where to start" — is done once the child is actually underway). Exit
-# hovers to the right of the exit gap and stays up longer, since finding the
+# prep_game.gd's PointedHand. Entry hovers up-left of the entry gap, index
+# finger reaching down-right into it, and vanishes the instant a real drag
+# toward the maze begins (its job — "here's where to start" — is done once
+# the child is actually underway). Exit hovers down-right of the exit gap,
+# finger reaching up-left into it, and stays up longer, since finding the
 # exit is the actual challenge — it only vanishes once the drag actually
 # arrives at the goal cell (see _update_maze_drag()), not on release/success.
+#
+# Rotation values are computed, not eyeballed: the asset's own fingertip
+# (the topmost drawn pixel at rotation 0) sits at a measured angle of
+# -121.91 degrees from the texture's center (Godot screen convention: 0=east,
+# 90=south). Target direction minus that base angle gives the rotation that
+# actually points the finger the intended way — verified by rendering the
+# computed rotation and confirming the fingertip lands where expected.
 const HAND_TEXTURE_PATH : String  = "res://UI_assets/handsigns/pointed.png"
-const HAND_SCALE        : Vector2 = Vector2(0.08, 0.08)
-const HAND_ROTATION_DEG : float   = -30.0
-const ENTRY_HAND_OFFSET : Vector2 = Vector2(40, -55)   # relative to the entry gap
-const EXIT_HAND_OFFSET  : Vector2 = Vector2(45, -40)   # relative to the exit gap
+const HAND_SCALE         : Vector2 = Vector2(0.08, 0.08)
+const ENTRY_HAND_ROTATION_DEG : float = 167.0    # finger points southeast (down-right)
+const EXIT_HAND_ROTATION_DEG  : float = 66.4     # -13.0 + 79.5 clockwise, per hands-on look
+const ENTRY_HAND_OFFSET : Vector2 = Vector2(-35, -40)   # up-left of the entry gap
+const EXIT_HAND_OFFSET  : Vector2 = Vector2(35, 40)     # down-right of the exit gap
 
 # A Quest Round is always exactly 4 images — never a partial round. If a
 # Quest's remaining new words run short of 4, the round is padded with review
@@ -217,8 +226,8 @@ func _ready() -> void:
 	_build_audio_players()
 	_maze_container = Node2D.new()
 	add_child(_maze_container)
-	_entry_hand = _make_hand_sprite()
-	_exit_hand  = _make_hand_sprite()
+	_entry_hand = _make_hand_sprite(ENTRY_HAND_ROTATION_DEG)
+	_exit_hand  = _make_hand_sprite(EXIT_HAND_ROTATION_DEG)
 	add_child(_entry_hand)
 	add_child(_exit_hand)
 
@@ -800,14 +809,14 @@ func _render_maze() -> void:
 	_show_exit_hand()
 
 
-func _make_hand_sprite() -> Sprite2D:
+func _make_hand_sprite(rotation_deg: float) -> Sprite2D:
 	var hand := Sprite2D.new()
 	if ResourceLoader.exists(HAND_TEXTURE_PATH):
 		hand.texture = load(HAND_TEXTURE_PATH)
-	hand.scale            = HAND_SCALE
-	hand.rotation_degrees = HAND_ROTATION_DEG
-	hand.z_index          = 5
-	hand.visible          = false
+	hand.scale             = HAND_SCALE
+	hand.rotation_degrees  = rotation_deg
+	hand.z_index           = 5
+	hand.visible           = false
 	return hand
 
 

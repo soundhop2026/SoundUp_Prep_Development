@@ -1073,14 +1073,17 @@ func _play_quest_transition() -> void:
 	# 1. Bob at the top, big and noticeable, before anything else happens.
 	await _qt_bob(play_button, QT_TOP_BOB_DUR)
 
-	# 2. 3 dramatic, swirling hops down to the maze's entrance.
-	var top_pos          : Vector2 = play_button.position
-	var entrance_target  : Vector2 = deco_maze.start_pos() - play_button.pivot_offset
-	var descend_hop_dur  : float   = QT_DESCEND_DUR / float(QT_DESCEND_HOPS)
-	for i in range(QT_DESCEND_HOPS):
-		var t      : float   = float(i + 1) / float(QT_DESCEND_HOPS)
-		var target : Vector2 = top_pos.lerp(entrance_target, t)
-		await _qt_dramatic_hop(play_button, target, descend_hop_dur)
+	# 2. 3 jumps that trace the maze's own outline rather than cutting a
+	# diagonal straight at the entrance (which sits on the WEST edge, not
+	# below the top display): land above the roof, hop left along the top
+	# to the corner, then drop down the side wall into the entrance.
+	var entrance_target : Vector2 = deco_maze.start_pos() - play_button.pivot_offset
+	var above_roof : Vector2 = Vector2(QT_MAZE_CENTER.x, origin.y - 60) - play_button.pivot_offset
+	var corner_pt  : Vector2 = Vector2(origin.x - 25, origin.y - 25) - play_button.pivot_offset
+	var descend_waypoints : Array = [above_roof, corner_pt, entrance_target]
+	var descend_hop_dur   : float = QT_DESCEND_DUR / float(QT_DESCEND_HOPS)
+	for wp in descend_waypoints:
+		await _qt_dramatic_hop(play_button, wp, descend_hop_dur)
 
 	# Shrink to corridor size right as it enters — same "full size until it
 	# actually enters, then shrinks" idea as the real gameplay maze.

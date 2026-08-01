@@ -127,7 +127,7 @@ const HAND_SCALE         : Vector2 = Vector2(0.08, 0.08)
 const ENTRY_HAND_ROTATION_DEG : float = 167.0    # finger points southeast (down-right)
 const EXIT_HAND_ROTATION_DEG  : float = 90.0
 const ENTRY_HAND_OFFSET : Vector2 = Vector2(-35, -40)   # up-left of the entry gap
-const EXIT_HAND_OFFSET  : Vector2 = Vector2(18, 15)     # close, just past the exit gap
+const EXIT_HAND_OFFSET  : Vector2 = Vector2(50, 0)      # vertically centered on the exit gap, held a bit off to the side — same distance-from-gap feel as the entry hand
 
 # A Quest Round is always exactly 4 images — never a partial round. If a
 # Quest's remaining new words run short of 4, the round is padded with review

@@ -53,8 +53,8 @@ const WALL_COLOR   : Color = Color("#2E2E2E")   # thick hand-drawn-style wall li
 # one shared maze near the bottom via each image's own approach path.
 const SLOT_POSITIONS : Array[Vector2] = [
 	Vector2(195, 180),
-	Vector2(534, 180),
-	Vector2(749, 180),
+	Vector2(493, 180),
+	Vector2(792, 180),
 	Vector2(1090, 180),
 ]
 

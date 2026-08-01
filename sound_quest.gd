@@ -972,9 +972,10 @@ func _clear_maze() -> void:
 # Six beats, in order:
 #   1. Play Button appears large/noticeable at the top of the screen, bobs
 #      in place (QT_TOP_BOB_DUR).
-#   2. 3 dramatic, swirling hops carry it down to the maze's entrance
+#   2. 3 clean vertical jumps carry it down to the maze's entrance
 #      (QT_DESCEND_DUR total; see _qt_dramatic_hop()), shrinking to corridor
-#      size right as it arrives.
+#      size right as it arrives. Position-only (no swirl or squash/stretch)
+#      so it never visually clips through a nearby wall or loses its shape.
 #   3/4. Wanders the maze like a kid exploring — ducking into a dead-end
 #      branch here and there, occasionally banging into a wall and bouncing
 #      back (see _qt_bump()), not a beeline — before finally landing on the
@@ -993,11 +994,19 @@ const QT_MAZE_COLS   : int   = 5
 const QT_MAZE_ROWS   : int   = 2
 const QT_CELL_SIZE   : float = 160.0
 const QT_MAZE_STYLE  : String = MazeGenerator.STYLE_WINDING
+# West-edge entry, east-edge exit — generate() was previously called with no
+# start_cell/goal_col at all, defaulting to start (0,0) (a CORNER, cutting
+# two boundary walls at once instead of one clean door) and an unconstrained
+# goal (an arbitrary interior cell essentially never on the boundary, so no
+# exit door was ever cut for it — the "no exit" bug). Row 1 (not row 0) for
+# the entry avoids that same corner problem on this side.
+const QT_START_CELL  : Vector2i = Vector2i(0, 1)
+const QT_GOAL_COL    : int      = QT_MAZE_COLS - 1
 
 const QT_TOP_SIZE   : float   = 300.0                 # noticeable size while on display up top
 const QT_MAZE_SIZE  : float   = 150.0                 # shrunk just enough to clear the corridor
 const QT_TOP_POS    : Vector2 = Vector2(640, 180)
-const QT_MAZE_CENTER: Vector2 = Vector2(640, 530)
+const QT_MAZE_CENTER: Vector2 = Vector2(640, 470)     # nudged up from the maze's first pass
 
 const QT_TOP_BOB_DUR   : float = 3.0
 const QT_DESCEND_DUR   : float = 4.0
@@ -1016,7 +1025,17 @@ func _play_quest_transition() -> void:
 
 	var maze_size : Vector2 = Vector2(QT_MAZE_COLS, QT_MAZE_ROWS) * QT_CELL_SIZE
 	var origin    : Vector2 = QT_MAZE_CENTER - maze_size / 2.0
-	var deco_maze = MazeGenerator.generate(QT_MAZE_COLS, QT_MAZE_ROWS, QT_CELL_SIZE, origin, QT_MAZE_STYLE)
+	# goal_col forces the exit onto the east edge, but the row within that
+	# column is picked at random — if it lands on the bottom row (the
+	# south-east CORNER), wall_segments() cuts both its east and south walls
+	# at once instead of one clean door. Retry until it lands somewhere
+	# else on that edge; a handful of tries is always enough in practice.
+	var deco_maze = null
+	for _attempt in range(20):
+		deco_maze = MazeGenerator.generate(QT_MAZE_COLS, QT_MAZE_ROWS, QT_CELL_SIZE, origin,
+			QT_MAZE_STYLE, QT_START_CELL, QT_GOAL_COL)
+		if deco_maze.goal_cell.y != QT_MAZE_ROWS - 1:
+			break
 
 	var deco_container := Node2D.new()
 	add_child(deco_container)
@@ -1100,36 +1119,21 @@ func _play_quest_transition() -> void:
 	_start_quest()
 
 
-# A visible arc-and-swirl hop, not a flat straight-line slide: rises to a
-# peak offset sideways from the direct midpoint (alternating left/right per
-# call), with a spin and a bigger squash/stretch than the plain _qt_hop() —
-# reads as a deliberate, dramatic hop rather than a glide.
+# A clean vertical jump-arc straight toward `target` — rises then falls,
+# reading clearly as "a jump" without any sideways swirl (which risked
+# visually clipping through nearby maze walls given how large the Play
+# Button still is at this point) and without any squash/stretch or spin
+# (which distorted its round, recognizable shape). Position only.
 func _qt_dramatic_hop(node: Control, target: Vector2, duration: float) -> void:
 	var start : Vector2 = node.position
-	var dir   : Vector2 = target - start
-	var perp  : Vector2 = Vector2(-dir.y, dir.x)
-	perp = perp.normalized() if perp.length() > 0.01 else Vector2.RIGHT
-	var swirl_side : float = 1.0 if randf() < 0.5 else -1.0
-	var peak  : Vector2 = start.lerp(target, 0.55) + Vector2(0, -70) + perp * 55.0 * swirl_side
-	var spin  : float = 40.0 * swirl_side
+	var peak  : Vector2 = start.lerp(target, 0.5) + Vector2(0, -90)
 
-	var pos_tw := create_tween()
-	pos_tw.tween_property(node, "position", peak, duration * 0.55) \
+	var tw := create_tween()
+	tw.tween_property(node, "position", peak, duration * 0.5) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	pos_tw.tween_property(node, "position", target, duration * 0.45) \
+	tw.tween_property(node, "position", target, duration * 0.5) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-
-	var fx_tw := create_tween()
-	fx_tw.set_parallel(true)
-	fx_tw.tween_property(node, "scale", Vector2(1.35, 0.7), duration * 0.3).set_ease(Tween.EASE_OUT)
-	fx_tw.tween_property(node, "rotation_degrees", node.rotation_degrees + spin, duration * 0.5)
-	await pos_tw.finished
-
-	var settle := create_tween()
-	settle.set_parallel(true)
-	settle.tween_property(node, "scale", Vector2(1.0, 1.0), duration * 0.35)
-	settle.tween_property(node, "rotation_degrees", 0.0, duration * 0.35)
-	await settle.finished
+	await tw.finished
 
 
 # A quick "bang into a wall and bounce back" beat — a directional nudge and
@@ -1166,13 +1170,14 @@ func _qt_bob(node: Control, duration: float) -> void:
 		await down.finished
 
 
-# One hop-with-squash to `target`, taking exactly `duration` seconds total.
+# One hop to `target`, taking exactly `duration` seconds total. Scale pulse
+# is uniform (not a squash/stretch) so the round shape never distorts.
 func _qt_hop(node: Control, target: Vector2, duration: float) -> void:
 	var hop := create_tween()
 	hop.set_parallel(true)
 	hop.tween_property(node, "position", target, duration) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	hop.tween_property(node, "scale", Vector2(1.15, 0.85), duration * 0.5)
+	hop.tween_property(node, "scale", Vector2(1.08, 1.08), duration * 0.5)
 	await hop.finished
 	var settle := create_tween()
 	settle.tween_property(node, "scale", Vector2(1.0, 1.0), duration * 0.5)

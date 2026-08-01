@@ -72,6 +72,34 @@ locked design rules; this file is for session-by-session history and handoff not
   - Completed images move to the completed row after successfully exiting.
 - Commits: `886058f`, `795cad8`, `85b9d6b`, `f735219`, `df16b29`, `8401c29`, `14c54de`,
   `53c4f26`, `e928c8d`, `c452774` — pushed and verified against `origin/main` via `git fetch`.
+- Pointed-hand guides added at the maze's entry and exit gaps (`sound_quest.gd`): entry hand
+  hides the instant a real drag toward the maze begins, exit hand stays up longer — hiding only
+  once the drag actually arrives at the goal cell, not on release/success — and both reappear
+  fresh on the next attempt's reshape. Rotation values were computed from the asset's own
+  fingertip pixel position rather than eyeballed, verified by rendering each candidate rotation
+  with the computed fingertip marked on top before wiring it in.
+- Evened out the 4-image top row's spacing (was 339/215/341px gaps between images, now a
+  consistent ~298px).
+- Quest Transition (the decorative Play-Button-walks-a-maze celebration between Quests)
+  completely redesigned into a 6-beat sequence: a big, noticeable bob at the top; an
+  entrance approach that traces the maze's own outline (2 jumps to clear the corner, then 2
+  straight axis-aligned walks — down, then across — never diagonal, never hopping past the
+  corner); ~8s of wandering the maze like a kid exploring, with dead-end detours and wall-bang
+  "struggle" bumps; an exit hop; and a grow/bob/fade close.
+- Fixed a real bug found along the way: the decorative maze's `generate()` call never forced
+  start/goal onto boundary edges, so most runs had no actual visible exit door at all. Fixed
+  with explicit entry/exit cells, plus a retry loop avoiding the case where the exit lands on a
+  corner cell (which cuts two boundary walls at once instead of one clean door).
+- Fixed a z-order bug where the Play Button rendered underneath the maze walls near the
+  entrance — explicit `z_index = 5`, matching the convention already used by the entry/exit hand
+  sprites.
+- Added a "Test Quest Transition" debug shortcut (Demo Shortcuts) to preview the celebration
+  directly without playing through a full Quest first.
+- Commits: `1c7ad9b`, `372ffd0`, `6d4d328`, `93bfb92`, `2a19a6b`, `f88da17`, `3e3a8d9`, `243fb83`,
+  `24e3dec`, `7ac133f`, `a0d0fc3`, `31e501a`, `5c4eb62`, `d5db92f` — pushed and verified against
+  `origin/main` via `git fetch`.
+- **Prep's Sound Quest feature (gameplay + Quest Transition) is considered complete** as of this
+  entry, confirmed via hands-on playtesting across every round of feedback above.
 
 ### Decisions
 - Sound Quest's collision model tracks which maze *cell* the drag currently occupies and only
@@ -82,13 +110,20 @@ locked design rules; this file is for session-by-session history and handoff not
   it shipped.
 - No fail sound anywhere in Sound Quest — a wrong turn is discovery, not a mistake, so nothing
   plays to signal it.
+- No pointed-hand guide in the Quest Transition, unlike the real gameplay maze — it's purely
+  decorative with nothing for the child to act on, and a hand cue's whole purpose elsewhere is
+  prompting an interaction that doesn't exist here.
+- Quest Transition's Play Button never hops the entire way in — once it clears the maze's
+  corner it switches to a plain walk (no arc, no scale/rotation change), split into two
+  axis-aligned legs rather than one diagonal cut, reading as it following the maze's actual
+  shape rather than beelining across it.
 
 ### Risks / Gotchas
 - None new from this entry; see prior entries for keystore/tool-path/Gradle notes.
 
 ### Next Session
-- Continue hands-on playtesting of Sound Quest (DEBUG → Demo Shortcuts → "Test Sound Quest
-  (Group A)") for any further exploration-flow feedback.
+- Sound Quest itself is done for now — next session should pick up whatever the user directs;
+  no specific Sound Quest follow-up is flagged as outstanding.
 
 ---
 

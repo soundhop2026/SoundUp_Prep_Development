@@ -51,6 +51,14 @@ const BOB_HALF_DUR  : float = 0.3   # one bob = up then down, each half this lon
 
 const FREEZE_DURATION : float = 0.5   # how long ALL faces hold still after a wrong tap
 
+# If nothing's been found after this long, the real face starts a subtle
+# scale pulse on top of its normal bob — not an instant giveaway (still
+# needs real attention amid 46 nearly-identical faces), but enough that a
+# genuinely stuck search doesn't turn into an endless dead end.
+const HINT_DELAY      : float = 7.0
+const HINT_PULSE_SCALE : float = 1.15
+const HINT_PULSE_DUR   : float = 0.6
+
 const GROW_SCALE_MULT : float = 2.4
 const GROW_DUR   : float = 0.4
 const DANCE_DUR  : float = 1.2
@@ -63,6 +71,8 @@ var _real_index : int  = -1
 var _frozen    : bool  = false
 var _resolved  : bool  = false   # true once the real one's been found, ignore further taps
 var _music_player : AudioStreamPlayer = null
+var _hint_tween  : Tween = null
+var _hint_active : bool  = false
 
 
 func _ready() -> void:
@@ -81,6 +91,24 @@ func _ready() -> void:
 	_spawn_faces()
 	for i in range(_faces.size()):
 		_start_bob(i)
+	_start_hint_timer()
+
+
+# If still unresolved after HINT_DELAY, the real face starts a subtle scale
+# pulse layered on top of its normal bob — a genuine but non-obvious clue,
+# so a stuck search never becomes an endless dead end.
+func _start_hint_timer() -> void:
+	await get_tree().create_timer(HINT_DELAY).timeout
+	if _resolved:
+		return
+	_hint_active = true
+	var real_btn : TextureButton = _faces[_real_index]
+	_hint_tween = create_tween()
+	_hint_tween.set_loops()
+	_hint_tween.tween_property(real_btn, "scale", Vector2(HINT_PULSE_SCALE, HINT_PULSE_SCALE), HINT_PULSE_DUR) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_hint_tween.tween_property(real_btn, "scale", Vector2(1.0, 1.0), HINT_PULSE_DUR) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 # Manual loop-on-finished — same idiom as sound_quest.gd's _start_music()/
@@ -210,10 +238,14 @@ func _on_wrong_tap() -> void:
 	for t in _bob_tweens:
 		if t != null and t.is_valid():
 			t.pause()
+	if _hint_active and _hint_tween != null and _hint_tween.is_valid():
+		_hint_tween.pause()
 	await get_tree().create_timer(FREEZE_DURATION).timeout
 	for t in _bob_tweens:
 		if t != null and t.is_valid():
 			t.play()
+	if _hint_active and _hint_tween != null and _hint_tween.is_valid():
+		_hint_tween.play()
 	_frozen = false
 
 
@@ -222,8 +254,11 @@ func _on_found_real(i: int) -> void:
 	for t in _bob_tweens:
 		if t != null and t.is_valid():
 			t.kill()
+	if _hint_tween != null and _hint_tween.is_valid():
+		_hint_tween.kill()
 
 	var real_btn : TextureButton = _faces[i]
+	real_btn.scale = Vector2(1.0, 1.0)   # reset in case the hint pulse was mid-cycle
 	# Swap Louis -> the real Play Button texture now that it's found — a
 	# genuine "surprise, it was me!" reveal as it grows/dances, rather than
 	# just a bigger Louis face.

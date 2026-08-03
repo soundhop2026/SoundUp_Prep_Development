@@ -3,20 +3,22 @@ extends Node2D
 # ─── Level 1 Sound Quest — Quest Transition ("Find the Play Button") ───────
 # Mirrors Prep Sound Quest's Quest Transition (a decorative celebration
 # between Sets/Quests), but the mechanic here is a hidden-object search
-# instead of a maze-hop: 45 decoy faces plus one real Play Button, all
-# sharing the exact same texture and all bobbing continuously — the ONLY
-# way to tell them apart is by tapping.
+# instead of a maze-hop: 45 decoy Louis faces plus one real Play Button
+# hiding among them, all bobbing continuously — the ONLY way to tell them
+# apart is by tapping.
 #
 #   - Wrong tap: every face freezes in place for a beat, no sound, no
 #     penalty — just a wordless "not that one" — then resumes bobbing.
-#   - Correct tap (the real Play Button): it grows, does a little
-#     celebratory dance, then every face fades out together.
+#   - Correct tap (the real Play Button): its texture swaps from the Louis
+#     face to playbutton.png (a genuine "surprise, it was me!" reveal),
+#     then it grows, does a little celebratory dance, and every face
+#     fades out together.
 #
-# The real texture (playbutton.png) has its "play" triangle baked directly
-# into the art, which would make the real one instantly spottable — so
-# decoy faces render through a shader that masks that triangle's UV region
-# to transparent, leaving an otherwise-identical face. No second asset
-# needed; verified by rendering both side by side before wiring this in.
+# Decoys use louisfaces/happylouis3-Photoroom.png — Louis is a real,
+# separate character asset (not a modified Play Button). All 46 faces show
+# this SAME Louis texture during the search, so there is genuinely zero
+# visual difference between them — the real one only reveals itself once
+# tapped, rather than needing any masking trick on a shared texture.
 #
 # NOTE: this file currently implements ONLY the transition. The actual
 # Level 1 Sound Quest gameplay (a word-cloud sorting activity — dragging
@@ -25,19 +27,14 @@ extends Node2D
 # Level 1 Sound Quest Transition" for isolated preview/testing.
 # ─────────────────────────────────────────────────────────────────────────
 
-const FONT_PATH         : String = "res://UI_assets/210 연필스케치R.ttf"
-const FACE_TEXTURE_PATH : String = "res://UI_assets/playbutton.png"
-const MUSIC_PATH        : String = "res://soundquest/assets/quest_level1_bgm.mp3"
-const BG_COLOR          : Color  = Color(0.431, 0.710, 1.0, 1.0)   # sky blue — matches Level 1's game.gd, not Prep's green
+const FONT_PATH          : String = "res://UI_assets/210 연필스케치R.ttf"
+const DECOY_TEXTURE_PATH : String = "res://louisfaces/happylouis3-Photoroom.png"
+const REAL_TEXTURE_PATH  : String = "res://UI_assets/playbutton.png"
+const MUSIC_PATH         : String = "res://soundquest/assets/quest_level1_bgm.mp3"
+const BG_COLOR           : Color  = Color(0.431, 0.710, 1.0, 1.0)   # sky blue — matches Level 1's game.gd, not Prep's green
 
 const DECOY_COUNT : int    = 45   # up from 25 — plenty of empty canvas space with the smaller count
-const FACE_SCALE  : Vector2 = Vector2(0.135, 0.135)   # 50% bigger than the first pass (0.09)
-
-# The real texture's play-triangle sits in this UV rect (measured directly
-# against the asset: bbox x[415,519] y[185,274] of a 907x437 image, padded
-# slightly) — masked to transparent on decoy faces so all 46 faces are
-# visually identical until tapped. Left alone on the one real face.
-const TRIANGLE_MASK_RECT : Vector4 = Vector4(0.455, 0.42, 0.575, 0.63)
+const FACE_SCALE  : Vector2 = Vector2(0.135, 0.135)
 
 const CLUSTER_CENTER       : Vector2 = Vector2(640, 340)
 const CLUSTER_HALF_EXTENTS : Vector2 = Vector2(500, 260)   # widened alongside the face-count bump
@@ -113,36 +110,19 @@ func _spawn_faces() -> void:
 	var total : int = DECOY_COUNT + 1
 	_real_index = randi() % total
 
-	var tex : Texture2D = load(FACE_TEXTURE_PATH)
-	var mask_shader := Shader.new()
-	mask_shader.code = """shader_type canvas_item;
-uniform vec4 mask_rect;
-void fragment() {
-	vec4 tex = texture(TEXTURE, UV);
-	if (UV.x > mask_rect.x && UV.x < mask_rect.z && UV.y > mask_rect.y && UV.y < mask_rect.w) {
-		tex.a = 0.0;
-	}
-	COLOR = tex;
-}"""
+	# Every face shows the Louis texture during the search — genuinely one
+	# shared asset, not a modified Play Button — so there is nothing to
+	# distinguish the real one from a decoy until it's actually tapped.
+	var decoy_tex : Texture2D = load(DECOY_TEXTURE_PATH)
 
 	for i in range(total):
 		var btn := TextureButton.new()
-		btn.texture_normal      = tex
+		btn.texture_normal      = decoy_tex
 		btn.ignore_texture_size = true
 		btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-		var tex_size : Vector2 = tex.get_size() * FACE_SCALE
+		var tex_size : Vector2 = decoy_tex.get_size() * FACE_SCALE
 		btn.size         = tex_size
 		btn.pivot_offset = tex_size / 2.0
-
-		# Masked on EVERY face, including the real one — the triangle mark
-		# is distinct enough (even amid a crowd) that leaving it visible
-		# only on the real face made it stand out immediately, per direct
-		# feedback. All 46 are now 100% visually identical; finding the
-		# real one is purely tap-discovery, not a visual tell.
-		var mat := ShaderMaterial.new()
-		mat.shader = mask_shader
-		mat.set_shader_parameter("mask_rect", TRIANGLE_MASK_RECT)
-		btn.material = mat
 
 		var offset : Vector2 = Vector2(
 			randf_range(-1.0, 1.0) * CLUSTER_HALF_EXTENTS.x,
@@ -207,9 +187,10 @@ func _on_found_real(i: int) -> void:
 			t.kill()
 
 	var real_btn : TextureButton = _faces[i]
-	real_btn.material = null   # reveal the triangle now that it's found — a
-	                           # satisfying "there it is!" as it grows/dances,
-	                           # rather than just a bigger blank smiley
+	# Swap Louis -> the real Play Button texture now that it's found — a
+	# genuine "surprise, it was me!" reveal as it grows/dances, rather than
+	# just a bigger Louis face.
+	real_btn.texture_normal = load(REAL_TEXTURE_PATH)
 
 	var grow := create_tween()
 	grow.tween_property(real_btn, "scale", Vector2(GROW_SCALE_MULT, GROW_SCALE_MULT), GROW_DUR) \

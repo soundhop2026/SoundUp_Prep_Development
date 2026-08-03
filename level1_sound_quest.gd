@@ -3,7 +3,7 @@ extends Node2D
 # ─── Level 1 Sound Quest — Quest Transition ("Find the Play Button") ───────
 # Mirrors Prep Sound Quest's Quest Transition (a decorative celebration
 # between Sets/Quests), but the mechanic here is a hidden-object search
-# instead of a maze-hop: 25 decoy faces plus one real Play Button, all
+# instead of a maze-hop: 45 decoy faces plus one real Play Button, all
 # sharing the exact same texture and all bobbing continuously — the ONLY
 # way to tell them apart is by tapping.
 #
@@ -27,19 +27,20 @@ extends Node2D
 
 const FONT_PATH         : String = "res://UI_assets/210 연필스케치R.ttf"
 const FACE_TEXTURE_PATH : String = "res://UI_assets/playbutton.png"
+const MUSIC_PATH        : String = "res://soundquest/assets/quest_level1_bgm.mp3"
 const BG_COLOR          : Color  = Color(0.431, 0.710, 1.0, 1.0)   # sky blue — matches Level 1's game.gd, not Prep's green
 
-const DECOY_COUNT : int    = 25
+const DECOY_COUNT : int    = 45   # up from 25 — plenty of empty canvas space with the smaller count
 const FACE_SCALE  : Vector2 = Vector2(0.135, 0.135)   # 50% bigger than the first pass (0.09)
 
 # The real texture's play-triangle sits in this UV rect (measured directly
 # against the asset: bbox x[415,519] y[185,274] of a 907x437 image, padded
-# slightly) — masked to transparent on decoy faces so all 26 faces are
+# slightly) — masked to transparent on decoy faces so all 46 faces are
 # visually identical until tapped. Left alone on the one real face.
 const TRIANGLE_MASK_RECT : Vector4 = Vector4(0.455, 0.42, 0.575, 0.63)
 
 const CLUSTER_CENTER       : Vector2 = Vector2(640, 340)
-const CLUSTER_HALF_EXTENTS : Vector2 = Vector2(420, 220)
+const CLUSTER_HALF_EXTENTS : Vector2 = Vector2(500, 260)   # widened alongside the face-count bump
 
 const BOB_AMPLITUDE : float = 8.0
 const BOB_HALF_DUR  : float = 0.3   # one bob = up then down, each half this long
@@ -57,6 +58,7 @@ var _bob_tweens : Array = []   # Array[Tween], parallel to _faces
 var _real_index : int  = -1
 var _frozen    : bool  = false
 var _resolved  : bool  = false   # true once the real one's been found, ignore further taps
+var _music_player : AudioStreamPlayer = null
 
 
 func _ready() -> void:
@@ -71,9 +73,38 @@ func _ready() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
+	_start_music()
 	_spawn_faces()
 	for i in range(_faces.size()):
 		_start_bob(i)
+
+
+# Manual loop-on-finished — same idiom as sound_quest.gd's _start_music()/
+# _on_music_finished() for Prep's Quest Transition BGM.
+func _start_music() -> void:
+	if not ResourceLoader.exists(MUSIC_PATH):
+		return
+	_music_player           = AudioStreamPlayer.new()
+	_music_player.stream    = load(MUSIC_PATH)
+	_music_player.volume_db = 0.0
+	_music_player.finished.connect(_on_music_finished)
+	add_child(_music_player)
+	_music_player.play()
+
+
+func _on_music_finished() -> void:
+	if _music_player != null:
+		_music_player.play()
+
+
+func _stop_music() -> void:
+	if _music_player == null:
+		return
+	if _music_player.playing:
+		var fade := create_tween()
+		fade.tween_property(_music_player, "volume_db", -40.0, 1.0)
+		await fade.finished
+	_music_player.stop()
 
 
 # ─── Face spawning ──────────────────────────────────────────────────────────
@@ -193,6 +224,7 @@ func _on_found_real(i: int) -> void:
 		fade.tween_property(f, "modulate:a", 0.0, FADE_DUR)
 	await fade.finished
 
+	await _stop_music()
 	_on_transition_finished()
 
 

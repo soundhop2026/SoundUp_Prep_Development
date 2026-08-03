@@ -52,6 +52,70 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-08-03
+
+### Completed
+- Fixed a real rounding/sampling bug: `SoundQuestState.build_word_pool()` was reading each
+  Prep sub-set JSON's *round* data and collecting only the words that happened to be a round's
+  correct-answer choice — but Prep's rounds only sample a subset of each phoneme's real word
+  bank (some words only ever appear as a distractor, or never at all). For Group A this
+  silently undercounted the pool at 38 words when the actual complete bank across M/S/T/B/V/K
+  is 54. Rebuilt to read Prep JSON only to determine which *phonemes* a Group covers, then pull
+  the real word list for each phoneme straight from its image folder — the true complete bank —
+  deriving `word_audio`/`phoneme_audio` from the matching asset folders. Along the way, found
+  and handled two asset-naming quirks: duplicate-cased word-sounds folders for B/M
+  (`B.wav`/`b.wav`, byte-identical), and image folder names that don't match their
+  `phoneme_audio` basename for special phonemes (`G-hard` vs `G_hard.wav`, and a couple also
+  lowercase: `c-soft`, `x-gz`) — resolved via trying plausible variants and using whichever
+  folder actually exists, rather than guessing one substitution rule.
+- Redesigned Sound Quest's round model around repetition rather than consume-once, per direct
+  design discussion: `split_into_quests()` now tops up any quest smaller than the largest one
+  (borrowed words from elsewhere in the pool) so all 4 quests in a Group are the same size
+  (Group A: 54 words -> 14/14/14/14, was 14/14/13/13). A Quest's round *count* now equals its
+  own word count (14 words -> 14 rounds), and every round draws 4 words at random from that
+  same fixed pool instead of consuming a shrinking list — words repeating across rounds is the
+  actual mastery mechanic here, not a fallback. The only constraint: a round never repeats the
+  exact same word from the round immediately before it, when the pool is large enough to allow
+  that. Removed `_pick_review_word()`/`_group_mastered`/`_quest_remaining` entirely — dead now
+  that rounds never run short of content to draw from.
+- Fixed a layout bug found via screenshot: the completed-row images overlapped the exit
+  pointed-hand, since the maze's right edge (x=840) plus `EXIT_HAND_OFFSET` put the hand around
+  x=890 (spanning ~854-926), right inside the completed row's old start x=900. Pushed the row
+  out to x=960 and tightened its spacing (90/70 -> 80/65) so all 4 slots still fit the canvas
+  while clearing the hand.
+- Fixed the Listen bar (Level 1's `$ListenButton`) drifting away from the (fixed-position) back
+  button under rapid repeated taps — `_bob_listen_bar()` re-read the button's current position
+  as its bounce anchor every call, and wasn't guarded against a second tap starting a second
+  bounce loop while the first was still running; overlapping loops each captured an
+  already-displaced position as their new "true" anchor, compounding drift. Fixed by always
+  bouncing relative to one fixed canonical position and guarding against re-entrant calls.
+- Commits: `ec492a9`, `18253fc`, `d478610`, `cbe8ecf` — pushed and verified against
+  `origin/main` via `git fetch`.
+
+### Decisions
+- Sound Quest's word pool is now sourced from each phoneme's actual image folder, not from
+  Prep's round data — Prep round data is only used to detect *which phonemes* are in scope for
+  a Group range, never as the word list itself. This generalizes correctly to every Group,
+  including the special-case phonemes in D/E/F, verified across all 6 Groups.
+- Sound Quest's mastery model is intentionally repetition-heavy: a Quest is a small fixed word
+  set (matched in size across all 4 Quests in a Group) drilled for as many rounds as it has
+  words, with the same words deliberately resurfacing round after round rather than being
+  "used up." This was a genuine design clarification, not an assumption — my first read of the
+  intended round count was wrong (I assumed round count derived from word count via
+  `ceil(words/4)`) until walked through explicitly.
+
+### Risks / Gotchas
+- None new from this entry beyond the asset-naming quirks noted above (documented in
+  `sound_quest_state.gd`'s `_resolve_word_audio()`/`_resolve_image_folder()` comments for future
+  reference if a new Group's phonemes hit a naming variant not yet seen).
+
+### Next Session
+- Prep's Sound Quest feature (word pool, round/repetition model, layout) is considered settled
+  as of this entry — no outstanding Sound Quest follow-up flagged; next session should pick up
+  whatever the user directs.
+
+---
+
 ## 2026-08-01
 
 ### Completed

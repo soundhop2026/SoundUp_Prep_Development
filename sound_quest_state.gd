@@ -19,19 +19,21 @@ static var debug_skip_to_transition : bool = false
 
 
 # ─── Word pool ──────────────────────────────────────────────────────────────
-# Reads every sub-set JSON in [start_index, end_index] and returns the unique
-# CORRECT-ANSWER words from each round — not every choice/distractor. This
-# matters for two reasons: (1) a round's distractors are frequently OTHER
-# groups' phonemes mixed in for discrimination practice, so only the correct
-# answer reliably represents "the phonemes used in this Group"; (2) only the
-# correct answer has a well-defined phoneme_audio (the round's own target
-# phoneme) for the "tap to hear its phoneme" interaction — a distractor's
-# actual initial sound isn't recorded anywhere in the round data.
-# Dedupes by image path, since the same word can be the correct answer in
-# more than one round across a Group's 4 sub-sets.
+# The complete word bank for a Group, NOT a sample of it. Prep's own rounds
+# only cover a subset of each phoneme's real word bank (some words only ever
+# show up as a distractor there, or never at all), so reading round data for
+# the word list itself silently undercounts what's actually available — for
+# Group A that meant 38 words surfaced out of 54 that actually exist.
+#
+# Two-step fix: read every sub-set JSON in [start_index, end_index] only to
+# find out which PHONEMES this Group range covers (each round's own
+# phoneme_audio field is a reliable, already-correct signal for that), then
+# pull the actual word list for each of those phonemes straight from its
+# image folder (SoundUp_level1_word images/<LETTER>/) — the true complete
+# bank — deriving word_audio/phoneme_audio from the matching asset folders
+# rather than from whatever a specific round happened to reference.
 static func build_word_pool(start_index: int, end_index: int) -> Array:
-	var seen : Dictionary = {}
-	var pool : Array = []
+	var letters : Dictionary = {}   # phoneme letter -> true
 	for i in range(start_index, end_index + 1):
 		if i < 0 or i >= PrepLevelProgress.sets.size():
 			continue
@@ -46,21 +48,82 @@ static func build_word_pool(start_index: int, end_index: int) -> Array:
 		if typeof(data) != TYPE_DICTIONARY:
 			continue
 		for rd in data.get("rounds", []):
-			var choices : Array = rd.get("choices", [])
-			var slot    : int   = rd.get("correct_slot", 0)
-			if slot < 1 or slot > choices.size():
+			var ph_audio : String = rd.get("phoneme_audio", "")
+			if ph_audio == "":
 				continue
-			var choice : Dictionary = choices[slot - 1]
-			var image  : String     = choice.get("image", "")
-			if image == "" or seen.has(image):
+			letters[ph_audio.get_file().get_basename()] = true   # ".../M.wav" -> "M"
+
+	var sorted_letters : Array = letters.keys()
+	sorted_letters.sort()   # deterministic pool order across runs
+
+	var seen : Dictionary = {}
+	var pool : Array = []
+	for letter in sorted_letters:
+		var image_folder : String = _resolve_image_folder(letter)
+		for word in _list_words_for_phoneme(image_folder):
+			var image_path : String = "res://SoundUp_level1_word images/%s/%s.png" % [image_folder, word]
+			if seen.has(image_path):
 				continue
-			seen[image] = true
+			seen[image_path] = true
 			pool.append({
-				"image": image,
-				"word_audio": choice.get("word_audio", ""),
-				"phoneme_audio": rd.get("phoneme_audio", ""),
+				"image": image_path,
+				"word_audio": _resolve_word_audio(letter, word),
+				"phoneme_audio": "res://BGM&effect/SoundUp_level1_phonemes/%s.wav" % letter,
 			})
 	return pool
+
+
+# The image folder name doesn't always match the phoneme_audio basename it's
+# derived from — per CLAUDE.md's documented special cases, some are dash-
+# styled where the audio is underscore-styled (G-hard vs G_hard.wav), and a
+# couple are lowercase on top of that (c-soft, x-gz). Rather than guess a
+# single substitution rule (the casing isn't consistent even among the
+# dash-styled ones), try the plausible variants and use whichever actually
+# exists as a real folder.
+static func _resolve_image_folder(letter: String) -> String:
+	var candidates : Array = [
+		letter,
+		letter.replace("_", "-"),
+		letter.replace("_", "-").to_lower(),
+		letter.to_lower(),
+	]
+	for c in candidates:
+		if DirAccess.dir_exists_absolute("res://SoundUp_level1_word images/%s" % c):
+			return c
+	return letter   # no match found; _list_words_for_phoneme() will just find nothing
+
+
+# Every .png in a phoneme's (already-resolved) image folder — the source of
+# truth for "which words exist for this phoneme," independent of which ones
+# any specific round happened to sample.
+static func _list_words_for_phoneme(image_folder: String) -> Array:
+	var words : Array = []
+	var dir := DirAccess.open("res://SoundUp_level1_word images/%s" % image_folder)
+	if dir == null:
+		return words
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and fname.get_extension() == "png":
+			words.append(fname.get_basename())
+		fname = dir.get_next()
+	dir.list_dir_end()
+	words.sort()
+	return words
+
+
+# Word-sounds subfolders are inconsistently cased in the asset library —
+# most phonemes are "V.wav"/"S.wav" etc., but at least B and M are lowercase
+# "b.wav"/"m.wav" — so this tries the phoneme's own casing first, then
+# lowercase, rather than assuming either is correct.
+static func _resolve_word_audio(letter: String, word: String) -> String:
+	var upper_path : String = "res://BGM&effect/SoundUp_level1_word sounds/%s.wav/%s.wav" % [letter, word]
+	if ResourceLoader.exists(upper_path):
+		return upper_path
+	var lower_path : String = "res://BGM&effect/SoundUp_level1_word sounds/%s.wav/%s.wav" % [letter.to_lower(), word]
+	if ResourceLoader.exists(lower_path):
+		return lower_path
+	return ""
 
 
 # ─── Quest split ────────────────────────────────────────────────────────────

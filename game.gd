@@ -26,6 +26,9 @@ var _btn_base_pos       : Array[Vector2]   = []
 var _is_ending_set      : bool             = false
 var _eval_tween         : Tween            = null
 var _g_cubes            : Array            = []   # [[ColorRect_rect, ColorRect_sq], ...]
+var _listen_bar_bobbing : bool             = false
+
+const LISTEN_BAR_BASE_POS : Vector2 = Vector2(100, 60)   # must match $ListenButton's _ready()-time position
 
 
 func _ready() -> void:
@@ -35,7 +38,7 @@ func _ready() -> void:
 	$background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	$background.color      = Color(0.431, 0.710, 1.0, 1.0)   # sky blue — Level 1
 	_round_bg_color        = Color(0.431, 0.710, 1.0, 1.0)
-	$ListenButton.position = Vector2(100, 60)
+	$ListenButton.position = LISTEN_BAR_BASE_POS
 	$ListenButton.size     = Vector2(980, 80)
 	$ListenButton.text     = ""
 	_add_ear_icon()
@@ -460,11 +463,26 @@ func _clear_g_cubes() -> void:
 	_g_cubes.clear()
 
 func _bob_listen_bar() -> void:
-	var base : Vector2 = $ListenButton.position
+	# Guarded against overlapping calls: tapping Listen again while a
+	# previous bounce loop is still running (result_locked only holds for a
+	# few synchronous lines, not for the duration of this async loop) used
+	# to spawn a second concurrent loop that captured whatever mid-bounce
+	# position happened to be current as its own "base" — each overlap
+	# compounded the drift, so continuous tapping walked the bar (and the
+	# ear icon on it) further and further from its real position, leaving
+	# the fixed-position back button looking increasingly detached from it.
+	# Always bouncing relative to the one true canonical position, and
+	# skipping re-entrant calls entirely, fixes both the drift and the
+	# wasted concurrent tweens — the already-running loop naturally keeps
+	# bouncing through the newly-extended playback on its own.
+	if _listen_bar_bobbing:
+		return
+	_listen_bar_bobbing = true
 	await get_tree().create_timer(0.05).timeout
 	while $ListenSound.playing:
 		var t := create_tween()
-		t.tween_property($ListenButton, "position", base + Vector2(0, -8), 0.06).set_ease(Tween.EASE_OUT)
-		t.tween_property($ListenButton, "position", base,                  0.06).set_ease(Tween.EASE_IN)
+		t.tween_property($ListenButton, "position", LISTEN_BAR_BASE_POS + Vector2(0, -8), 0.06).set_ease(Tween.EASE_OUT)
+		t.tween_property($ListenButton, "position", LISTEN_BAR_BASE_POS,                  0.06).set_ease(Tween.EASE_IN)
 		await t.finished
-	$ListenButton.position = base
+	$ListenButton.position = LISTEN_BAR_BASE_POS
+	_listen_bar_bobbing = false

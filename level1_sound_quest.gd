@@ -27,10 +27,10 @@ extends Node2D
 
 const FONT_PATH         : String = "res://UI_assets/210 연필스케치R.ttf"
 const FACE_TEXTURE_PATH : String = "res://UI_assets/playbutton.png"
-const BG_COLOR          : Color  = Color("#A8E063")   # same baby-green as Prep Sound Quest
+const BG_COLOR          : Color  = Color(0.431, 0.710, 1.0, 1.0)   # sky blue — matches Level 1's game.gd, not Prep's green
 
 const DECOY_COUNT : int    = 25
-const FACE_SCALE  : Vector2 = Vector2(0.09, 0.09)
+const FACE_SCALE  : Vector2 = Vector2(0.135, 0.135)   # 50% bigger than the first pass (0.09)
 
 # The real texture's play-triangle sits in this UV rect (measured directly
 # against the asset: bbox x[415,519] y[185,274] of a 907x437 image, padded

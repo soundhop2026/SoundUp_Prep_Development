@@ -3,22 +3,20 @@ extends Node2D
 # ─── Level 1 Sound Quest — Quest Transition ("Find the Play Button") ───────
 # Mirrors Prep Sound Quest's Quest Transition (a decorative celebration
 # between Sets/Quests), but the mechanic here is a hidden-object search
-# instead of a maze-hop: 45 decoy Louis faces plus one real Play Button
-# hiding among them, all bobbing continuously — the ONLY way to tell them
-# apart is by tapping.
+# instead of a maze-hop: 65 decoy Louis faces plus the real Play Button,
+# already rendered as itself, sitting among them — all bobbing
+# continuously so it takes real looking to pick out.
 #
 #   - Wrong tap: every face freezes in place for a beat, no sound, no
 #     penalty — just a wordless "not that one" — then resumes bobbing.
-#   - Correct tap (the real Play Button): its texture swaps from the Louis
-#     face to playbutton.png (a genuine "surprise, it was me!" reveal),
-#     then it grows, does a little celebratory dance, and every face
-#     fades out together.
+#   - Correct tap (the real Play Button): it grows, does a little
+#     celebratory dance, and every face fades out together.
 #
 # Decoys use louisfaces/happylouis3-Photoroom.png — Louis is a real,
-# separate character asset (not a modified Play Button). All 46 faces show
-# this SAME Louis texture during the search, so there is genuinely zero
-# visual difference between them — the real one only reveals itself once
-# tapped, rather than needing any masking trick on a shared texture.
+# separate character asset (not a modified Play Button). The real face
+# already shows playbutton.png from spawn — no texture swap on tap — the
+# challenge is spotting it among 65 near-identical bobbing Louis faces,
+# not a surprise reveal after the fact.
 #
 # NOTE: this file currently implements ONLY the transition. The actual
 # Level 1 Sound Quest gameplay (a word-cloud sorting activity — dragging
@@ -33,8 +31,16 @@ const REAL_TEXTURE_PATH  : String = "res://UI_assets/playbutton.png"
 const MUSIC_PATH         : String = "res://soundquest/assets/quest_level1_bgm.mp3"
 const BG_COLOR           : Color  = Color(0.431, 0.710, 1.0, 1.0)   # sky blue — matches Level 1's game.gd, not Prep's green
 
-const DECOY_COUNT : int    = 45   # up from 25 — plenty of empty canvas space with the smaller count
+const DECOY_COUNT : int    = 65   # up from 45 — bigger, busier crowd once size/blending were sorted
 const FACE_SCALE  : Vector2 = Vector2(0.135, 0.135)
+
+# playbutton.png's drawn face only fills a small part of its canvas (content
+# ~372x263px out of a 907x437 canvas) while Louis's fills nearly the whole
+# canvas (~782x727 out of 907x798) — the same FACE_SCALE on both renders the
+# real face visibly smaller than every decoy. Scaled up by the measured
+# content-size ratio (782/372) so the real face reads as the same size as a
+# Louis face, not a giveaway-by-being-tiny.
+const REAL_FACE_SCALE : Vector2 = Vector2(0.2838, 0.2838)
 
 const CLUSTER_CENTER       : Vector2 = Vector2(640, 340)
 const CLUSTER_HALF_EXTENTS : Vector2 = Vector2(500, 260)   # widened alongside the face-count bump
@@ -46,18 +52,16 @@ const CLUSTER_HALF_EXTENTS : Vector2 = Vector2(500, 260)   # widened alongside t
 const MIN_FACE_SPACING : float = 55.0
 const MAX_PLACEMENT_ATTEMPTS : int = 30
 
+# How close the real face is nestled against its chosen decoy neighbor —
+# comfortably less than MIN_FACE_SPACING so it always overlaps someone
+# (never stacked exactly on top, never floating alone in open space).
+const NESTLE_MIN_DIST : float = 15.0
+const NESTLE_MAX_DIST : float = 45.0
+
 const BOB_AMPLITUDE : float = 8.0
 const BOB_HALF_DUR  : float = 0.3   # one bob = up then down, each half this long
 
 const FREEZE_DURATION : float = 0.5   # how long ALL faces hold still after a wrong tap
-
-# If nothing's been found after this long, the real face starts a subtle
-# scale pulse on top of its normal bob — not an instant giveaway (still
-# needs real attention amid 46 nearly-identical faces), but enough that a
-# genuinely stuck search doesn't turn into an endless dead end.
-const HINT_DELAY      : float = 7.0
-const HINT_PULSE_SCALE : float = 1.15
-const HINT_PULSE_DUR   : float = 0.6
 
 const GROW_SCALE_MULT : float = 2.4
 const GROW_DUR   : float = 0.4
@@ -71,8 +75,6 @@ var _real_index : int  = -1
 var _frozen    : bool  = false
 var _resolved  : bool  = false   # true once the real one's been found, ignore further taps
 var _music_player : AudioStreamPlayer = null
-var _hint_tween  : Tween = null
-var _hint_active : bool  = false
 
 
 func _ready() -> void:
@@ -91,24 +93,6 @@ func _ready() -> void:
 	_spawn_faces()
 	for i in range(_faces.size()):
 		_start_bob(i)
-	_start_hint_timer()
-
-
-# If still unresolved after HINT_DELAY, the real face starts a subtle scale
-# pulse layered on top of its normal bob — a genuine but non-obvious clue,
-# so a stuck search never becomes an endless dead end.
-func _start_hint_timer() -> void:
-	await get_tree().create_timer(HINT_DELAY).timeout
-	if _resolved:
-		return
-	_hint_active = true
-	var real_btn : TextureButton = _faces[_real_index]
-	_hint_tween = create_tween()
-	_hint_tween.set_loops()
-	_hint_tween.tween_property(real_btn, "scale", Vector2(HINT_PULSE_SCALE, HINT_PULSE_SCALE), HINT_PULSE_DUR) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	_hint_tween.tween_property(real_btn, "scale", Vector2(1.0, 1.0), HINT_PULSE_DUR) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 # Manual loop-on-finished — same idiom as sound_quest.gd's _start_music()/
@@ -142,16 +126,20 @@ func _stop_music() -> void:
 # ─── Face spawning ──────────────────────────────────────────────────────────
 
 func _spawn_faces() -> void:
-	var total : int = DECOY_COUNT + 1
-	_real_index = randi() % total
+	# The real face is always spawned last (see below for why), so its
+	# index is simply the final slot — no need to randomize which array
+	# index it lands on, since world position (not array order) is what
+	# the player actually sees.
+	_real_index = DECOY_COUNT
 
-	# Every face shows the Louis texture during the search — genuinely one
-	# shared asset, not a modified Play Button — so there is nothing to
-	# distinguish the real one from a decoy until it's actually tapped.
+	# The real face shows playbutton.png from the moment it spawns — no
+	# swap-on-tap. The search challenge comes from it bobbing among 65
+	# near-identical Louis faces, not from any hidden-texture trick.
 	var decoy_tex : Texture2D = load(DECOY_TEXTURE_PATH)
+	var real_tex  : Texture2D = load(REAL_TEXTURE_PATH)
 
 	var placed_centers : Array = []
-	for i in range(total):
+	for i in range(DECOY_COUNT):
 		var btn := TextureButton.new()
 		btn.texture_normal      = decoy_tex
 		btn.ignore_texture_size = true
@@ -170,15 +158,32 @@ func _spawn_faces() -> void:
 		_faces.append(btn)
 		_bob_tweens.append(null)
 
-	# The real face must always win any overlap, or a decoy sitting on top
-	# of it can steal clicks meant for it — making it feel unfindable even
-	# when tapped directly at its own center. z_index does NOT control this:
-	# confirmed via simulated-click testing that GUI input hit-testing among
-	# overlapping Controls here resolves by scene-tree child order (last
-	# child wins), regardless of z_index. So the real face is explicitly
-	# moved to be the LAST child after all 46 are spawned, guaranteeing it
-	# always wins regardless of where its random index happened to land.
-	move_child(_faces[_real_index], get_child_count() - 1)
+	# The real face is placed AFTER every decoy, deliberately nestled
+	# against one of them rather than anywhere free in the cluster. Plain
+	# random placement could land it in open space with no neighbors —
+	# same size and texture-scale as everyone else, but still obviously
+	# separate from the crowd just by sitting alone.
+	var real_btn := TextureButton.new()
+	real_btn.texture_normal      = real_tex
+	real_btn.ignore_texture_size = true
+	real_btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	var real_size : Vector2 = real_tex.get_size() * REAL_FACE_SCALE
+	real_btn.size         = real_size
+	real_btn.pivot_offset = real_size / 2.0
+
+	var real_center : Vector2 = _pick_nestled_center(placed_centers)
+	real_btn.position = real_center - real_btn.pivot_offset
+	real_btn.set_meta("base_pos", real_btn.position)
+
+	real_btn.pressed.connect(_on_face_pressed.bind(_real_index))
+	# Added last on purpose: Godot's GUI input hit-testing among overlapping
+	# Controls here resolves by scene-tree child order (last child wins),
+	# NOT z_index (confirmed via simulated-click testing) — so being the
+	# final add_child() guarantees the real face always wins any overlap
+	# with a decoy instead of losing clicks meant for it.
+	add_child(real_btn)
+	_faces.append(real_btn)
+	_bob_tweens.append(null)
 
 
 # Rejection-sampled placement: retries a random spot within the cluster
@@ -201,6 +206,17 @@ func _pick_face_center(placed_centers: Array) -> Vector2:
 		if far_enough:
 			return candidate
 	return candidate
+
+
+# Anchors the real face directly against a random already-placed decoy —
+# a small offset, well under a full face-width — so it always sits inside
+# the crowd's existing overlap pattern instead of risking an isolated,
+# obviously-separate spot like a purely random cluster position could.
+func _pick_nestled_center(placed_centers: Array) -> Vector2:
+	var anchor : Vector2 = placed_centers[randi() % placed_centers.size()]
+	var angle : float = randf_range(0.0, TAU)
+	var dist  : float = randf_range(NESTLE_MIN_DIST, NESTLE_MAX_DIST)
+	return anchor + Vector2(cos(angle), sin(angle)) * dist
 
 
 # ─── Bobbing (the camouflage) ───────────────────────────────────────────────
@@ -238,14 +254,10 @@ func _on_wrong_tap() -> void:
 	for t in _bob_tweens:
 		if t != null and t.is_valid():
 			t.pause()
-	if _hint_active and _hint_tween != null and _hint_tween.is_valid():
-		_hint_tween.pause()
 	await get_tree().create_timer(FREEZE_DURATION).timeout
 	for t in _bob_tweens:
 		if t != null and t.is_valid():
 			t.play()
-	if _hint_active and _hint_tween != null and _hint_tween.is_valid():
-		_hint_tween.play()
 	_frozen = false
 
 
@@ -254,15 +266,9 @@ func _on_found_real(i: int) -> void:
 	for t in _bob_tweens:
 		if t != null and t.is_valid():
 			t.kill()
-	if _hint_tween != null and _hint_tween.is_valid():
-		_hint_tween.kill()
 
 	var real_btn : TextureButton = _faces[i]
-	real_btn.scale = Vector2(1.0, 1.0)   # reset in case the hint pulse was mid-cycle
-	# Swap Louis -> the real Play Button texture now that it's found — a
-	# genuine "surprise, it was me!" reveal as it grows/dances, rather than
-	# just a bigger Louis face.
-	real_btn.texture_normal = load(REAL_TEXTURE_PATH)
+	real_btn.scale = Vector2(1.0, 1.0)   # reset to baseline before the grow tween takes over
 
 	var grow := create_tween()
 	grow.tween_property(real_btn, "scale", Vector2(GROW_SCALE_MULT, GROW_SCALE_MULT), GROW_DUR) \

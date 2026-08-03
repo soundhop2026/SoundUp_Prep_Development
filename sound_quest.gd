@@ -145,12 +145,19 @@ const ROUND_SIZE : int = 4
 
 # Completed images from the current round move here — a simple horizontal
 # row, capped at ROUND_SIZE since a round is never bigger than 4. Positioned
-# just past the maze's exit (right edge, x=780) so it reads as "this is
-# where the maze leads." Clears at the start of every new round.
+# just past the maze's exit so it reads as "this is where the maze leads."
+# Clears at the start of every new round.
+#
+# Start X pushed out (900 -> 960) and spacing tightened (90/70 -> 80/65) so
+# the row clears the exit hand: the maze's right edge is at x=840
+# (MAZE_ORIGIN.x + MAZE_COLS*MAZE_CELL_SIZE) and EXIT_HAND_OFFSET puts the
+# hand's center around x=890 with ~72px width, spanning roughly x:854-926 —
+# the old start_x=900 sat right inside that span, visually overlapping the
+# hand with whichever image had just exited.
 const COMPLETED_ROW_Y       : float = 600.0
-const COMPLETED_ROW_START_X : float = 900.0
-const COMPLETED_ROW_STEP    : float = 90.0
-const COMPLETED_THUMB_SIZE  : float = 70.0
+const COMPLETED_ROW_START_X : float = 960.0
+const COMPLETED_ROW_STEP    : float = 80.0
+const COMPLETED_THUMB_SIZE  : float = 65.0
 const COMPLETED_MOVE_DUR    : float = 0.35
 const ROUND_COMPLETE_BEAT   : float = 0.4   # holds the full row on screen for a beat before it clears
 

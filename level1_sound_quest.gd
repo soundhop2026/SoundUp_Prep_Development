@@ -134,11 +134,15 @@ void fragment() {
 		btn.size         = tex_size
 		btn.pivot_offset = tex_size / 2.0
 
-		if i != _real_index:
-			var mat := ShaderMaterial.new()
-			mat.shader = mask_shader
-			mat.set_shader_parameter("mask_rect", TRIANGLE_MASK_RECT)
-			btn.material = mat
+		# Masked on EVERY face, including the real one — the triangle mark
+		# is distinct enough (even amid a crowd) that leaving it visible
+		# only on the real face made it stand out immediately, per direct
+		# feedback. All 46 are now 100% visually identical; finding the
+		# real one is purely tap-discovery, not a visual tell.
+		var mat := ShaderMaterial.new()
+		mat.shader = mask_shader
+		mat.set_shader_parameter("mask_rect", TRIANGLE_MASK_RECT)
+		btn.material = mat
 
 		var offset : Vector2 = Vector2(
 			randf_range(-1.0, 1.0) * CLUSTER_HALF_EXTENTS.x,
@@ -203,6 +207,9 @@ func _on_found_real(i: int) -> void:
 			t.kill()
 
 	var real_btn : TextureButton = _faces[i]
+	real_btn.material = null   # reveal the triangle now that it's found — a
+	                           # satisfying "there it is!" as it grows/dances,
+	                           # rather than just a bigger blank smiley
 
 	var grow := create_tween()
 	grow.tween_property(real_btn, "scale", Vector2(GROW_SCALE_MULT, GROW_SCALE_MULT), GROW_DUR) \

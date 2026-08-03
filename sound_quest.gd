@@ -30,10 +30,18 @@ extends Node2D
 #
 # Words are grouped into Quest Rounds of exactly 4 — the whole round has to
 # finish (all 4 mastered) before the next round of 4 begins; nothing refills
-# individually mid-round. A round is never partial: if a Quest's remaining
-# new words run short of 4, it's padded with review words already mastered
-# earlier in the Group. Each mastered image moves to a horizontal row on the
-# right instead of disappearing, staying visible there until the round ends.
+# individually mid-round. Each mastered image moves to a horizontal row on
+# the right instead of disappearing, staying visible there until the round
+# ends.
+#
+# A Quest's round COUNT equals its own word count (a 14-word Quest runs 14
+# rounds), and every round draws its 4 words at random from that SAME fixed
+# pool — words repeating across rounds is the whole point, not a fallback:
+# frequent repeated exposure to a small set of words is the actual mastery
+# mechanic here (see _pick_round_words()). The only constraint on the draw
+# is that a round never repeats the exact same word from the round
+# immediately before it (when the pool is large enough to allow that), so
+# two consecutive rounds never show an identical picture back to back.
 #
 # 4 Quests per Group; Quest Transition is a purely decorative Play-Button-
 # walks-a-maze celebration between them. After Quest 4, hands back to normal
@@ -129,10 +137,10 @@ const EXIT_HAND_ROTATION_DEG  : float = 90.0
 const ENTRY_HAND_OFFSET : Vector2 = Vector2(-35, -40)   # up-left of the entry gap
 const EXIT_HAND_OFFSET  : Vector2 = Vector2(50, 0)      # vertically centered on the exit gap, held a bit off to the side — same distance-from-gap feel as the entry hand
 
-# A Quest Round is always exactly 4 images — never a partial round. If a
-# Quest's remaining new words run short of 4, the round is padded with review
-# words already mastered earlier in this Group (see _pick_review_word()).
-# All 4 of a round's images must exit before the next round begins.
+# A Quest Round is always exactly 4 images, drawn at random from the
+# Quest's own fixed pool every time (see _pick_round_words()) — never a
+# partial round. All 4 of a round's images must exit before the next round
+# begins.
 const ROUND_SIZE : int = 4
 
 # Completed images from the current round move here — a simple horizontal
@@ -174,11 +182,10 @@ var _font : Font = null
 
 var _quests        : Array = []   # Array[Array[Dictionary]] — 4 quests of {image, word_audio, phoneme_audio}
 var _quest_index    : int   = 0
-var _quest_remaining : Array = []  # new words in the current Quest not yet placed in a round
-var _quest_total_words : int = 0
-var _quest_done_words  : int = 0
-
-var _group_mastered : Array = []   # every word mastered so far this Group session — review-word source
+var _quest_pool        : Array = []   # this Quest's fixed word set — re-sampled every round, never consumed
+var _quest_round_count : int   = 0    # target round count for this Quest == its own word count
+var _quest_rounds_done : int   = 0
+var _prev_round_words  : Array = []   # last round's 4 picks, excluded from the next draw when possible
 
 var _slots : Array = []   # per-slot Dictionary, see _make_slot()
 
@@ -236,10 +243,10 @@ func _ready() -> void:
 	_quest_index = 0
 	if SoundQuestState.debug_skip_to_transition:
 		SoundQuestState.debug_skip_to_transition = false
-		# _quest_remaining is already empty at this point (never populated
-		# yet) — routes straight into the Quest Transition celebration the
-		# same way a real Quest 1 completion would, then continues normally
-		# into Quest 2 afterward.
+		# _quest_rounds_done and _quest_round_count are both still 0 at this
+		# point (never populated yet), so 0 >= 0 routes straight into the
+		# Quest Transition celebration the same way a real Quest 1 completion
+		# would, then continues normally into Quest 2 afterward.
 		_start_round_or_finish()
 	else:
 		_start_quest()
@@ -311,9 +318,10 @@ func _start_quest() -> void:
 		_start_quest()
 		return
 
-	_quest_remaining   = words.duplicate()
-	_quest_total_words = words.size()
-	_quest_done_words  = 0
+	_quest_pool        = words
+	_quest_round_count = words.size()
+	_quest_rounds_done = 0
+	_prev_round_words  = []
 
 	for slot in _slots:
 		if slot.get("node") != null:
@@ -338,13 +346,10 @@ func _make_slot(index: int) -> Dictionary:
 	}
 
 
-# Starts the next Quest Round, or — if this Quest has no new words left —
-# ends the Quest and moves to Quest Transition. A round is only ever started
-# with real new content; once _quest_remaining is empty there is nothing left
-# to introduce, so the Quest ends here rather than generating an all-review
-# round.
+# Starts the next Quest Round, or — if this Quest has already run its target
+# number of rounds — ends the Quest and moves to Quest Transition.
 func _start_round_or_finish() -> void:
-	if _quest_remaining.is_empty():
+	if _quest_rounds_done >= _quest_round_count:
 		_clear_completed_row()
 		_clear_maze()
 		_quest_index += 1
@@ -353,9 +358,7 @@ func _start_round_or_finish() -> void:
 	_start_round()
 
 
-# Builds exactly ROUND_SIZE (4) words for the round: new words first, padded
-# with review words already mastered this Group if the Quest's remaining
-# pool runs short (see _pick_review_word()) — a round is never partial.
+# Draws ROUND_SIZE (4) words for this round.
 func _start_round() -> void:
 	_clear_completed_row()
 	# A maze is ready and visible the moment the round starts, before any
@@ -367,38 +370,37 @@ func _start_round() -> void:
 	_reshape_maze()
 	_show_entry_hand()
 
-	var round_words : Array = []
-	for i in range(ROUND_SIZE):
-		if not _quest_remaining.is_empty():
-			round_words.append(_quest_remaining.pop_front())
-		else:
-			round_words.append(_pick_review_word(round_words))
+	var round_words : Array = _pick_round_words()
+	_prev_round_words = round_words
 
 	for i in range(ROUND_SIZE):
 		_place_word_in_slot(i, round_words[i])
 
 
-# Picks a word already mastered this Group session, excluding anything
-# already chosen for this round (both new and review picks so far) so a
-# round never shows the same image twice. Falls back to allowing a repeat
-# only if the distinct mastered pool is smaller than what's still needed —
-# not possible with the current word bank (every Quest that needs padding
-# already has at least 8 mastered words to draw from within itself, and
-# Group E's one 3-word Quest draws from its Group's earlier Quests) but kept
-# as a graceful degradation rather than a crash if content ever gets sparser.
-func _pick_review_word(exclude: Array) -> Dictionary:
-	if _group_mastered.is_empty():
-		return {}
-	var exclude_images : Dictionary = {}
-	for w in exclude:
-		exclude_images[w.get("image", "")] = true
-	var candidates : Array = []
-	for w in _group_mastered:
-		if not exclude_images.has(w.get("image", "")):
-			candidates.append(w)
-	if candidates.is_empty():
-		candidates = _group_mastered.duplicate()
-	return candidates[randi() % candidates.size()]
+# Draws ROUND_SIZE words at random from the Quest's own fixed pool — words
+# repeating across rounds is the point (frequent exposure to a small set is
+# the actual mastery mechanic), not a fallback. The only constraint: avoid
+# repeating the exact same word from the immediately preceding round, so two
+# consecutive rounds never show an identical picture back to back. Falls
+# back to allowing that repeat only if the pool is too small to exclude
+# _prev_round_words and still have ROUND_SIZE candidates left (not possible
+# with the current word bank — every Quest has well over ROUND_SIZE words —
+# but kept as graceful degradation rather than a crash if content ever gets
+# sparser).
+func _pick_round_words() -> Array:
+	var pool : Array = _quest_pool.duplicate()
+	if pool.size() > ROUND_SIZE and not _prev_round_words.is_empty():
+		var prev_images : Dictionary = {}
+		for w in _prev_round_words:
+			prev_images[w.get("image", "")] = true
+		var filtered : Array = []
+		for w in pool:
+			if not prev_images.has(w.get("image", "")):
+				filtered.append(w)
+		if filtered.size() >= ROUND_SIZE:
+			pool = filtered
+	pool.shuffle()
+	return pool.slice(0, ROUND_SIZE)
 
 
 func _place_word_in_slot(index: int, word: Dictionary) -> void:
@@ -455,6 +457,7 @@ func _all_slots_empty() -> bool:
 # finish the Quest.
 func _check_round_complete() -> void:
 	if _all_slots_empty():
+		_quest_rounds_done += 1
 		_on_round_complete()
 
 
@@ -922,13 +925,10 @@ func _succeed_attempt(index: int) -> void:
 
 	var slot : Dictionary = _slots[index]
 	var btn  : TextureButton = slot["node"]
-	var word : Dictionary = slot["word"]
 	slot["state"] = ST_EMPTY
 	slot["word"]  = {}
 	slot["node"]  = null
 	_slots[index] = slot
-	_quest_done_words += 1
-	_group_mastered.append(word)
 
 	# Hand this image off to the completed row instead of fading it away —
 	# it stays visible there as a record for the rest of the round. The slot

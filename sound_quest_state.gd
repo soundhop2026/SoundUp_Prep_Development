@@ -127,12 +127,19 @@ static func _resolve_word_audio(letter: String, word: String) -> String:
 
 
 # ─── Quest split ────────────────────────────────────────────────────────────
-# Divides the pool into 4 as-even-as-possible chunks — same base+remainder
-# split already used in gnb_where_am_i.gd's _chunk_sets(). Not hardcoded to
-# any specific word count: content is still evolving, some Groups may
-# temporarily have fewer words than others, or fewer than 4 total (in which
-# case the last chunk(s) come back empty — the gameplay loop is expected to
-# skip an empty Quest and move to the next one).
+# Divides the pool into 4 chunks using the same base+remainder split already
+# used in gnb_where_am_i.gd's _chunk_sets() (e.g. 54 words -> 14/14/13/13),
+# then tops up any chunk smaller than the largest one by borrowing random
+# words from elsewhere in the pool, so every Quest ends up the SAME size
+# (e.g. 14/14/13/13 -> 14/14/14/14). A word repeating across a Quest
+# boundary is fine here — sound_quest.gd's round loop re-samples each
+# Quest's own pool repeatedly by design (that's the mastery mechanic), so
+# uniqueness across the whole Group was never the goal, just a consistent
+# round count per Quest. Not hardcoded to any specific word count: content
+# is still evolving, some Groups may temporarily have fewer words than
+# others, or fewer than 4 total (in which case the last chunk(s) come back
+# empty — the gameplay loop is expected to skip an empty Quest and move to
+# the next one).
 const QUEST_COUNT : int = 4
 
 static func split_into_quests(pool: Array) -> Array:
@@ -145,4 +152,21 @@ static func split_into_quests(pool: Array) -> Array:
 		var size : int = base + (1 if q < extra else 0)
 		quests.append(pool.slice(idx, idx + size))
 		idx += size
+
+	var target_size : int = 0
+	for q in quests:
+		target_size = maxi(target_size, q.size())
+	for q in quests:
+		while q.size() < target_size:
+			var have : Dictionary = {}
+			for w in q:
+				have[w.get("image", "")] = true
+			var candidates : Array = []
+			for w in pool:
+				if not have.has(w.get("image", "")):
+					candidates.append(w)
+			if candidates.is_empty():
+				candidates = pool.duplicate()   # pool smaller than target_size itself; allow repeats within the Quest
+			candidates.shuffle()
+			q.append(candidates[0])
 	return quests

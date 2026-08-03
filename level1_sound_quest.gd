@@ -142,6 +142,16 @@ func _spawn_faces() -> void:
 		_faces.append(btn)
 		_bob_tweens.append(null)
 
+	# The real face must always win any overlap, or a decoy sitting on top
+	# of it can steal clicks meant for it — making it feel unfindable even
+	# when tapped directly at its own center. z_index does NOT control this:
+	# confirmed via simulated-click testing that GUI input hit-testing among
+	# overlapping Controls here resolves by scene-tree child order (last
+	# child wins), regardless of z_index. So the real face is explicitly
+	# moved to be the LAST child after all 46 are spawned, guaranteeing it
+	# always wins regardless of where its random index happened to land.
+	move_child(_faces[_real_index], get_child_count() - 1)
+
 
 # Rejection-sampled placement: retries a random spot within the cluster
 # until it's at least MIN_FACE_SPACING from every already-placed face, or

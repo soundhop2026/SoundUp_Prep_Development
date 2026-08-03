@@ -39,6 +39,13 @@ const FACE_SCALE  : Vector2 = Vector2(0.135, 0.135)
 const CLUSTER_CENTER       : Vector2 = Vector2(640, 340)
 const CLUSTER_HALF_EXTENTS : Vector2 = Vector2(500, 260)   # widened alongside the face-count bump
 
+# Minimum center-to-center distance between any two faces — generous partial
+# overlap is fine (and matches the reference crowd look), but pure random
+# placement occasionally landed two faces almost exactly on top of each
+# other, reading as one blob rather than a crowd.
+const MIN_FACE_SPACING : float = 55.0
+const MAX_PLACEMENT_ATTEMPTS : int = 30
+
 const BOB_AMPLITUDE : float = 8.0
 const BOB_HALF_DUR  : float = 0.3   # one bob = up then down, each half this long
 
@@ -115,6 +122,7 @@ func _spawn_faces() -> void:
 	# distinguish the real one from a decoy until it's actually tapped.
 	var decoy_tex : Texture2D = load(DECOY_TEXTURE_PATH)
 
+	var placed_centers : Array = []
 	for i in range(total):
 		var btn := TextureButton.new()
 		btn.texture_normal      = decoy_tex
@@ -124,11 +132,8 @@ func _spawn_faces() -> void:
 		btn.size         = tex_size
 		btn.pivot_offset = tex_size / 2.0
 
-		var offset : Vector2 = Vector2(
-			randf_range(-1.0, 1.0) * CLUSTER_HALF_EXTENTS.x,
-			randf_range(-1.0, 1.0) * CLUSTER_HALF_EXTENTS.y
-		)
-		var center : Vector2 = CLUSTER_CENTER + offset
+		var center : Vector2 = _pick_face_center(placed_centers)
+		placed_centers.append(center)
 		btn.position = center - btn.pivot_offset
 		btn.set_meta("base_pos", btn.position)
 
@@ -136,6 +141,28 @@ func _spawn_faces() -> void:
 		add_child(btn)
 		_faces.append(btn)
 		_bob_tweens.append(null)
+
+
+# Rejection-sampled placement: retries a random spot within the cluster
+# until it's at least MIN_FACE_SPACING from every already-placed face, or
+# gives up after MAX_PLACEMENT_ATTEMPTS and accepts whatever it last tried
+# (guarantees this always terminates, even if the cluster gets too full to
+# satisfy the spacing everywhere).
+func _pick_face_center(placed_centers: Array) -> Vector2:
+	var candidate : Vector2 = CLUSTER_CENTER
+	for _attempt in range(MAX_PLACEMENT_ATTEMPTS):
+		candidate = CLUSTER_CENTER + Vector2(
+			randf_range(-1.0, 1.0) * CLUSTER_HALF_EXTENTS.x,
+			randf_range(-1.0, 1.0) * CLUSTER_HALF_EXTENTS.y
+		)
+		var far_enough := true
+		for p in placed_centers:
+			if candidate.distance_to(p) < MIN_FACE_SPACING:
+				far_enough = false
+				break
+		if far_enough:
+			return candidate
+	return candidate
 
 
 # ─── Bobbing (the camouflage) ───────────────────────────────────────────────

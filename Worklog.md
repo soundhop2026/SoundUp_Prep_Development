@@ -91,6 +91,39 @@ locked design rules; this file is for session-by-session history and handoff not
   bouncing relative to one fixed canonical position and guarding against re-entrant calls.
 - Commits: `ec492a9`, `18253fc`, `d478610`, `cbe8ecf` — pushed and verified against
   `origin/main` via `git fetch`.
+- Built the Level 1 Sound Quest **Quest Transition** (new `level1_sound_quest.gd`/`.tscn`): a
+  "find the Play Button" hidden-object search mirroring Prep Sound Quest's Quest Transition
+  celebration pattern — decoy Louis faces (`louisfaces/happylouis3-Photoroom.png`) plus the real
+  Play Button, all bobbing continuously; a wrong tap freezes every face for a beat, the correct
+  tap grows/dances/fades the whole crowd out. Reachable standalone via DEBUG -> Demo Shortcuts
+  -> "Test L1 Sound Quest Transition" (4th shortcut added to `debug_menu.gd`). This is only the
+  transition piece — the core Level 1 Sound Quest gameplay (54-face word-cloud sorting into
+  phoneme boxes) is a separate, larger, not-yet-started piece, deliberately deferred until the
+  transition felt right end to end.
+- Found and fixed a real click-routing bug during this build, only caught by testing genuine
+  simulated input (`push_input()` with real `InputEventMouseButton`s), never by calling the
+  `pressed`-bound handler directly (which bypasses Godot's actual input routing entirely):
+  overlapping `Control`s under a plain `Node2D` resolve hit-testing by **scene-tree child order**
+  (last child wins), **not** `z_index` — so the real face, at a random array index, could lose
+  taps to a later-added overlapping decoy. Verified 0/20 clicks landing before the fix, 60/60
+  after, once the real face was guaranteed to always be the last child.
+- Iterated through several rounds of user playtesting/feedback to land on the final feel:
+  corrected a wrong assumption that "Louis" was a re-skinned Play Button (it's a genuine
+  separate character asset); made the real face show `playbutton.png` from spawn instead of
+  swapping textures on tap, since the user wanted the actual Play Button visibly present in the
+  crowd rather than a transform-on-tap surprise; fixed the real face rendering much smaller than
+  every decoy despite an identical scale factor (`playbutton.png`'s drawn face fills only a
+  small fraction of its own canvas vs. Louis filling nearly all of its own — added a separate
+  `REAL_FACE_SCALE` derived from the measured content-size ratio); added, then fully removed, an
+  escalating "hint" pulse on the real face after 7s unresolved, once the user pointed out that
+  *any* motion distinguishing it from the bobbing crowd makes it too easy to find and defeats the
+  point of a hide-and-seek for kids; fixed the real face occasionally landing alone in open space
+  with no neighbors (reads as obviously separate even at matched size) by always nestling its
+  placement against a random already-placed decoy at a small offset; bumped decoy count 45 -> 65
+  for a busier, more fun crowd once size/blending/placement were all correct.
+- Commits: `4e08f0d` (this session's final polish pass) plus several prior commits earlier in
+  the same build (`c3e9c5a`, `ec25d89`, `61d32c6`, `90a5d14`, `86467b2`) — all pushed and verified
+  against `origin/main`.
 
 ### Decisions
 - Sound Quest's word pool is now sourced from each phoneme's actual image folder, not from
@@ -103,16 +136,28 @@ locked design rules; this file is for session-by-session history and handoff not
   "used up." This was a genuine design clarification, not an assumption — my first read of the
   intended round count was wrong (I assumed round count derived from word count via
   `ceil(words/4)`) until walked through explicitly.
+- Level 1 Sound Quest's Quest Transition intentionally has **zero** distinguishing motion or
+  texture difference on the real face beyond its (matched) size and (nestled) placement — the
+  entire difficulty is "look carefully," not a special-cased hint animation. A stuck search is
+  fine; a giveaway is not.
+- Real click-routing in any scene stacking overlapping `Control`s under a `Node2D` must be
+  verified via genuine simulated input events, never by calling the bound handler directly —
+  this session's actual root-cause bug would have been invisible to the latter.
 
 ### Risks / Gotchas
-- None new from this entry beyond the asset-naming quirks noted above (documented in
+- None new from Prep's fixes beyond the asset-naming quirks noted above (documented in
   `sound_quest_state.gd`'s `_resolve_word_audio()`/`_resolve_image_folder()` comments for future
   reference if a new Group's phonemes hit a naming variant not yet seen).
+- Worth remembering for any future scene that stacks overlapping `Control`s under a `Node2D`:
+  `z_index` will **not** resolve input priority there — scene-tree child order does.
 
 ### Next Session
 - Prep's Sound Quest feature (word pool, round/repetition model, layout) is considered settled
-  as of this entry — no outstanding Sound Quest follow-up flagged; next session should pick up
-  whatever the user directs.
+  as of this entry — no outstanding Sound Quest follow-up flagged.
+- Level 1 Sound Quest's Quest Transition is done and playtested to the user's satisfaction as of
+  this entry. Next up (explicitly deferred, not yet started): the core Level 1 Sound Quest
+  word-cloud sorting gameplay itself (54 static faces, drag into 4 phoneme-labeled boxes per
+  round, across 7 Groups / 17 Sets).
 
 ---
 

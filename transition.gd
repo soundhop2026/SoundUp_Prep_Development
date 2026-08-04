@@ -456,6 +456,16 @@ func _play_transition() -> void:
 			get_tree().change_scene_to_file("res://game15.tscn")
 	else:
 		if stars == 3:
+			# Group boundary: Sound Quest mastery practice before moving to
+			# the next Group — checked before the plain continue path below,
+			# same order Prep's prep_transition.gd uses for its own boundary
+			# check. current_index is NOT advanced here; level1_sound_quest.gd
+			# calls LevelProgress.advance() itself once its 4th Quest's
+			# Transition completes — same deferred-advance pattern Prep uses,
+			# so quitting mid-Sound-Quest just re-triggers it on return.
+			if LevelProgress.is_main_set_boundary():
+				_route_to_level1_sound_quest()
+				return
 			if LevelProgress.has_next():
 				LevelProgress.advance()
 				SaveManager.set_level1_set_index(LevelProgress.current_index)
@@ -482,6 +492,14 @@ func _play_transition() -> void:
 				LevelProgress.is_retry = false
 				LevelProgress.retry_rounds.clear()
 				get_tree().change_scene_to_file("res://game.tscn")
+
+
+func _route_to_level1_sound_quest() -> void:
+	var range : Vector2i = LevelProgress.current_group_range()
+	Level1SoundQuestState.group_start_index = range.x
+	Level1SoundQuestState.group_end_index   = range.y
+	get_tree().change_scene_to_file("res://level1_sound_quest.tscn")
+
 
 # ─── Star display helpers ──────────────────────────────────────────────────────
 

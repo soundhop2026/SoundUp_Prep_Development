@@ -266,8 +266,17 @@ func _start_cloud_bob(node: Control) -> void:
 # press+release that never moved far — word audio plays immediately on
 # press either way, so there's no separate tap-vs-drag code path needed.
 
-const HOP_DUR         : float = 0.35   # correct-drop hop into the Bin
-const HOP_ARC_HEIGHT  : float = 50.0
+# Correct-drop choreography, deliberately split into distinct felt beats
+# rather than one blended motion — "Hop!" (pause, lift, arc) then "Home!"
+# (land, squash, shrink, settle).
+const DROP_PAUSE_DUR : float = 0.08   # a beat of "got it!" before Louis reacts
+const HOP_UP_DUR     : float = 0.12   # straight-up liftoff — the "Hop!"
+const HOP_UP_HEIGHT  : float = 24.0
+const ARC_DUR        : float = 0.28   # arc from the hop's apex down into the Bin
+const HOP_ARC_HEIGHT : float = 50.0
+const SQUASH_DUR     : float = 0.11   # brief squash on impact, full size
+const SHRINK_DUR     : float = 0.18   # THEN shrinks to COLLECTED_SCALE — the "Home!"
+const COLLECTED_SCALE : Vector2 = Vector2(0.7, 0.7)
 const COLLECTED_JITTER : Vector2 = Vector2(60.0, 45.0)   # spread across the Bin's real space — a Bin can hold ~11, too tight a jitter turned a full Bin into an unreadable blob
 
 const BREATHE_SCALE : Vector2 = Vector2(1.08, 1.08)
@@ -404,9 +413,15 @@ func _find_bin_at(point: Vector2) -> int:
 
 
 # ─── Correct drop ───────────────────────────────────────────────────────────
-# Full-size hop (a real two-segment arc, not a straight-line slide) into the
-# Bin, lands, then settles into the same gentle bob it had in the cloud —
-# stays full size, since the Bins are now big enough to hold it comfortably.
+# Seven distinct beats, not one blended motion — the player should clearly
+# feel "Hop!" (pause, lift, arc) then "Home!" (land, squash, shrink, settle):
+#   1. pause            — a beat of "got it!" before Louis reacts
+#   2. hop upward        — straight-up liftoff, the "Hop!"
+#   3. arc into the Bin  — from the hop's apex down to its landing spot
+#   4. land at full size
+#   5. brief squash on impact
+#   6. shrink to 70%     — the "Home!"
+#   7. begin gentle bobbing
 func _on_correct_drop(f: TextureRect, bin_index: int) -> void:
 	_busy = true
 	_cloud_faces.erase(f)
@@ -416,15 +431,36 @@ func _on_correct_drop(f: TextureRect, bin_index: int) -> void:
 	var bin : Dictionary = _bins[bin_index]
 	var bin_node : TextureRect = bin["node"]
 	var land_pos : Vector2 = _pick_bin_landing_pos(bin, bin_node) - f.size / 2.0
-
 	var start_pos : Vector2 = f.position
-	var mid_pos   : Vector2 = (start_pos + land_pos) / 2.0 - Vector2(0, HOP_ARC_HEIGHT)
 
-	var hop := create_tween()
-	hop.tween_property(f, "position", mid_pos, HOP_DUR * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	hop.tween_property(f, "position", land_pos, HOP_DUR * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	await hop.finished
+	# 1. Pause.
+	await get_tree().create_timer(DROP_PAUSE_DUR).timeout
 
+	# 2. Hop upward — pure liftoff, no horizontal movement yet.
+	var apex_pos : Vector2 = start_pos - Vector2(0, HOP_UP_HEIGHT)
+	var hop_up := create_tween()
+	hop_up.tween_property(f, "position", apex_pos, HOP_UP_DUR).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await hop_up.finished
+
+	# 3. Arc from the apex into the Bin, then 4. lands at full size.
+	var mid_pos : Vector2 = (apex_pos + land_pos) / 2.0 - Vector2(0, HOP_ARC_HEIGHT)
+	var arc := create_tween()
+	arc.tween_property(f, "position", mid_pos, ARC_DUR * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	arc.tween_property(f, "position", land_pos, ARC_DUR * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	await arc.finished
+
+	# 5. Brief squash on impact, still full size afterward.
+	var squash := create_tween()
+	squash.tween_property(f, "scale", Vector2(1.25, 0.78), SQUASH_DUR * 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	squash.tween_property(f, "scale", Vector2(1.0, 1.0), SQUASH_DUR * 0.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await squash.finished
+
+	# 6. Shrink to 70%.
+	var shrink := create_tween()
+	shrink.tween_property(f, "scale", COLLECTED_SCALE, SHRINK_DUR).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	await shrink.finished
+
+	# 7. Settle into gentle bobbing.
 	move_child(f, get_child_count() - 1)   # settle visually in front of the Bin
 	_start_cloud_bob(f)   # same gentle bob, now anchored at its landed spot inside the Bin
 

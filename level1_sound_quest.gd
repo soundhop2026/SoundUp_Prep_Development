@@ -135,13 +135,49 @@ func _start_quest() -> void:
 	_start_round()
 
 
+const ROUND_FADE_DUR : float = 0.5
+
 # Fully self-contained: nothing carries over from the previous Round. Fresh
 # Word Cloud (every word in this Quest's pool) + fresh 4 Bins (this Round's
-# active phonemes from the schedule) every time.
+# active phonemes from the schedule) every time, fading in — a plain fade,
+# no sound, so a fresh Round never reads as a jump-cut glitch.
 func _start_round() -> void:
+	_busy = true
 	_clear_round()
 	_spawn_word_cloud()
 	_spawn_bins(_round_schedule[_round_index])
+
+	for f in _cloud_faces:
+		f.modulate.a = 0.0
+	for b in _bins:
+		b["node"].modulate.a = 0.0
+
+	var fade := create_tween()
+	fade.set_parallel(true)
+	for f in _cloud_faces:
+		fade.tween_property(f, "modulate:a", 1.0, ROUND_FADE_DUR)
+	for b in _bins:
+		fade.tween_property(b["node"], "modulate:a", 1.0, ROUND_FADE_DUR)
+	await fade.finished
+	_busy = false
+
+
+# Plain fade — no sound, no fanfare — everything from the completed Round
+# fades away together before the next one is built.
+func _fade_out_round() -> void:
+	var fade := create_tween()
+	fade.set_parallel(true)
+	var any : bool = false
+	for f in _cloud_faces:
+		if is_instance_valid(f):
+			fade.tween_property(f, "modulate:a", 0.0, ROUND_FADE_DUR)
+			any = true
+	for b in _bins:
+		if is_instance_valid(b["node"]):
+			fade.tween_property(b["node"], "modulate:a", 0.0, ROUND_FADE_DUR)
+			any = true
+	if any:
+		await fade.finished
 
 
 func _clear_round() -> void:
@@ -509,6 +545,8 @@ func _play_sfx(path: String) -> void:
 # ─── Round -> Quest -> Group completion (wired, exercised once drag/drop lands) ──
 
 func _finish_round() -> void:
+	_busy = true
+	await _fade_out_round()
 	if _round_index + 1 < ROUNDS_PER_QUEST:
 		_round_index += 1
 		_start_round()

@@ -145,6 +145,8 @@ func _start_round() -> void:
 
 
 func _clear_round() -> void:
+	_dragging  = false
+	_drag_face = null
 	for f in _cloud_faces:
 		var t : Tween = f.get_meta("bob_tween", null)
 		if t != null and t.is_valid():
@@ -152,6 +154,9 @@ func _clear_round() -> void:
 		f.queue_free()
 	_cloud_faces.clear()
 	for b in _bins:
+		var bt : Tween = b["node"].get_meta("breathe_tween", null)
+		if bt != null and bt.is_valid():
+			bt.kill()
 		b["node"].queue_free()
 	_bins.clear()
 
@@ -164,23 +169,26 @@ func _spawn_word_cloud() -> void:
 
 	var placed_centers : Array = []
 	for w in _quest_pool:
-		var btn := TextureButton.new()
-		btn.texture_normal      = louis_tex
-		btn.ignore_texture_size = true
-		btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-		btn.size         = tex_size
-		btn.pivot_offset = tex_size / 2.0
+		# Plain TextureRect, not TextureButton — drag needs raw scene-level
+		# input handling (same pattern as game15.gd's sound-count drag), so
+		# a Button's own click detection would just be redundant/conflicting.
+		var rect := TextureRect.new()
+		rect.texture      = louis_tex
+		rect.expand_mode   = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode  = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.mouse_filter  = Control.MOUSE_FILTER_IGNORE   # hit-testing is manual Rect2 checks, not GUI dispatch
+		rect.size         = tex_size
+		rect.pivot_offset = tex_size / 2.0
 
 		var center : Vector2 = _pick_cloud_center(placed_centers)
 		placed_centers.append(center)
-		btn.position = center - btn.pivot_offset
-		btn.set_meta("base_pos", btn.position)
-		btn.set_meta("word", w)
+		rect.position = center - rect.pivot_offset
+		rect.set_meta("base_pos", rect.position)
+		rect.set_meta("word", w)
 
-		btn.pressed.connect(_on_cloud_face_pressed.bind(btn))
-		add_child(btn)
-		_cloud_faces.append(btn)
-		_start_cloud_bob(btn)
+		add_child(rect)
+		_cloud_faces.append(rect)
+		_start_cloud_bob(rect)
 
 
 # Same rejection-sampled placement proven for the Transition's crowd — not
@@ -204,21 +212,241 @@ func _pick_cloud_center(placed_centers: Array) -> Vector2:
 	return candidate
 
 
-func _start_cloud_bob(btn: TextureButton) -> void:
-	var base : Vector2 = btn.get_meta("base_pos")
+func _start_cloud_bob(node: Control) -> void:
+	var base : Vector2 = node.position
 	var t := create_tween()
-	btn.set_meta("bob_tween", t)
+	node.set_meta("bob_tween", t)
 	t.set_loops()
 	t.tween_interval(randf() * CLOUD_BOB_HALF_DUR * 2.0)
-	t.tween_property(btn, "position:y", base.y - CLOUD_BOB_AMPLITUDE, CLOUD_BOB_HALF_DUR).set_ease(Tween.EASE_IN_OUT)
-	t.tween_property(btn, "position:y", base.y, CLOUD_BOB_HALF_DUR).set_ease(Tween.EASE_IN_OUT)
+	t.tween_property(node, "position:y", base.y - CLOUD_BOB_AMPLITUDE, CLOUD_BOB_HALF_DUR).set_ease(Tween.EASE_IN_OUT)
+	t.tween_property(node, "position:y", base.y, CLOUD_BOB_HALF_DUR).set_ease(Tween.EASE_IN_OUT)
 
 
-func _on_cloud_face_pressed(btn: TextureButton) -> void:
-	if _busy:
+# ─── Drag & drop ─────────────────────────────────────────────────────────────
+# Direct-position drag on the real node (not a ghost) — same idiom as
+# game15.gd's sound-count drag (_sc_try_start_drag/_sc_end_drag): raw
+# scene-level input tracks a single dragged node, moving it every frame in
+# _process(), resolved against Bin overlap on release. A "tap" is just a
+# press+release that never moved far — word audio plays immediately on
+# press either way, so there's no separate tap-vs-drag code path needed.
+
+const HOP_DUR         : float = 0.35   # correct-drop hop into the Bin
+const HOP_ARC_HEIGHT  : float = 50.0
+const SHRINK_DUR      : float = 0.2    # shrink to COLLECTED_SCALE, AFTER landing
+const COLLECTED_SCALE : Vector2 = Vector2(0.7, 0.7)
+const COLLECTED_JITTER : Vector2 = Vector2(20.0, 14.0)   # natural overlap inside a Bin, never evenly arranged
+
+const BREATHE_SCALE : Vector2 = Vector2(1.08, 1.08)
+const BREATHE_DUR   : float = 0.6
+
+const WRONG_RESIST_DIST : float = 18.0
+const WRONG_RESIST_DUR  : float = 0.09
+const WRONG_BOUNCE_DUR  : float = 0.3
+
+const EMPTY_GLIDE_DUR : float = 0.25
+
+var _dragging      : bool    = false
+var _drag_face     : TextureRect = null
+var _drag_offset   : Vector2 = Vector2.ZERO
+var _drag_pos      : Vector2 = Vector2.ZERO
+
+
+func _process(_delta: float) -> void:
+	if _dragging and _drag_face != null and is_instance_valid(_drag_face):
+		_drag_face.position = _drag_pos + _drag_offset
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index != MOUSE_BUTTON_LEFT:
+			return
+		if mb.pressed:
+			_try_start_drag(mb.position)
+		elif _dragging:
+			_drag_pos = mb.position
+			_end_drag.call_deferred()
+	elif event is InputEventMouseMotion:
+		if _dragging:
+			_drag_pos = (event as InputEventMouseMotion).position
+	elif event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		if st.pressed:
+			_try_start_drag(st.position)
+		elif _dragging:
+			_drag_pos = st.position
+			_end_drag.call_deferred()
+	elif event is InputEventScreenDrag:
+		if _dragging:
+			_drag_pos = (event as InputEventScreenDrag).position
+
+
+# Checks the topmost (last-drawn) Word Cloud face under the press point —
+# reversed iteration so an overlapping face drawn on top wins, same
+# "child order resolves overlap" behavior confirmed for the Transition's
+# crowd earlier this session.
+func _try_start_drag(pos: Vector2) -> void:
+	if _busy or _dragging:
 		return
-	var w : Dictionary = btn.get_meta("word")
-	_play_sfx(w.get("word_audio", ""))
+	for i in range(_cloud_faces.size() - 1, -1, -1):
+		var f : TextureRect = _cloud_faces[i]
+		if not is_instance_valid(f):
+			continue
+		if Rect2(f.position, f.size).has_point(pos):
+			_dragging     = true
+			_drag_face    = f
+			_drag_offset  = f.position - pos
+			_drag_pos     = pos
+
+			var t : Tween = f.get_meta("bob_tween", null)
+			if t != null and t.is_valid():
+				t.pause()
+			move_child(f, get_child_count() - 1)   # draw on top while held
+
+			var w : Dictionary = f.get_meta("word")
+			_play_sfx(w.get("word_audio", ""))
+			return
+
+
+func _end_drag() -> void:
+	if not _dragging:
+		return
+	_dragging = false
+	var f : TextureRect = _drag_face
+	_drag_face = null
+	if f == null or not is_instance_valid(f):
+		return
+
+	var face_center : Vector2 = f.position + f.size / 2.0
+	var bin_index : int = _find_bin_at(face_center)
+
+	if bin_index >= 0:
+		var w : Dictionary = f.get_meta("word")
+		var word_phoneme : String = String(w.get("phoneme_audio", "")).get_file().get_basename()
+		if word_phoneme == _bins[bin_index]["phoneme"]:
+			_on_correct_drop(f, bin_index)
+		else:
+			_on_wrong_drop_on_bin(f, bin_index)
+	else:
+		_on_drop_empty_space(f)
+
+
+func _find_bin_at(point: Vector2) -> int:
+	for i in range(_bins.size()):
+		var node : TextureButton = _bins[i]["node"]
+		if Rect2(node.position, node.size).has_point(point):
+			return i
+	return -1
+
+
+# ─── Correct drop ───────────────────────────────────────────────────────────
+# Full-size hop (a real two-segment arc, not a straight-line slide) into the
+# Bin, lands, THEN shrinks to 70% and settles into the same gentle bob it
+# had in the cloud — the shrink happens strictly after landing, not during
+# the hop.
+func _on_correct_drop(f: TextureRect, bin_index: int) -> void:
+	_busy = true
+	_cloud_faces.erase(f)
+
+	_play_sfx(GAYAGEUM_CORRECT_PATH)
+
+	var bin : Dictionary = _bins[bin_index]
+	var bin_node : TextureButton = bin["node"]
+	var bin_center : Vector2 = bin_node.position + bin_node.size / 2.0
+	var jitter : Vector2 = Vector2(
+		randf_range(-COLLECTED_JITTER.x, COLLECTED_JITTER.x),
+		randf_range(-COLLECTED_JITTER.y, COLLECTED_JITTER.y))
+	var land_pos : Vector2 = bin_center + jitter - f.size / 2.0
+
+	var start_pos : Vector2 = f.position
+	var mid_pos   : Vector2 = (start_pos + land_pos) / 2.0 - Vector2(0, HOP_ARC_HEIGHT)
+
+	var hop := create_tween()
+	hop.tween_property(f, "position", mid_pos, HOP_DUR * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	hop.tween_property(f, "position", land_pos, HOP_DUR * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	await hop.finished
+
+	var shrink := create_tween()
+	shrink.tween_property(f, "scale", COLLECTED_SCALE, SHRINK_DUR).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	await shrink.finished
+
+	move_child(f, get_child_count() - 1)   # settle visually in front of the Bin
+	_start_cloud_bob(f)   # same gentle bob, now anchored at its landed spot inside the Bin
+
+	var w : Dictionary = f.get_meta("word")
+	bin["collected"].append(w)
+	_check_bin_breathing(bin_index)
+	_busy = false
+	_check_round_complete()
+
+
+func _check_bin_breathing(bin_index: int) -> void:
+	var bin : Dictionary = _bins[bin_index]
+	if bin["breathing"] or bin["collected"].size() < bin["target_count"]:
+		return
+	bin["breathing"] = true
+	var t := create_tween()
+	bin["node"].set_meta("breathe_tween", t)
+	t.set_loops()
+	t.tween_property(bin["node"], "scale", BREATHE_SCALE, BREATHE_DUR).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	t.tween_property(bin["node"], "scale", Vector2(1.0, 1.0), BREATHE_DUR).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _check_round_complete() -> void:
+	for b in _bins:
+		if not b["breathing"]:
+			return
+	_finish_round()
+
+
+# ─── Wrong drop ─────────────────────────────────────────────────────────────
+# On a wrong Bin: Louis visibly resists twice — pushes against the Bin,
+# doesn't slide in — then bounces back to the Word Cloud. No sound, no
+# voice, never actually enters the Bin. In empty space (no Bin at all):
+# just a plain glide back, no resistance choreography.
+func _on_wrong_drop_on_bin(f: TextureRect, bin_index: int) -> void:
+	_busy = true
+	var start_pos : Vector2 = f.position
+	var bin_node  : TextureButton = _bins[bin_index]["node"]
+	var bin_center : Vector2 = bin_node.position + bin_node.size / 2.0
+
+	var away : Vector2 = (start_pos + f.size / 2.0) - bin_center
+	if away == Vector2.ZERO:
+		away = Vector2.UP
+	away = away.normalized() * WRONG_RESIST_DIST
+
+	var resist := create_tween()
+	for _i in range(2):
+		resist.tween_property(f, "position", start_pos + away, WRONG_RESIST_DUR) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		resist.tween_property(f, "position", start_pos, WRONG_RESIST_DUR) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	await resist.finished
+
+	var base_pos : Vector2 = f.get_meta("base_pos")
+	var bounce := create_tween()
+	bounce.tween_property(f, "position", base_pos, WRONG_BOUNCE_DUR) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	await bounce.finished
+
+	_resume_face_bob(f)
+	_busy = false
+
+
+func _on_drop_empty_space(f: TextureRect) -> void:
+	_busy = true
+	var base_pos : Vector2 = f.get_meta("base_pos")
+	var glide := create_tween()
+	glide.tween_property(f, "position", base_pos, EMPTY_GLIDE_DUR).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await glide.finished
+	_resume_face_bob(f)
+	_busy = false
+
+
+func _resume_face_bob(f: TextureRect) -> void:
+	var t : Tween = f.get_meta("bob_tween", null)
+	if t != null and t.is_valid():
+		t.play()
 
 
 # ─── Bins ───────────────────────────────────────────────────────────────────

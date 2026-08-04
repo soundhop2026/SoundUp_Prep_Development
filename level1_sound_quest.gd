@@ -75,8 +75,8 @@ var _quest_phonemes : Array = []
 var _round_schedule : Array = []
 var _round_index    : int   = 0
 
-var _cloud_faces : Array = []   # Array[TextureButton], this round's Word Cloud
-var _bins        : Array = []   # Array[Dictionary] {node, phoneme, phoneme_audio, collected, target_count, breathing}
+var _cloud_faces : Array = []   # Array[TextureRect], this round's Word Cloud
+var _bins        : Array = []   # Array[Dictionary] {node: TextureRect, phoneme, phoneme_audio, collected, target_count, breathing}
 var _busy        : bool  = false   # guards input during round-complete fade / drag resolution
 
 
@@ -268,8 +268,6 @@ func _start_cloud_bob(node: Control) -> void:
 
 const HOP_DUR         : float = 0.35   # correct-drop hop into the Bin
 const HOP_ARC_HEIGHT  : float = 50.0
-const SHRINK_DUR      : float = 0.2    # shrink to COLLECTED_SCALE, AFTER landing
-const COLLECTED_SCALE : Vector2 = Vector2(0.7, 0.7)
 const COLLECTED_JITTER : Vector2 = Vector2(20.0, 14.0)   # natural overlap inside a Bin, never evenly arranged
 
 const BREATHE_SCALE : Vector2 = Vector2(1.08, 1.08)
@@ -317,13 +315,23 @@ func _input(event: InputEvent) -> void:
 			_drag_pos = (event as InputEventScreenDrag).position
 
 
-# Checks the topmost (last-drawn) Word Cloud face under the press point —
+# A press either taps a Bin (plays its phoneme audio, no drag) or starts
+# dragging the topmost (last-drawn) Word Cloud face under the point —
 # reversed iteration so an overlapping face drawn on top wins, same
 # "child order resolves overlap" behavior confirmed for the Transition's
-# crowd earlier this session.
+# crowd earlier this session. Bins are checked first via their tight
+# visible-content rect, not their padded bounding box — the bounding boxes
+# of neighboring Bins actually overlap each other (and dip into the Word
+# Cloud's own area), which was causing a Cloud face tap near a Bin to also
+# fire that Bin's phoneme audio.
 func _try_start_drag(pos: Vector2) -> void:
 	if _busy or _dragging:
 		return
+	for i in range(_bins.size()):
+		var node : TextureRect = _bins[i]["node"]
+		if _bin_visible_rect(node).has_point(pos):
+			_play_sfx(_bins[i].get("phoneme_audio", ""))
+			return
 	for i in range(_cloud_faces.size() - 1, -1, -1):
 		var f : TextureRect = _cloud_faces[i]
 		if not is_instance_valid(f):
@@ -367,19 +375,38 @@ func _end_drag() -> void:
 		_on_drop_empty_space(f)
 
 
+# The bin PNG's drawn cup only fills a fraction of its own canvas — content
+# bbox measured at (473,286)-(968,696) out of a 1536x1024 canvas, i.e.
+# roughly x:[0.308,0.630] y:[0.279,0.680] as fractions of the full texture.
+# Bin bounding boxes are deliberately much bigger than that (so the visible
+# cup itself can render bigger), so neighboring bins' full boxes actually
+# overlap — using the padded box here let a drag land in the wrong
+# neighboring Bin, or made the Word Cloud's audio and a Bin's phoneme audio
+# both fire off one tap. Landing detection uses this tighter rect instead.
+const BIN_CONTENT_FRACTION : Rect2 = Rect2(0.308, 0.279, 0.322, 0.401)
+
+func _bin_visible_rect(node: Control) -> Rect2:
+	return Rect2(
+		node.position + BIN_CONTENT_FRACTION.position * node.size,
+		BIN_CONTENT_FRACTION.size * node.size)
+
+
+func _bin_visible_center(node: Control) -> Vector2:
+	return _bin_visible_rect(node).get_center()
+
+
 func _find_bin_at(point: Vector2) -> int:
 	for i in range(_bins.size()):
-		var node : TextureButton = _bins[i]["node"]
-		if Rect2(node.position, node.size).has_point(point):
+		var node : TextureRect = _bins[i]["node"]
+		if _bin_visible_rect(node).has_point(point):
 			return i
 	return -1
 
 
 # ─── Correct drop ───────────────────────────────────────────────────────────
 # Full-size hop (a real two-segment arc, not a straight-line slide) into the
-# Bin, lands, THEN shrinks to 70% and settles into the same gentle bob it
-# had in the cloud — the shrink happens strictly after landing, not during
-# the hop.
+# Bin, lands, then settles into the same gentle bob it had in the cloud —
+# stays full size, since the Bins are now big enough to hold it comfortably.
 func _on_correct_drop(f: TextureRect, bin_index: int) -> void:
 	_busy = true
 	_cloud_faces.erase(f)
@@ -387,8 +414,8 @@ func _on_correct_drop(f: TextureRect, bin_index: int) -> void:
 	_play_sfx(GAYAGEUM_CORRECT_PATH)
 
 	var bin : Dictionary = _bins[bin_index]
-	var bin_node : TextureButton = bin["node"]
-	var bin_center : Vector2 = bin_node.position + bin_node.size / 2.0
+	var bin_node : TextureRect = bin["node"]
+	var bin_center : Vector2 = _bin_visible_center(bin_node)
 	var jitter : Vector2 = Vector2(
 		randf_range(-COLLECTED_JITTER.x, COLLECTED_JITTER.x),
 		randf_range(-COLLECTED_JITTER.y, COLLECTED_JITTER.y))
@@ -401,10 +428,6 @@ func _on_correct_drop(f: TextureRect, bin_index: int) -> void:
 	hop.tween_property(f, "position", mid_pos, HOP_DUR * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	hop.tween_property(f, "position", land_pos, HOP_DUR * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	await hop.finished
-
-	var shrink := create_tween()
-	shrink.tween_property(f, "scale", COLLECTED_SCALE, SHRINK_DUR).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	await shrink.finished
 
 	move_child(f, get_child_count() - 1)   # settle visually in front of the Bin
 	_start_cloud_bob(f)   # same gentle bob, now anchored at its landed spot inside the Bin
@@ -443,8 +466,8 @@ func _check_round_complete() -> void:
 func _on_wrong_drop_on_bin(f: TextureRect, bin_index: int) -> void:
 	_busy = true
 	var start_pos : Vector2 = f.position
-	var bin_node  : TextureButton = _bins[bin_index]["node"]
-	var bin_center : Vector2 = bin_node.position + bin_node.size / 2.0
+	var bin_node  : TextureRect = _bins[bin_index]["node"]
+	var bin_center : Vector2 = _bin_visible_center(bin_node)
 
 	var away : Vector2 = (start_pos + f.size / 2.0) - bin_center
 	if away == Vector2.ZERO:
@@ -492,14 +515,19 @@ func _spawn_bins(phonemes: Array) -> void:
 	var tex_size : Vector2   = bin_tex.get_size() * BIN_SCALE
 
 	for i in range(phonemes.size()):
-		var btn := TextureButton.new()
-		btn.texture_normal      = bin_tex
-		btn.ignore_texture_size = true
-		btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-		btn.size         = tex_size
-		btn.pivot_offset = tex_size / 2.0
-		btn.position     = Vector2(BIN_X_POSITIONS[i], BIN_ROW_Y) - btn.pivot_offset
-		add_child(btn)
+		# Plain TextureRect, same reasoning as the Word Cloud faces — hit-
+		# testing is manual (via _bin_visible_rect() in _try_start_drag()),
+		# not a Button's own click detection, so the bin's much-bigger-than-
+		# its-visible-cup bounding box never gets treated as clickable.
+		var rect := TextureRect.new()
+		rect.texture      = bin_tex
+		rect.expand_mode   = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode  = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.mouse_filter  = Control.MOUSE_FILTER_IGNORE
+		rect.size         = tex_size
+		rect.pivot_offset = tex_size / 2.0
+		rect.position     = Vector2(BIN_X_POSITIONS[i], BIN_ROW_Y) - rect.pivot_offset
+		add_child(rect)
 
 		var phoneme : String = phonemes[i]
 		var phoneme_audio : String = ""
@@ -510,23 +538,14 @@ func _spawn_bins(phonemes: Array) -> void:
 				if phoneme_audio == "":
 					phoneme_audio = w.get("phoneme_audio", "")
 
-		var bin_index : int = _bins.size()
-		btn.pressed.connect(_on_bin_pressed.bind(bin_index))
-
 		_bins.append({
-			"node": btn,
+			"node": rect,
 			"phoneme": phoneme,
 			"phoneme_audio": phoneme_audio,
 			"collected": [],
 			"target_count": target_count,
 			"breathing": false,
 		})
-
-
-func _on_bin_pressed(bin_index: int) -> void:
-	if _busy:
-		return
-	_play_sfx(_bins[bin_index].get("phoneme_audio", ""))
 
 
 # ─── Shared audio helper ─────────────────────────────────────────────────────

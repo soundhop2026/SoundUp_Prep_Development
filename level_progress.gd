@@ -41,6 +41,30 @@ static var cubes_earned   : int   = 0
 static var retry_rounds : Array = []
 static var is_retry     : bool  = false
 
+# ─── Main-set boundaries ──────────────────────────────────────────────────────
+# 7 Groups (A–G). Each boundary is the index of the LAST sub-set in a Group.
+# A:0-1 | B:2-3 | C:4-6 | D:7-9 | E:10-11 | F:12-13 | G:14-16
+const MAIN_SET_BOUNDARIES : Array[int] = [1, 3, 6, 9, 11, 13, 16]
+
+static func is_main_set_boundary() -> bool:
+	return current_index in MAIN_SET_BOUNDARIES
+
+# Returns which Group (0–6) the current sub-set belongs to.
+static func main_set_number() -> int:
+	for i in range(MAIN_SET_BOUNDARIES.size()):
+		if current_index <= MAIN_SET_BOUNDARIES[i]:
+			return i
+	return MAIN_SET_BOUNDARIES.size() - 1
+
+# Inclusive [start, end] sub-set index range for the Group current_index
+# belongs to (e.g. Group A -> [0, 1]) — used by Level 1 Sound Quest to
+# assemble a Group's combined word pool once is_main_set_boundary() is true.
+static func current_group_range() -> Vector2i:
+	var group   : int = main_set_number()
+	var end_idx : int = MAIN_SET_BOUNDARIES[group]
+	var start_idx : int = 0 if group == 0 else MAIN_SET_BOUNDARIES[group - 1] + 1
+	return Vector2i(start_idx, end_idx)
+
 static func current_set() -> String:
 	return sets[current_index]
 

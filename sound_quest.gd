@@ -244,7 +244,7 @@ func _ready() -> void:
 	add_child(_exit_hand)
 
 	var pool : Array = SoundQuestState.build_word_pool(
-		SoundQuestState.group_start_index, SoundQuestState.group_end_index)
+		PrepLevelProgress.sets.slice(SoundQuestState.group_start_index, SoundQuestState.group_end_index + 1))
 	_quests = SoundQuestState.split_into_quests(pool)
 
 	_quest_index = 0

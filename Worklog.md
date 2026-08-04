@@ -52,6 +52,130 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-08-04
+
+### Completed
+Built the entire Level 1 Sound Quest **Rounds** activity — the core word-cloud-into-bins
+gameplay — on top of the Quest Transition piece from the previous session, and wired the
+whole thing into normal Level 1 progression. Full design structure and scale below.
+
+**Design structure**
+```
+Level 1 Group (A–G, 7 total)
+  → 1 word pool built once, from every phoneme in the Group
+  → split into 1+ phoneme-balanced chunks if the pool is large (a chunk never splits
+    one phoneme's words across two chunks)
+  → N Quests, each replaying one chunk (Quest i uses chunk (i mod chunk_count),
+    cycling back to the first chunk once every chunk has had a turn)
+      → 14 Rounds per Quest, each fully self-contained (nothing carries over):
+          - fresh Word Cloud: every word in that Quest's chunk, scattered (not a grid,
+            natural "wagle-wagle" overlap allowed)
+          - fresh 4 phoneme Bins, this Round's active phonemes from a round-robin
+            schedule built once per Quest
+          - tap a Word Cloud face -> word audio; tap a Bin -> phoneme audio; drag a
+            face onto its matching Bin -> collected
+          - a Bin "breathes" once every word for its phoneme is collected; the Round
+            ends once all 4 active Bins are breathing
+      → after Round 14: Quest Transition (the "find the Play Button" hidden-object
+        hunt, reused as-is from last session) -> next Quest
+  → after the Group's last Quest's Transition: LevelProgress.advance() (deferred until
+    exactly this point, same pattern Prep's Sound Quest already used) -> next Group's
+    first Set, or Level 1.5 if this was the last Group
+```
+
+**Scale — real per-Group numbers** (word counts are each Group's actual, unpadded word
+bank; no artificial repeats to hit a round number):
+
+| Group | Words | Phonemes | Chunks | Quests | Chunk breakdown |
+|---|---|---|---|---|---|
+| A | 54 | 6 | 1 | 4 | 54 |
+| B | 49 | 6 | 1 | 4 | 49 |
+| C | 43 | 6 | 1 | 4 | 43 |
+| D | 100 | 12 | 2 | 8 | 51 / 49 |
+| E | 32 | 5 | 1 | 4 | 32 |
+| F | 178 | 23 | 3 | 3 | 61 / 61 / 56 |
+| G | 95 | 11 | 2 | 8 | 51 / 44 |
+
+D and G get extra Quests (8, not the standard 4) purely for deeper repetition — contrast
+pairs and ending sounds specifically benefit from more passes. F gets fewer (3, not 4) since
+it's "all sounds mixed," material kids already drilled individually elsewhere; each of its 3
+chunks is shown once, no repeats, just full coverage.
+
+**Correct-drop choreography** — seven distinct beats, not one blended motion (pause -> hop
+straight up -> arc down into the Bin -> land at full size -> brief squash on impact -> shrink
+to 80% of original size -> settle into the same gentle bob, now anchored in the Bin). Wrong
+drop onto a Bin: resists twice, bounces back, never enters, no sound. Wrong drop into empty
+space: simple glide back.
+
+**Layout scale**: Word Cloud faces at `CLOUD_FACE_SCALE 0.085` (smaller than the Transition's
+decoys, since up to 178 need to fit); Bins at `BIN_SCALE 0.4` bounding box, but the bin PNG's
+drawn cup only fills ~32%/40% of its own canvas width/height, so all Bin hit-testing (tap AND
+drag-drop landing) uses a measured visible-content rect, not the full padded box — two real
+bugs (a Cloud tap near a Bin also firing that Bin's audio; a correct drag landing in the wrong
+neighboring Bin) both traced to using the padded box for hit-testing instead.
+
+**Files**: new `level1_sound_quest_state.gd` (Group handoff + per-Group Quest counts), major
+rewrite of `level1_sound_quest.gd` (now two phases in one script — Rounds + the existing
+Transition), `sound_quest_state.gd` generalized (`build_word_pool` takes a JSON path list
+instead of hardcoding Prep, new `split_pool_by_phoneme_balanced`/`build_round_schedule`,
+`pad_pool_to_size` added then removed same session once padding was reversed), `level_progress.gd`
+gained `MAIN_SET_BOUNDARIES`/`is_main_set_boundary()`/`current_group_range()` mirroring Prep's,
+`transition.gd` gained the routing hook, `debug_menu.gd` gained two shortcuts (full Group-A
+flow, and transition-only preview).
+
+Commits: `4873059`, `045878f`, `d69bc23`, `498ff08`, `dd8cdb4`, `1d2fdbb`, `2dc722e`, `964da38`,
+`336ab87`, `c306125` — pushed and verified against `origin/main`.
+
+### Decisions
+- **Chunking is by whole phoneme, never by word count alone splitting mid-phoneme** — a Bin
+  needs its full word set available in whichever single chunk/Quest features it.
+- **Word pool padding was tried, then explicitly reversed**: an early version padded any
+  Group's pool up to a 56-word target (repeating a couple of representative words), matching
+  the original design doc. Live testing surfaced this as a real, confusing "two kangaroos"
+  moment, so it was removed entirely — every Group's Word Cloud now shows its exact, real word
+  count, no repeats within a single cloud. Repetition across rounds/Quests (the same word
+  reappearing in a fresh cloud next round) is still the core mastery mechanic and is unaffected.
+- **All Bin/drag hit-testing uses a manual visible-content Rect2, not Godot's `TextureButton`
+  click detection** — tried `texture_click_mask` (a `BitMap` from the texture's alpha) first,
+  but it didn't behave predictably with `ignore_texture_size`/custom `stretch_mode`; fell back
+  to the same manual-Rect2 approach already proven for the Word Cloud instead. Bins ended up as
+  plain `TextureRect` (like Word Cloud faces), not `TextureButton`, for the same reason.
+- **A face's Word Cloud bob tween must be explicitly killed, not just left paused, when it's
+  correctly dropped** — relying on `_try_start_drag()`'s pause (which only fires on a real
+  drag-start) left a live bug risk for any code path that could reach `_on_correct_drop()`
+  another way; now killed unconditionally at the top of that function regardless of entry path.
+- **Collected-Louis placement is rejection-sampled with a "least-bad fallback,"** not pure
+  random jitter — a Bin can hold up to ~11 words but its visible cup only has room for ~6-8
+  non-overlapping full-size faces, so once genuinely crowded, no candidate satisfies the target
+  spacing; tracking the least-bad attempt (most breathing room found) instead of just taking
+  the last random try keeps a full Bin at ~50% overlap instead of an unreadable stack.
+
+### Risks / Gotchas
+- **Godot's GUI hit-testing for overlapping Controls resolves by scene-tree child order, not
+  z_index or bounding-box precision** — worth remembering for any future scene stacking visual
+  elements with padded/transparent textures; the Bin bugs this session were exactly this.
+- A newly added `.gd` file with `class_name` (like `level1_sound_quest_state.gd`) needs an
+  editor scan (`godot --headless --path . --editor --quit-after 60`) before a headless test can
+  reference it — otherwise `Identifier "X" not declared in the current scope`.
+- `SHRINK_DUR`/`COLLECTED_SCALE` naming in code: "shrink to 70%" and "shrink by 20%" are very
+  different outcomes (end at 0.7 vs end at 0.8) — worth double-checking which convention is
+  meant whenever a percentage-based visual change is requested, this session got it wrong once
+  before confirming via a screenshot.
+
+### Next Session
+- **No live playthrough yet** — everything this session was verified headlessly (real simulated
+  input, not calling handlers directly) and via windowed screenshots, but nobody has played a
+  full Quest start-to-finish, a full Group through to the next one, or touched Groups D/F/G
+  live at all (only Group A). Planned for tomorrow.
+- Watch specifically for: the Quest-to-Quest and Group-to-Group handoffs under real play (only
+  structurally verified via a headless force-completed test), and how the bigger Word Clouds
+  (D: 100, G: 95, F: up to 178) actually feel to search through on a real device.
+- Mobile-device check still outstanding (raised, not yet verifiable from this environment) —
+  the canvas is logical-resolution-scaled so relative sizing should hold, but worth a real
+  device pass regardless.
+
+---
+
 ## 2026-08-03
 
 ### Completed

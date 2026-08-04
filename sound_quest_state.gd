@@ -195,39 +195,6 @@ static func phonemes_in_pool(pool: Array) -> Array:
 	return sorted_letters
 
 
-# Pads a pool up to target_size (~56) by repeating existing words — round-
-# robin across phonemes, and round-robin within each phoneme's own word
-# list, so repeats stay spread out rather than piling onto one word or one
-# phoneme. A no-op if the pool already meets or exceeds target_size.
-static func pad_pool_to_size(pool: Array, target_size: int) -> Array:
-	if pool.is_empty() or pool.size() >= target_size:
-		return pool.duplicate()
-
-	var by_phoneme : Dictionary = {}   # letter -> Array of this phoneme's pool entries
-	for w in pool:
-		var letter : String = String(w.get("phoneme_audio", "")).get_file().get_basename()
-		if not by_phoneme.has(letter):
-			by_phoneme[letter] = []
-		by_phoneme[letter].append(w)
-
-	var letters : Array = by_phoneme.keys()
-	letters.sort()   # deterministic order
-
-	var cursor : Dictionary = {}   # letter -> next repeat index into its own word list
-	for letter in letters:
-		cursor[letter] = 0
-
-	var padded : Array = pool.duplicate()
-	var li : int = 0
-	while padded.size() < target_size:
-		var letter : String = letters[li % letters.size()]
-		var words  : Array  = by_phoneme[letter]
-		padded.append(words[cursor[letter] % words.size()])
-		cursor[letter] += 1
-		li += 1
-	return padded
-
-
 # Builds a round_count-long schedule of bins_per_round active phonemes each,
 # round-robin balanced via a shuffle-and-refill "bag" (draw phonemes without
 # repeats until the bag empties, then reshuffle a fresh bag) so every

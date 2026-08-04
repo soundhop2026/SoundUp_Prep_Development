@@ -41,7 +41,6 @@ var _font : Font = null
 # ROUNDS PHASE
 # ═══════════════════════════════════════════════════════════════════════════
 
-const POOL_PAD_TARGET   : int = 56   # Groups smaller than this get padded up
 const CHUNK_SIZE_TARGET : int = 60   # Groups bigger than this split into chunks this size or smaller
 const ROUNDS_PER_QUEST  : int = 14
 const BINS_PER_ROUND    : int = 4
@@ -101,10 +100,11 @@ func _ready() -> void:
 		_start_quest()
 
 
-# Builds this Group's complete word pool (once), pads it up if it's small,
-# and splits it into phoneme-balanced chunks if it's big — see
-# sound_quest_state.gd's split_pool_by_phoneme_balanced() for why chunks
-# are split by whole phoneme, never mid-phoneme.
+# Builds this Group's complete word pool (once) — its real, natural word
+# count, no padding to hit a round number — and splits it into phoneme-
+# balanced chunks if it's big. See sound_quest_state.gd's
+# split_pool_by_phoneme_balanced() for why chunks are split by whole
+# phoneme, never mid-phoneme.
 func _setup_group() -> void:
 	_group_number = 0
 	for i in range(LevelProgress.MAIN_SET_BOUNDARIES.size()):
@@ -114,9 +114,8 @@ func _setup_group() -> void:
 
 	var json_paths : Array = LevelProgress.sets.slice(
 		Level1SoundQuestState.group_start_index, Level1SoundQuestState.group_end_index + 1)
-	var raw_pool    : Array = SoundQuestState.build_word_pool(json_paths)
-	var padded_pool : Array = SoundQuestState.pad_pool_to_size(raw_pool, POOL_PAD_TARGET)
-	_group_chunks = SoundQuestState.split_pool_by_phoneme_balanced(padded_pool, CHUNK_SIZE_TARGET)
+	var raw_pool : Array = SoundQuestState.build_word_pool(json_paths)
+	_group_chunks = SoundQuestState.split_pool_by_phoneme_balanced(raw_pool, CHUNK_SIZE_TARGET)
 	_quest_count  = Level1SoundQuestState.quest_count_for_group(_group_number)
 
 

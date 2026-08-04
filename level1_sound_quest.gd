@@ -276,7 +276,7 @@ const ARC_DUR        : float = 0.28   # arc from the hop's apex down into the Bi
 const HOP_ARC_HEIGHT : float = 50.0
 const SQUASH_DUR     : float = 0.11   # brief squash on impact, full size
 const SHRINK_DUR     : float = 0.18   # THEN shrinks to COLLECTED_SCALE — the "Home!"
-const COLLECTED_SCALE : Vector2 = Vector2(0.7, 0.7)
+const COLLECTED_SCALE : Vector2 = Vector2(0.8, 0.8)   # shrinks BY 20%, not down to 20%
 const COLLECTED_JITTER : Vector2 = Vector2(60.0, 45.0)   # spread across the Bin's real space — a Bin can hold ~11, too tight a jitter turned a full Bin into an unreadable blob
 
 const BREATHE_SCALE : Vector2 = Vector2(1.08, 1.08)
@@ -425,6 +425,15 @@ func _find_bin_at(point: Vector2) -> int:
 func _on_correct_drop(f: TextureRect, bin_index: int) -> void:
 	_busy = true
 	_cloud_faces.erase(f)
+
+	# The Word Cloud bob tween normally gets paused when a drag starts
+	# (_try_start_drag), but kill it outright here rather than relying on
+	# that — a still-running (or later-resumed) old bob tween would keep
+	# writing position:y toward its ORIGINAL cloud base_pos, fighting the
+	# hop/arc/land sequence below for control of the same property.
+	var old_bob : Tween = f.get_meta("bob_tween", null)
+	if old_bob != null and old_bob.is_valid():
+		old_bob.kill()
 
 	_play_sfx(GAYAGEUM_CORRECT_PATH)
 

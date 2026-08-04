@@ -437,28 +437,40 @@ func _on_correct_drop(f: TextureRect, bin_index: int) -> void:
 
 # Rejection-sampled, same idea as the Word Cloud's own placement — spreads
 # collected Louis across the Bin's real visible space instead of piling
-# them all near-exactly on top of each other, while still allowing natural
-# closeness/overlap once a Bin gets crowded (never a forced grid).
+# them all near-exactly on top of each other. 34px against a ~64-66px face
+# is roughly 50% overlap — as much closeness as intended, not more. A Bin
+# can hold up to ~11, and the visible cup only has room for ~6-8 full-size
+# faces with zero overlap at all, so once it's genuinely crowded no
+# candidate will satisfy the full spacing — track the LEAST-bad attempt
+# seen (the one with the most breathing room) instead of just taking
+# whatever the last random try happened to be, so a crowded Bin degrades
+# to "somewhat more overlap" rather than "stacked almost exactly."
 const COLLECTED_MIN_SPACING  : float = 34.0
 const COLLECTED_MAX_ATTEMPTS : int = 20
 
 func _pick_bin_landing_pos(bin: Dictionary, bin_node: Control) -> Vector2:
 	var center : Vector2 = _bin_visible_center(bin_node)
 	var placed : Array = bin["collected_positions"]
-	var candidate : Vector2 = center
+	if placed.is_empty():
+		placed.append(center)
+		return center
+
+	var best_candidate : Vector2 = center
+	var best_min_dist  : float = -1.0
 	for _attempt in range(COLLECTED_MAX_ATTEMPTS):
-		candidate = center + Vector2(
+		var candidate : Vector2 = center + Vector2(
 			randf_range(-COLLECTED_JITTER.x, COLLECTED_JITTER.x),
 			randf_range(-COLLECTED_JITTER.y, COLLECTED_JITTER.y))
-		var far_enough := true
+		var closest : float = INF
 		for p in placed:
-			if candidate.distance_to(p) < COLLECTED_MIN_SPACING:
-				far_enough = false
-				break
-		if far_enough:
+			closest = minf(closest, candidate.distance_to(p))
+		if closest > best_min_dist:
+			best_min_dist  = closest
+			best_candidate = candidate
+		if best_min_dist >= COLLECTED_MIN_SPACING:
 			break
-	placed.append(candidate)
-	return candidate
+	placed.append(best_candidate)
+	return best_candidate
 
 
 func _check_bin_breathing(bin_index: int) -> void:

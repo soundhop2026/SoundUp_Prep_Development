@@ -268,7 +268,7 @@ func _start_cloud_bob(node: Control) -> void:
 
 const HOP_DUR         : float = 0.35   # correct-drop hop into the Bin
 const HOP_ARC_HEIGHT  : float = 50.0
-const COLLECTED_JITTER : Vector2 = Vector2(20.0, 14.0)   # natural overlap inside a Bin, never evenly arranged
+const COLLECTED_JITTER : Vector2 = Vector2(60.0, 45.0)   # spread across the Bin's real space — a Bin can hold ~11, too tight a jitter turned a full Bin into an unreadable blob
 
 const BREATHE_SCALE : Vector2 = Vector2(1.08, 1.08)
 const BREATHE_DUR   : float = 0.6
@@ -415,11 +415,7 @@ func _on_correct_drop(f: TextureRect, bin_index: int) -> void:
 
 	var bin : Dictionary = _bins[bin_index]
 	var bin_node : TextureRect = bin["node"]
-	var bin_center : Vector2 = _bin_visible_center(bin_node)
-	var jitter : Vector2 = Vector2(
-		randf_range(-COLLECTED_JITTER.x, COLLECTED_JITTER.x),
-		randf_range(-COLLECTED_JITTER.y, COLLECTED_JITTER.y))
-	var land_pos : Vector2 = bin_center + jitter - f.size / 2.0
+	var land_pos : Vector2 = _pick_bin_landing_pos(bin, bin_node) - f.size / 2.0
 
 	var start_pos : Vector2 = f.position
 	var mid_pos   : Vector2 = (start_pos + land_pos) / 2.0 - Vector2(0, HOP_ARC_HEIGHT)
@@ -437,6 +433,32 @@ func _on_correct_drop(f: TextureRect, bin_index: int) -> void:
 	_check_bin_breathing(bin_index)
 	_busy = false
 	_check_round_complete()
+
+
+# Rejection-sampled, same idea as the Word Cloud's own placement — spreads
+# collected Louis across the Bin's real visible space instead of piling
+# them all near-exactly on top of each other, while still allowing natural
+# closeness/overlap once a Bin gets crowded (never a forced grid).
+const COLLECTED_MIN_SPACING  : float = 34.0
+const COLLECTED_MAX_ATTEMPTS : int = 20
+
+func _pick_bin_landing_pos(bin: Dictionary, bin_node: Control) -> Vector2:
+	var center : Vector2 = _bin_visible_center(bin_node)
+	var placed : Array = bin["collected_positions"]
+	var candidate : Vector2 = center
+	for _attempt in range(COLLECTED_MAX_ATTEMPTS):
+		candidate = center + Vector2(
+			randf_range(-COLLECTED_JITTER.x, COLLECTED_JITTER.x),
+			randf_range(-COLLECTED_JITTER.y, COLLECTED_JITTER.y))
+		var far_enough := true
+		for p in placed:
+			if candidate.distance_to(p) < COLLECTED_MIN_SPACING:
+				far_enough = false
+				break
+		if far_enough:
+			break
+	placed.append(candidate)
+	return candidate
 
 
 func _check_bin_breathing(bin_index: int) -> void:
@@ -543,6 +565,7 @@ func _spawn_bins(phonemes: Array) -> void:
 			"phoneme": phoneme,
 			"phoneme_audio": phoneme_audio,
 			"collected": [],
+			"collected_positions": [],
 			"target_count": target_count,
 			"breathing": false,
 		})

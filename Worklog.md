@@ -52,6 +52,120 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-08-06
+
+### Completed
+Pure design session — no code changed. Investigated Level 1.5's real structure, reviewed the
+user's first-draft Level 1.5 Sound Quest spec, and locked the round-generation rules plus
+Set/round counts for Quest A and Quest B, grounded in the actual word data (not the doc's
+illustrative examples).
+
+**Level 1.5 structure (investigated, not previously documented anywhere in this repo):**
+- Main scene `game15.gd` (1717 lines), tracked by `Level15Progress` (13 Sets across 6 Groups
+  A–F, same 3-star scoring as Level 1). Reuses `transition.gd`/`transition.tscn` internally via
+  a `_for_l15` flag rather than having its own transition scene.
+- Unlike Level 1 (one skill: hear phoneme, pick word), Level 1.5 covers **four different
+  skills**: initial/final identification (A/B, tap-choice), initial/final isolation (C/D,
+  tap-choice), build-the-word (E, drag phoneme tiles to assemble a word), sound-count (F,
+  drag/tap to count a word's sounds).
+- Data model is entirely different from Level 1's per-phoneme-folder scan: `data/words.json`
+  (130 words, keyed by word, each with explicit precomputed `initial`/`final`/`vowel`/
+  `phonemes[]`/`structure` fields — CVC=70, CCVC=28, CVCC=19, CCVCC=13) + `data/phonemes.json`
+  (pure metadata, audio path + consonant/vowel type, no word back-references). A Set's word
+  pool = every word whose `structure` is in that Set's `allowed_structures` array — no
+  target-phoneme field anywhere in the round configs, it's derived from pooled words'
+  `initial`/`final` at runtime.
+- New asset folders, both **flat, organized by whole word** (not per-phoneme like Level 1):
+  `SoundUp_level1.5_word_images/{word}.png`, `BGM&effect/SoundUp_level1.5_word_sounds/{word}.wav`.
+  Consonant phoneme audio is reused directly from Level 1's existing `SoundUp_level1_phonemes/`
+  folder (not duplicated); only the 5 short-vowel clips are new, living in the 1.5 sounds folder.
+
+**Quest A/B locked design** (Quest A = initial-phoneme identification, Quest B = final-phoneme):
+- Both draw from the same 117-word pool (CVC+CCVC+CVCC).
+- **Target phoneme selection**: a phoneme is eligible as a round's target only if it has ≥3
+  *usable* words — critically, usable = total matching words **minus 1**, since the target
+  word itself is never included in its own correct pool (its picture is the thing being
+  revealed, not a patch). This "minus 1" shift actually flips a few phonemes below the floor
+  that looked valid at first glance (`w`, `g` for Quest A; `b`, `ng` for Quest B — each had
+  exactly 3 total words, only 2 once the target is excluded).
+- **Correct pool (floor/ceiling)**: usable 3–5 → use all as a smaller valid round; usable 6–10
+  → use all; usable >10 → randomly redraw a fresh 6–10 subset each time (not fixed), so repeat
+  visits to a rich phoneme surface different words over time.
+- **Distractors**: floor/ceiling only ever gates the *correct* pool — any word is eligible as a
+  distractor regardless of its own phoneme's frequency, as long as it doesn't share the
+  round's actual target phoneme (same Phoneme-Based Distractor Rule already locked for Level 1
+  — spelling-independent). Target pool size: ~14–18 distractors per round.
+- **Patch logic**: Option A confirmed — the target image's patch layout is driven by the
+  image's own predefined regions (e.g. fish = head/body/tail/fin), not a generic grid; correct
+  words are selected to match however many regions that specific image has, not the other way
+  around. Flagged, not yet resolved: this implies per-word custom patch-region art (106 eligible
+  words for Quest A, 109 for Quest B could each need bespoke regions under a literal reading) —
+  open question whether that's really per-word bespoke or a small set of reusable N-region
+  templates shared across words needing the same patch count.
+- **Round/Set structure — locked**: Quest A = 4 Sets × 8 rounds = 32 total (12 eligible initial
+  phonemes fit inside this cleanly, avg ~2.7 rounds/phoneme). Quest B = 5 Sets × 8 rounds = 40
+  total (revised down from an initial 5×10=50 after a pacing discussion — 8 eligible final
+  phonemes divides Quest B's 8-rounds-per-Set exactly evenly, no leftover-round weighting
+  needed, avg 5.0 rounds/phoneme). The revision wasn't a word-pool problem (the data was fine)
+  — it was a pacing call: a Quest A/B round is a heavier task than a Level 1 round (sift 14-18
+  distractors, drag multiple correct words, watch an image build), so raw round-count parity
+  with Level 1 isn't the right comparison.
+
+**Real per-phoneme data** (117-word A/B/C/D pool, eligible = usable ≥3 after target exclusion):
+- Quest A eligible (12): `s:16, k:12, b:10, p:10, m:9, t:9, h:6, d:6, l:5, j:4, r:4, f:3`.
+  Excluded entirely (usable ≤2, can only ever be a distractor): `v, n, z`.
+- Quest B eligible (8): `p:22, t:19, g:16, n:16, d:10, m:8, k:7, x_ks:3`.
+  Excluded entirely: `s, l, b, ng`.
+- Flagged as a possible real gap (not fixable in round-generation logic, a data-coverage
+  question): Quest A's `f/j/r/l` only ever get 1 round each (thin, no repeat value) despite
+  being fairly fundamental sounds for early readers — just thin *in this specific word list*.
+
+Assets already uploaded and present in `soundquest/assets/`, ready for whenever building
+starts: `playbutton_bridge_level15_soundquest_transition.png.png`,
+`playbutton_level15_soundquest_F_bleh.wav`, `playbutton_level15_soundquest_F_nom.wav`,
+`quest_level15_bgm.mp3`. Not yet uploaded: Quest E's ladder frame/branch PNGs.
+
+Commit: (this entry) — pushed and verified against `origin/main`.
+
+### Decisions
+- Design work for Level 1.5 Sound Quest is happening in conversation + real-data verification
+  (Python scripts against `data/words.json`/`phonemes.json`, not Godot) before any code gets
+  written — same "verify real numbers before building" discipline as Level 1's Sound Quest,
+  just applied earlier in the process since the mechanic itself is still being designed.
+- "Sound Quest Set" (this session's agreed term) = a single 14-round-equivalent replay cycle,
+  matching what Level 1's code calls a "Quest" internally (e.g. `_quest_index`) — potential
+  future naming collision to watch for if/when Level 1.5 code actually gets written, since
+  Level 1.5 also has its own native "Set" concept (`set_1a`, `set_1b`, etc.) meaning something
+  different (a Group's own sub-unit, not a Sound Quest replay cycle).
+- Floor/ceiling rules apply only to the correct (patch) pool — distractor eligibility is
+  governed only by the existing Phoneme-Based Distractor Rule, never by word-frequency.
+
+### Risks / Gotchas
+- The "no letters, ever" rule (CLAUDE.md, locked) hasn't been explicitly re-confirmed against
+  Quest C/D's phoneme bubbles or Quest E's ladder steps yet — the draft spec's own diagrams use
+  text labels like `/f/` as human-readable shorthand, presumed not literal on-screen text (same
+  as Level 1's unlabeled phoneme bins, told apart only by tapping), but this needs an explicit
+  confirmation before C/D/E get built, not just assumed.
+- Terminology overload: "Quest A" in this conversation's shorthand = the whole Group A Sound
+  Quest activity; within it, "Sound Quest Set" = one replay cycle. Keep these distinct in any
+  future spec doc — conflating them caused one real back-and-forth this session already.
+
+### Next Session
+- C/D (isolation) and E/F (build-word, sound-count) still need the same locked-rule treatment
+  Quest A/B just got — target selection, pool floor/ceiling if applicable, Set/round counts
+  grounded in real data.
+- Still open even for A/B: patch reveal animation, correct-placement sound, wrong-drag behavior
+  (wrong-drag likely reuses Level 1 Sound Quest's resist-twice-bounce-back, per the user's own
+  note), and the per-word-vs-template patch-art question.
+- The Level 1.5 Quest Transition (Play Button walks a bridge to meet friend Play Buttons) reads
+  as a pure scripted cutscene with no tap/search interaction, unlike Level 1's hidden-object
+  hunt — flagged as a question to the user, not yet confirmed intentional.
+- No code exists yet for any of this — next actual implementation session should probably start
+  wherever the full A–F rule set is locked, likely mirroring Level 1 Sound Quest's own build
+  order (data layer first, verified headless, before any visuals).
+
+---
+
 ## 2026-08-04
 
 ### Completed

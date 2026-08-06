@@ -345,10 +345,16 @@ const ROUND_FADE_DUR      : float = 0.3
 
 # A "Sound Quest Set" is one 8-round chunk (locked 2026-08-06: Quest A = 4
 # Sets x 8 = 32 rounds, Quest B = 5 Sets x 8 = 40 rounds — both divide evenly,
-# no partial Set). The short between-Set Transition (Play Button walks
-# across, no story/music) plays at every Set boundary, including the very
-# last one before a Quest-to-Quest handoff — mirrors Level 1 Sound Quest's
-# own "Transition always plays, then routing decides what's next" order.
+# no partial Set).
+#
+# Two-tier Transition rule (corrected 2026-08-06 follow-up — the original
+# session draft had this backwards, treating the Long Transition as a
+# one-time first-entry moment; it is NOT):
+#   - Short Transition: every Set boundary WITHIN a Quest (e.g. A1->A2,
+#     A2->A3, A3->A4).
+#   - Long Story Transition: a Quest's FINAL Set boundary only (e.g. A4's
+#     completion) — the Short Transition does NOT also play there. Plays once
+#     per Quest type (A-F), 6 times total across all of Level 1.5 Sound Quest.
 const ROUNDS_PER_SET : int = 8
 
 func _on_round_complete() -> void:
@@ -361,10 +367,15 @@ func _on_round_complete() -> void:
 	var rounds_done : int = _round_index + 1
 	_round_index += 1
 
-	if rounds_done % ROUNDS_PER_SET == 0:
-		await _play_short_transition()
+	var quest_finished : bool = _round_index >= _schedule.size()
+	var set_boundary   : bool = rounds_done % ROUNDS_PER_SET == 0
 
-	if _round_index >= _schedule.size():
+	if set_boundary and not quest_finished:
+		await _play_short_transition()
+	elif quest_finished:
+		await _play_long_transition()
+
+	if quest_finished:
 		_on_quest_complete()
 		return
 
@@ -375,10 +386,6 @@ func _on_round_complete() -> void:
 
 # ─── Short between-Set Transition (locked design, "no letters" n/a — no ─────
 # ─── target/bubble content shown, just Play Button walking) ────────────────
-# The one-time full-story bridge Transition (first-ever entry into Level 1.5
-# Sound Quest) is NOT built here — blocked on which of the two bridge PNGs in
-# soundquest/assets/ is current (playbutton_bridge_..._transition.png.png vs
-# bridge_..._transition.png), unresolved as of this pass.
 
 const SHORT_TRANSITION_PLAYBUTTON : String = "res://UI_assets/playbutton.png"
 const SHORT_TRANSITION_SIZE   : Vector2 = Vector2(160, 160)
@@ -402,6 +409,22 @@ func _play_short_transition() -> void:
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	await walk.finished
 	face.queue_free()
+
+
+# ─── Long Story Transition — PLACEHOLDER ────────────────────────────────────
+# The real bridge/friend-group choreography needs soundquest/assets/'s bridge
+# PNG, and which of the two coexisting bridge files
+# (playbutton_bridge_..._transition.png.png vs bridge_..._transition.png) is
+# current is still an open question, unresolved as of this pass. This plays a
+# simple placeholder beat instead, so the Short-vs-Long control flow at Set
+# boundaries is correct and testable now; swap the body for the real
+# choreography once the bridge asset question is settled.
+
+const LONG_TRANSITION_HOLD : float = 1.0
+
+func _play_long_transition() -> void:
+	print("Level 1.5 Sound Quest — Long Story Transition (placeholder, bridge asset TBD)")
+	await get_tree().create_timer(LONG_TRANSITION_HOLD).timeout
 
 
 func _fade_out_round() -> void:

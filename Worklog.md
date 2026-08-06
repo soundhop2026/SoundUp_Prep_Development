@@ -258,11 +258,46 @@ mechanic, only the `position` field ("initial"/"final") and round count differ.
   own Set/Group flow) — deliberately left a stubbed print, since Level 1.5 doesn't have Level 1's
   `MAIN_SET_BOUNDARIES`-style boundary model built for it yet and that needs its own
   investigation, not an assumption.
-- Quest C/D/E/F have zero implementation yet — only Quest A/B exists.
 
-Commits: `8cdecd2`, `ab0dc86`, `ba98132`, `a5193e4` (this implementation progress) — pushed and
-verified against `origin/main`. The Long Transition build + patch-region/Quest-E confirmations
-land in the next commit after this entry's update.
+**Refactor (same pass)**: extracted the Short/Long Transition choreography out of
+`level15_sound_quest_ab.gd` into a new shared `level15_sound_quest_transitions.gd`
+(`Level15SoundQuestTransitions`, instantiated as a child, `play_short()`/`play_long()`) —
+Quest C/D needed the identical behavior, and duplicating ~200 lines of choreography across
+quest types would mean every future tweak has to land in multiple places. No behavior change,
+re-verified headless against Quest A/B afterward.
+
+**Quest C/D built** (initial/final isolation — continuously-rising phoneme bubbles):
+- `level15_sound_quest_state.gd` gained `phoneme_frequencies()`, `cd_target_bubble_count()`
+  (linear-scaled 4-10), `cd_build_distractor_phonemes()` — verified headless against the real
+  117-word pool: 17 eligible initial phonemes, 12 eligible final, every distractor set correctly
+  excludes the target with no duplicates.
+- `level15_sound_quest_cd.gd`/`.tscn` + `level15_sound_quest_cd_state.gd`: 20 bubbles per round
+  (a single reusable `bubble_level15_soundquest_C_D.png`, phonemes told apart only by
+  tap-to-hear audio) continuously rise from the bottom and loop back if uncollected; drag a
+  matching bubble onto Play Button to collect, wrong drags silently bump away and keep rising,
+  never destroyed. Reuses the new shared Transitions component
+  (`ROUNDS_PER_SET = 14`, 4 Sets x 14 = 56 rounds) and the same state-reset-plus-reload handoff
+  pattern for Quest C -> D.
+- Verified: windowed-mode simulated drag/drop confirms both correct collection and wrong-drop
+  bump-away; headless direct-call tests confirm bubble/target counts match the data layer exactly
+  and Set-boundary/quest-complete timing and state handoff are correct.
+
+**Real finding, worth remembering**: `--headless` mode's `push_input()` reports a broken/sentinel
+mouse position (`(2000, 2000)`, regardless of what's set on the event) for
+`InputEventMouseButton`/`InputEventMouseMotion` in this Godot build — not a bug in game code.
+Windowed mode reports positions correctly and is the only reliable way to verify real drag input.
+This means every "headless, verified via real simulated `push_input()`" claim earlier in this
+session's Quest A/B work actually used **direct function calls** (`_try_start_drag()`,
+`_on_correct_drop()`, etc.), not real `push_input()` — those were still valid tests of the logic,
+just not of input *routing* specifically. The only two-sided routing verification (headless AND
+windowed, both agreeing) happened for Quest C/D's drag test, which is what surfaced this.
+Future sessions: use windowed mode (drop `--headless`) for any test that needs to prove
+`push_input()` actually reaches `_input()` with the right coordinates.
+
+Quest E/F still have zero implementation — Quest A/B and C/D both exist now.
+
+Commits: `8cdecd2`, `ab0dc86`, `ba98132`, `a5193e4`, `2c9a06b`, `bdc6e3a`, `1df7ef7`, `6d187e6`
+— pushed and verified against `origin/main`.
 
 Commit: (this entry, updated) — pushed and verified against `origin/main`.
 
@@ -302,12 +337,14 @@ Commit: (this entry, updated) — pushed and verified against `origin/main`.
 - **Design phase for Level 1.5 Sound Quest is complete** — all six Quest types (A-F) and the
   two-tier Transition scene are fully locked, verified against real data where it mattered
   (A/B/C/D/E/F all pressure-tested, not just designed on paper).
-- **Implementation of Quest A/B is functionally complete**: round shell, drag/drop, round
-  advance, Set boundaries, Short Transition, real Long Story Transition (bridge/crowd/hesitate/
-  fail/succeed/join/exit), and the Quest A->B handoff — all built and headless-verified. **No
-  live/on-device playthrough yet** — the Long Transition especially needs a visual-feel pass
+- **Implementation of Quest A/B and Quest C/D is functionally complete**: round shell, drag/drop,
+  round advance, Set boundaries, Short Transition, real Long Story Transition (bridge/crowd/
+  hesitate/fail/succeed/join/exit, now shared via `Level15SoundQuestTransitions`), and the
+  Quest A->B / Quest C->D handoffs — all built and verified (Quest C/D's drag/drop specifically
+  windowed-mode-verified with real `push_input()`, see the headless `push_input` finding above).
+  **No live/on-device playthrough yet** — the Long Transition especially needs a visual-feel pass
   (sizing, hesitation feel, crowd density) once the user can actually watch it, same as Level 1's
-  Quest Transition needed several rounds of iteration to land. Quest C/D/E/F not started.
+  Quest Transition needed several rounds of iteration to land. Quest E/F not started.
 - All three open questions from earlier this entry are answered: patch-reveal art stays a simple
   grid (not bespoke), the current bridge PNG is `bridge_level15_soundquest_transition.png` (the
   older `playbutton_bridge_...png.png` has been deleted from disk), and Quest E's ladder rungs
@@ -315,6 +352,11 @@ Commit: (this entry, updated) — pushed and verified against `origin/main`.
 - Not yet designed: the handoff after a Group's full A/B (and eventually C/D/E/F) Sound Quest
   finishes, back into `game15.gd`/`Level15Progress`'s own Set/Group flow — Level 1.5 doesn't have
   Level 1's `MAIN_SET_BOUNDARIES`-style boundary model yet.
+- Quest C/D's bubble spawn (`_spawn_bubbles()`) uses pure random placement, no minimum-spacing
+  rejection sampling like Quest A/B's word pool or Level 1's Word Cloud use — worth checking live
+  whether 20 bubbles in the field ever visually overlap enough to confuse which one a child is
+  tapping; easy to add the same `_pick_pool_center()`-style spacing logic if it turns out to
+  matter.
 - Given the sheer number of genuinely different mechanics (6 distinct quest types, each its own
   interaction model), building all of Level 1.5 Sound Quest in one sitting isn't realistic —
   expect this to span several sessions, likely one quest type at a time, same incremental

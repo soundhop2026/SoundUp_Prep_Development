@@ -226,29 +226,43 @@ mechanic, only the `position` field ("initial"/"final") and round count differ.
   correct-pool logic, distractor selection, target-phoneme schedule — verified headless against
   the real word data, matching every hand-computed number from the design pass exactly.
 - `level15_sound_quest_ab.gd`/`.tscn` + `level15_sound_quest_ab_state.gd` (round shell): faint
-  target image revealed via a **placeholder** NxM grid mask (real per-word patch regions still
-  an open question — bespoke vs. reusable templates, not yet decided), scattered correct +
-  distractor word pool with drag-and-drop (correct hop+reveal, wrong resist-bounce, empty
-  glide-back) — reusing Level 1 Sound Quest's proven patterns including the bob-tween-kill fix.
+  target image revealed via an NxM grid mask, scattered correct + distractor word pool with
+  drag-and-drop (correct hop+reveal, wrong resist-bounce, empty glide-back) — reusing Level 1
+  Sound Quest's proven patterns including the bob-tween-kill fix.
 - Round-to-round advance, Sound Quest Set boundaries (every 8 rounds — Quest A = 4 Sets, Quest B
   = 5 Sets, both exact), and the Quest A -> B handoff (state reset + scene reload) — all wired
   and verified headless via controlled mini-schedules (timing deltas confirming each transition
   actually fired, not just that code ran without error).
-- Built the Short Transition (Play Button walks across) for real. Built only a **placeholder**
-  Long Transition (prints + a beat, no bridge art) — blocked on the still-unresolved bridge-PNG
-  question above — but the Short-vs-Long **branching logic** at Set boundaries is real and
-  verified: initially built wrong (Short firing at every boundary including a Quest's final Set),
-  caught and corrected by the user (see the Transition-rule correction note above), re-verified
-  headless afterward (mid-quest boundary -> Short only; quest-final boundary -> Long only, never
-  both).
+- Built the Short Transition (Play Button walks across) for real. Short-vs-Long **branching
+  logic** at Set boundaries: initially built wrong (Short firing at every boundary including a
+  Quest's final Set), caught and corrected by the user (see the Transition-rule correction note
+  above), re-verified headless afterward (mid-quest boundary -> Short only; quest-final boundary
+  -> Long only, never both).
+- **Long Story Transition built for real** (same pass as the three open-question answers below):
+  bridge background (`bridge_level15_soundquest_transition.png`), Play Button hesitates 4x, fails
+  a first attempt, succeeds on the second while a 20-strong `louisfaces/` crowd shifts from
+  nervous bob (neutral face) to celebration bob (happy face) partway through, joins the crowd at
+  ~80% across, whole group exits together; music is `quest_level15_bgm.mp3`, same fade-in/loop/
+  fade-out pattern as Level 1 Sound Quest's own Quest Transition (`_qt_` functions in
+  `level1_sound_quest.gd`). First-pass sizing/timing, headless-verified (clean run, correct
+  ~7.3s duration, symmetric node count before/after, no leftover crowd/bridge/playbutton nodes)
+  but **not yet seen live** — expect a visual-feel iteration pass once the user can watch it,
+  same as Level 1's Quest Transition needed.
+- Patch-reveal art: confirmed **simple NxM grid, not bespoke per-word regions** — this is now the
+  real, permanent implementation, comments updated accordingly (was previously flagged as a
+  placeholder pending this decision).
+- Quest E's ladder rungs/branches: confirmed same no-letters/audio-only approach as Quest C/D's
+  bubbles (generic rung shape, phoneme told apart by tap-to-hear only) — no code yet, Quest E
+  hasn't been started, but the design risk flagged earlier this entry is resolved.
 - Not yet wired: the handoff after Quest B completes (back into `game15.gd`/`Level15Progress`'s
   own Set/Group flow) — deliberately left a stubbed print, since Level 1.5 doesn't have Level 1's
   `MAIN_SET_BOUNDARIES`-style boundary model built for it yet and that needs its own
   investigation, not an assumption.
 - Quest C/D/E/F have zero implementation yet — only Quest A/B exists.
 
-Commits: `8cdecd2`, `ab0dc86`, `ba98132` (this implementation progress) — pushed and verified
-against `origin/main`. Worklog corrections/updates: (this entry, updated).
+Commits: `8cdecd2`, `ab0dc86`, `ba98132`, `a5193e4` (this implementation progress) — pushed and
+verified against `origin/main`. The Long Transition build + patch-region/Quest-E confirmations
+land in the next commit after this entry's update.
 
 Commit: (this entry, updated) — pushed and verified against `origin/main`.
 
@@ -274,10 +288,9 @@ Commit: (this entry, updated) — pushed and verified against `origin/main`.
   every later quest got checked against.
 
 ### Risks / Gotchas
-- The "no letters, ever" rule (CLAUDE.md, locked) is confirmed satisfied for Quest C/D — a single
-  generic, unlabeled bubble asset told apart only by audio, same as Level 1's bins. Quest E's
-  ladder rungs/branches weren't explicitly re-confirmed the same way; worth a direct check before
-  building, same as C/D got.
+- The "no letters, ever" rule (CLAUDE.md, locked) is confirmed satisfied for Quest C/D (single
+  generic bubble, audio-only) **and now Quest E too** (confirmed same day, later pass: generic
+  ladder rung shape, phoneme told apart by tap-to-hear only, no visual distinguishing content).
 - Terminology overload: "Quest A" in this conversation's shorthand = the whole Group A Sound
   Quest activity; within it, "Sound Quest Set" = one replay cycle. Keep these distinct in any
   future spec doc — conflating them caused one real back-and-forth this session already.
@@ -289,22 +302,19 @@ Commit: (this entry, updated) — pushed and verified against `origin/main`.
 - **Design phase for Level 1.5 Sound Quest is complete** — all six Quest types (A-F) and the
   two-tier Transition scene are fully locked, verified against real data where it mattered
   (A/B/C/D/E/F all pressure-tested, not just designed on paper).
-- **Implementation is underway** — Quest A/B (round shell, drag/drop, round advance, Set
-  boundaries, Short/Long Transition branching, Quest A->B handoff) is built and headless-verified.
-  No live/on-device playthrough yet. Quest C/D/E/F not started.
-- Three open questions, need the user's call before the affected pieces can be finished (asked,
-  not yet answered as of this entry):
-  1. Quest A/B patch-reveal art — bespoke per-word regions, reusable N-region templates, or keep
-     the current placeholder grid.
-  2. Which bridge PNG is current for the Long Transition — `bridge_level15_soundquest_transition.png`
-     or the older `playbutton_bridge_level15_soundquest_transition.png.png`.
-  3. Quest E's ladder rungs/branches — confirm the same no-letters/audio-only approach as Quest
-     C/D's bubbles (flagged as a risk, never explicitly re-confirmed for E the way C/D was).
+- **Implementation of Quest A/B is functionally complete**: round shell, drag/drop, round
+  advance, Set boundaries, Short Transition, real Long Story Transition (bridge/crowd/hesitate/
+  fail/succeed/join/exit), and the Quest A->B handoff — all built and headless-verified. **No
+  live/on-device playthrough yet** — the Long Transition especially needs a visual-feel pass
+  (sizing, hesitation feel, crowd density) once the user can actually watch it, same as Level 1's
+  Quest Transition needed several rounds of iteration to land. Quest C/D/E/F not started.
+- All three open questions from earlier this entry are answered: patch-reveal art stays a simple
+  grid (not bespoke), the current bridge PNG is `bridge_level15_soundquest_transition.png` (the
+  older `playbutton_bridge_...png.png` has been deleted from disk), and Quest E's ladder rungs
+  are confirmed no-letters/audio-only like Quest C/D's bubbles.
 - Not yet designed: the handoff after a Group's full A/B (and eventually C/D/E/F) Sound Quest
   finishes, back into `game15.gd`/`Level15Progress`'s own Set/Group flow — Level 1.5 doesn't have
   Level 1's `MAIN_SET_BOUNDARIES`-style boundary model yet.
-- Still missing before Quest E can be built: confirm the uploaded `ladder_frame_level15_soundquest_E.png`/
-  `ladder_rung_level15_soundquest_E.png` are the final assets (question 3 above) — otherwise ready.
 - Given the sheer number of genuinely different mechanics (6 distinct quest types, each its own
   interaction model), building all of Level 1.5 Sound Quest in one sitting isn't realistic —
   expect this to span several sessions, likely one quest type at a time, same incremental

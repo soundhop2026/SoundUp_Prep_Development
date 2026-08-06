@@ -340,11 +340,64 @@ func _resume_bob(f: TextureRect) -> void:
 		t.play()
 
 
+const ROUND_COMPLETE_HOLD : float = 0.5
+const ROUND_FADE_DUR      : float = 0.3
+
 func _on_round_complete() -> void:
+	_busy = true
 	_target_rect.modulate.a = 1.0
-	print("Level 1.5 Sound Quest round complete: ", _target_word, " (", _position, "=", _target_phoneme, ")")
-	# Round-to-round advance / Quest Transition handoff not wired yet —
-	# next build pass, mirroring Level 1 Sound Quest's own incremental order.
+
+	await get_tree().create_timer(ROUND_COMPLETE_HOLD).timeout
+	await _fade_out_round()
+
+	_round_index += 1
+	if _round_index >= _schedule.size():
+		_on_quest_complete()
+		return
+
+	_start_round()
+	_fade_in_round()
+	_busy = false
+
+
+func _fade_out_round() -> void:
+	var t := create_tween()
+	t.set_parallel(true)
+	if _target_rect != null and is_instance_valid(_target_rect):
+		t.tween_property(_target_rect, "modulate:a", 0.0, ROUND_FADE_DUR)
+	for p in _patch_grid:
+		if is_instance_valid(p):
+			t.tween_property(p, "modulate:a", 0.0, ROUND_FADE_DUR)
+	for f in _pool_faces:
+		if is_instance_valid(f):
+			t.tween_property(f, "modulate:a", 0.0, ROUND_FADE_DUR)
+	await t.finished
+
+
+# _start_round() has just run — _target_rect/_pool_faces are the NEW round's
+# nodes. Snap them to 0 alpha and tween up, rather than touching
+# _start_round() itself, so the tested spawn logic stays untouched.
+func _fade_in_round() -> void:
+	if _target_rect != null and is_instance_valid(_target_rect):
+		var target_alpha : float = _target_rect.modulate.a
+		_target_rect.modulate.a = 0.0
+		var t := create_tween()
+		t.tween_property(_target_rect, "modulate:a", target_alpha, ROUND_FADE_DUR)
+
+	var t2 := create_tween()
+	t2.set_parallel(true)
+	for f in _pool_faces:
+		if is_instance_valid(f):
+			f.modulate.a = 0.0
+			t2.tween_property(f, "modulate:a", 1.0, ROUND_FADE_DUR)
+
+
+func _on_quest_complete() -> void:
+	_busy = false
+	print("Level 1.5 Sound Quest — Quest complete (position=", _position, ", rounds=", _schedule.size(), ")")
+	# Quest-to-Quest handoff, Sound Quest Set boundaries, and the Transition
+	# scene are not wired yet — next build pass, same incremental order as
+	# Level 1 Sound Quest.
 
 
 func _play_sfx(path: String) -> void:

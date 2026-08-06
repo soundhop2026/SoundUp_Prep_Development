@@ -161,3 +161,42 @@ static func cd_build_distractor_phonemes(all_phonemes: Dictionary, target_phonem
 			candidates.append(ph)
 	candidates.shuffle()
 	return candidates.slice(0, mini(count, candidates.size()))
+
+
+# ─── Quest E: full word pool (all 4 structures, unlike A/B/C/D's 117-word ──
+# ─── CVC/CCVC/CVCC-only subset) ─────────────────────────────────────────────
+static func build_pool_e(all_words: Dictionary) -> Array:
+	return all_words.keys()
+
+
+# Shuffled word schedule for Quest E's 100 rounds. No frequency weighting
+# needed (unlike A/B's phoneme schedule) — each word is an equal unit, and
+# 100 rounds is under the ~130-word pool size so this lands as no-repeat
+# coverage in the common case; the cycle-with-reshuffle fallback only
+# matters if total_rounds ever exceeds the pool.
+static func build_word_schedule(pool: Array, total_rounds: int) -> Array:
+	var schedule : Array = pool.duplicate()
+	schedule.shuffle()
+	if schedule.size() >= total_rounds:
+		return schedule.slice(0, total_rounds)
+	var extra : int = total_rounds - schedule.size()
+	for i in range(extra):
+		schedule.append(schedule[i % pool.size()])
+	schedule.shuffle()
+	return schedule
+
+
+# Distractor phonemes for Quest E: the full 24-phoneme pool, excluding ALL of
+# the target word's own phonemes (not just one, unlike C/D's single-phoneme
+# exclusion) — a longer (CCVCC) word's difficulty comes from the sequencing
+# task itself, not also a bigger distractor field to search.
+static func e_build_distractor_phonemes(all_phonemes: Dictionary, target_phonemes: Array, count: int) -> Array:
+	var exclude : Dictionary = {}
+	for ph in target_phonemes:
+		exclude[ph] = true
+	var candidates : Array = []
+	for ph in all_phonemes:
+		if not exclude.has(ph):
+			candidates.append(ph)
+	candidates.shuffle()
+	return candidates.slice(0, mini(count, candidates.size()))

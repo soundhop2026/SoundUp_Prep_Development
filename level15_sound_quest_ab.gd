@@ -343,6 +343,14 @@ func _resume_bob(f: TextureRect) -> void:
 const ROUND_COMPLETE_HOLD : float = 0.5
 const ROUND_FADE_DUR      : float = 0.3
 
+# A "Sound Quest Set" is one 8-round chunk (locked 2026-08-06: Quest A = 4
+# Sets x 8 = 32 rounds, Quest B = 5 Sets x 8 = 40 rounds — both divide evenly,
+# no partial Set). The short between-Set Transition (Play Button walks
+# across, no story/music) plays at every Set boundary, including the very
+# last one before a Quest-to-Quest handoff — mirrors Level 1 Sound Quest's
+# own "Transition always plays, then routing decides what's next" order.
+const ROUNDS_PER_SET : int = 8
+
 func _on_round_complete() -> void:
 	_busy = true
 	_target_rect.modulate.a = 1.0
@@ -350,7 +358,12 @@ func _on_round_complete() -> void:
 	await get_tree().create_timer(ROUND_COMPLETE_HOLD).timeout
 	await _fade_out_round()
 
+	var rounds_done : int = _round_index + 1
 	_round_index += 1
+
+	if rounds_done % ROUNDS_PER_SET == 0:
+		await _play_short_transition()
+
 	if _round_index >= _schedule.size():
 		_on_quest_complete()
 		return
@@ -358,6 +371,37 @@ func _on_round_complete() -> void:
 	_start_round()
 	_fade_in_round()
 	_busy = false
+
+
+# ─── Short between-Set Transition (locked design, "no letters" n/a — no ─────
+# ─── target/bubble content shown, just Play Button walking) ────────────────
+# The one-time full-story bridge Transition (first-ever entry into Level 1.5
+# Sound Quest) is NOT built here — blocked on which of the two bridge PNGs in
+# soundquest/assets/ is current (playbutton_bridge_..._transition.png.png vs
+# bridge_..._transition.png), unresolved as of this pass.
+
+const SHORT_TRANSITION_PLAYBUTTON : String = "res://UI_assets/playbutton.png"
+const SHORT_TRANSITION_SIZE   : Vector2 = Vector2(160, 160)
+const SHORT_TRANSITION_START_X : float = -120.0
+const SHORT_TRANSITION_END_X   : float = 1400.0
+const SHORT_TRANSITION_Y       : float = 400.0
+const SHORT_TRANSITION_DUR     : float = 1.4
+
+func _play_short_transition() -> void:
+	var tex : Texture2D = load(SHORT_TRANSITION_PLAYBUTTON)
+	var face := TextureRect.new()
+	face.texture = tex
+	face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	face.size = SHORT_TRANSITION_SIZE
+	face.position = Vector2(SHORT_TRANSITION_START_X, SHORT_TRANSITION_Y)
+	add_child(face)
+
+	var walk := create_tween()
+	walk.tween_property(face, "position:x", SHORT_TRANSITION_END_X, SHORT_TRANSITION_DUR) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await walk.finished
+	face.queue_free()
 
 
 func _fade_out_round() -> void:
@@ -392,12 +436,26 @@ func _fade_in_round() -> void:
 			t2.tween_property(f, "modulate:a", 1.0, ROUND_FADE_DUR)
 
 
+const QUEST_B_ROUNDS : int = 40
+
 func _on_quest_complete() -> void:
+	if _position == "initial":
+		# Quest A (initial identification) finished -> hand off straight into
+		# Quest B (final identification). Same scene, same handoff mechanism
+		# already used to boot Quest A in the first place: set the state,
+		# reload, let _ready() rebuild everything from scratch.
+		Level15SoundQuestABState.position = "final"
+		Level15SoundQuestABState.total_rounds = QUEST_B_ROUNDS
+		get_tree().reload_current_scene()
+		return
+
 	_busy = false
-	print("Level 1.5 Sound Quest — Quest complete (position=", _position, ", rounds=", _schedule.size(), ")")
-	# Quest-to-Quest handoff, Sound Quest Set boundaries, and the Transition
-	# scene are not wired yet — next build pass, same incremental order as
-	# Level 1 Sound Quest.
+	print("Level 1.5 Sound Quest — Quest B complete, Group's A/B pair finished.")
+	# Handoff back to game15.gd / Level15Progress (whatever comes after the
+	# A/B pair — next Quest type, or back into normal Level 1.5 Set/Group
+	# flow) is not wired yet. Level 1.5 doesn't have Level 1's
+	# MAIN_SET_BOUNDARIES-style boundary model built for it yet — needs its
+	# own investigation before this routes anywhere real.
 
 
 func _play_sfx(path: String) -> void:

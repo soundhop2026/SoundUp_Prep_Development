@@ -125,7 +125,95 @@ starts: `playbutton_bridge_level15_soundquest_transition.png.png`,
 `playbutton_level15_soundquest_F_bleh.wav`, `playbutton_level15_soundquest_F_nom.wav`,
 `quest_level15_bgm.mp3`. Not yet uploaded: Quest E's ladder frame/branch PNGs.
 
-Commit: (this entry) — pushed and verified against `origin/main`.
+**Later the same day: Quest C/D, E, F, and the Transition scene all locked too — all six Quest
+types plus the Transition are now fully spec'd, nothing left open for the design phase.**
+
+**Quest C/D locked** (initial/final isolation — continuously-rising phoneme bubbles, tap to
+hear, drag the correct one to Play Button):
+- Confirmed no letters shown — single reusable `bubble_level15_soundquest_C_D.png` for every
+  phoneme, told apart only by tap-to-hear audio, same pattern as Level 1's bins.
+- Unlike A/B, **no floor-based exclusion needed at all** — bubbles are repeated audio copies of
+  a phoneme, not distinct words, so even a 1-word phoneme (`z`, `s`, `l`) can still anchor a
+  round. All 17 initial and all 12 final phonemes are valid C/D targets.
+- **Target bubble count (4–10)**: linear-scaled from each phoneme's real word-frequency (reusing
+  the same A/B data) — richest phoneme in each quest maps to 10, rarest to 4.
+- **Bubble pool**: fixed at 20 total; distractor count = 20 − target count (confirmed fixed-total
+  over fixed-distractor-count).
+- **Distractors**: any of the full 24-phoneme pool (19 consonants + 5 vowels), target excluded,
+  each distractor phoneme appears at most once per round (only the target phoneme repeats).
+  Verified always feasible (max 16 distractor slots needed, 23 phonemes available after
+  excluding target).
+- Wrong drag: silent bump-away animation, bubble keeps rising, never destroyed.
+- **Structure — locked**: 4 Sets × 14 rounds = 56 rounds each for both C and D (reconsidered up
+  from an initially-proposed 3 Sets after a pedagogical-weight discussion — wanted Isolation to
+  carry similar overall weight to Identification, not just minimum data coverage). Resulting
+  averages (C: 3.29x, D: 4.67x) stay comfortably under the 6.25x ceiling that got Quest B trimmed
+  earlier, so no pacing concern despite the higher Set count.
+
+**Quest E locked** (Build the Word — drag phoneme branches onto a ladder, bottom-to-top):
+- **Order enforced live**: next branch slot only unlocks after the previous one is filled;
+  out-of-sequence placement is rejected outright, not just checked at the end.
+- **Distractor branches**: total 12 branches per round, fixed regardless of word length (correct
+  = word's own phoneme count, 3-5; rest are distractors) — deliberately fixed total rather than
+  fixed distractor count, so a harder (longer) word's difficulty comes from the sequencing task
+  itself, not also a bigger field to search. Distractors drawn from the full 24-phoneme pool,
+  excluding ALL of the target word's own phonemes (not just one, unlike C/D) — verified feasible
+  even in the worst case (CCVCC, 5 target phonemes to avoid, still 19 other phonemes free to
+  draw 7 unique distractors from).
+- **Layout**: target image top; ladder (built from a single reusable frame PNG, stacked as needed
+  to reach 3-5 rungs) + Play Button waiting below it on the left; bobbing branch pool on the
+  right.
+- **Completion sequence**: climb ladder -> touch image (word plays once) -> hop to the image's
+  right side (staging to lead) -> walk right together, image following -> exit past the
+  viewport, no fade -> destroy and regenerate fresh next round. Play Button's size is fixed to
+  match the target image's size for the entire round, no scaling at any point (needed since it's
+  now visually paired with the image while walking).
+- **Structure**: covers all four word structures (CVC through CCVCC), 10 Sets x 10 rounds = 100
+  rounds, drawing from the ~117-130-word pool.
+
+**Quest F locked** (Sound Count — drag word images sharing the target's phoneme *count* to Play
+Button, who eats or rejects them):
+- **Growth mechanic**: Play Button grows 30% of its original size per correct word eaten,
+  cumulative, never shrinks within a round (e.g. 4 correct = 220%, 8 correct = 340%).
+- **Exit animation tiers** by how many were eaten: 1-4 = hop hop, 5-6 = waddle, 8+ = roll —  all
+  the way off the viewport.
+- **Round pool**: 20 total word images; 3- and 4-phoneme-count targets use up to 14 correct
+  words per round; **5-phoneme-count targets are deliberately capped lower (8-10, randomized)**
+  rather than using the full pool every time.
+- This cap was verified necessary, not just a stylistic choice: a headless simulation (Python
+  against the real 130-word dataset, not Godot) showed that without it, every one of the
+  5-phoneme bucket's 13 words gets used in literally every round targeting that bucket (flat
+  10/10 usage, zero variety) — capping at 8-10 dropped usage to a genuinely varied 3-9 range
+  per word. 3- and 4-phoneme buckets don't need the same cap; they're large enough (70 and 47
+  words) to rotate naturally at the 14-correct level.
+- **Target distribution across 100 rounds**: proportional to real bucket size (54 rounds target
+  3-phoneme words, 36 target 4-phoneme, 10 target 5-phoneme) rather than an even split, to avoid
+  over-relying on the thin bucket.
+- **Structure**: 10 Sets x 10 rounds = 100 rounds, verified generatable with real variety via
+  the same simulation.
+
+**Level 1.5 Transition scene locked** — a genuinely different, two-tier model from Level 1's
+single hidden-object hunt:
+- **Full story version** (large Play Button hesitates 4x at a bridge, fails an first attempt,
+  succeeds on a second while a ~20-strong friend group's energy visibly shifts from nervous
+  bouncing to celebration, joins them at ~80% across, camera pans to follow the group's exit)
+  plays **exactly once** — first entry into Level 1.5 Sound Quest ever, as an onboarding moment.
+  Uses the existing transition BGM.
+- **Short version** (Play Button walks left to right, exits, no bridge/group/story/music) plays
+  between every Sound Quest Set from then on.
+- This resolves the ambiguity flagged in the morning session about whether the elaborate bridge
+  story would repeat between every Set (it doesn't — deliberately reserved as a one-time moment
+  so it stays special rather than wearing thin through repetition).
+
+Update within this same entry: all remaining Sound Quest assets have since been uploaded —
+`bubble_level15_soundquest_C_D.png`, `drop_zone_level15_soundquest_F.png`,
+`ladder_frame_level15_soundquest_E.png`, `ladder_rung_level15_soundquest_E.png`, and a new
+`bridge_level15_soundquest_transition.png` (alongside the earlier
+`playbutton_bridge_level15_soundquest_transition.png.png` — both present, not yet clear if one
+supersedes the other). Every quest now has its real art ready; nothing left blocking
+implementation on the asset side.
+
+Commit: (this entry, updated) — pushed and verified against `origin/main`.
 
 ### Decisions
 - Design work for Level 1.5 Sound Quest is happening in conversation + real-data verification
@@ -139,30 +227,41 @@ Commit: (this entry) — pushed and verified against `origin/main`.
   different (a Group's own sub-unit, not a Sound Quest replay cycle).
 - Floor/ceiling rules apply only to the correct (patch) pool — distractor eligibility is
   governed only by the existing Phoneme-Based Distractor Rule, never by word-frequency.
+- Every quest's distractor-count/target-count numbers were pressure-tested against the real
+  dataset before being locked (not just reasoned about abstractly) — same discipline that caught
+  Quest F's 5-phoneme-bucket repetition problem before it became a real content issue.
+- Pacing (how much repetition a Set/round structure produces) was treated as a first-class
+  design concern throughout, not just data coverage — multiple quests got their round/Set counts
+  revised after checking the resulting repeat-exposure average against Quest B's original 50-
+  round proposal (6.25x), which was explicitly called "too much" and became the informal ceiling
+  every later quest got checked against.
 
 ### Risks / Gotchas
-- The "no letters, ever" rule (CLAUDE.md, locked) hasn't been explicitly re-confirmed against
-  Quest C/D's phoneme bubbles or Quest E's ladder steps yet — the draft spec's own diagrams use
-  text labels like `/f/` as human-readable shorthand, presumed not literal on-screen text (same
-  as Level 1's unlabeled phoneme bins, told apart only by tapping), but this needs an explicit
-  confirmation before C/D/E get built, not just assumed.
+- The "no letters, ever" rule (CLAUDE.md, locked) is confirmed satisfied for Quest C/D — a single
+  generic, unlabeled bubble asset told apart only by audio, same as Level 1's bins. Quest E's
+  ladder rungs/branches weren't explicitly re-confirmed the same way; worth a direct check before
+  building, same as C/D got.
 - Terminology overload: "Quest A" in this conversation's shorthand = the whole Group A Sound
   Quest activity; within it, "Sound Quest Set" = one replay cycle. Keep these distinct in any
   future spec doc — conflating them caused one real back-and-forth this session already.
+- Quest E's distractor-exclusion rule is broader than C/D's — must avoid ALL of the target word's
+  own phonemes (up to 5 for a CCVCC word), not just one. Easy to under-implement this if copying
+  C/D's simpler single-phoneme-exclusion logic without adjusting it.
 
 ### Next Session
-- C/D (isolation) and E/F (build-word, sound-count) still need the same locked-rule treatment
-  Quest A/B just got — target selection, pool floor/ceiling if applicable, Set/round counts
-  grounded in real data.
-- Still open even for A/B: patch reveal animation, correct-placement sound, wrong-drag behavior
-  (wrong-drag likely reuses Level 1 Sound Quest's resist-twice-bounce-back, per the user's own
-  note), and the per-word-vs-template patch-art question.
-- The Level 1.5 Quest Transition (Play Button walks a bridge to meet friend Play Buttons) reads
-  as a pure scripted cutscene with no tap/search interaction, unlike Level 1's hidden-object
-  hunt — flagged as a question to the user, not yet confirmed intentional.
-- No code exists yet for any of this — next actual implementation session should probably start
-  wherever the full A–F rule set is locked, likely mirroring Level 1 Sound Quest's own build
-  order (data layer first, verified headless, before any visuals).
+- **Design phase for Level 1.5 Sound Quest is complete** — all six Quest types (A-F) and the
+  two-tier Transition scene are fully locked, verified against real data where it mattered
+  (A/B/C/D/E/F all pressure-tested, not just designed on paper).
+- Implementation starts next — no Level 1.5 Sound Quest code exists yet. Should mirror Level 1
+  Sound Quest's own build order: data layer first (word pool builders, target/distractor
+  selection per quest type, verified headless before any visuals), matching the rigor already
+  proven to work for Level 1.
+- Still missing before Quest E can be built: `phoneme_ladder_frame_level15_soundquest.png` and
+  `phoneme_ladder_branch_level15_soundquest.png` assets — not yet uploaded.
+- Given the sheer number of genuinely different mechanics (6 distinct quest types, each its own
+  interaction model), building all of Level 1.5 Sound Quest in one sitting isn't realistic —
+  expect this to span several sessions, likely one quest type at a time, same incremental
+  build-then-live-test rhythm used for Level 1's Sound Quest.
 
 ---
 

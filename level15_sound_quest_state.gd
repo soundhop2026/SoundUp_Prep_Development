@@ -124,3 +124,40 @@ static func build_target_schedule(eligible: Dictionary, total_rounds: int) -> Ar
 
 	schedule.shuffle()
 	return schedule
+
+
+# ─── Quest C/D: phoneme frequency + linear-scaled target bubble count ──────
+# Unlike A/B, every phoneme that appears at all is a valid target — no floor
+# — since C/D bubbles are repeated audio copies of a phoneme, not distinct
+# words, so even a 1-word phoneme (z, s, l) can still anchor a round.
+# position is "initial" (Quest C) or "final" (Quest D). Returns
+# {phoneme: word_count} across the whole A/B/C/D pool.
+static func phoneme_frequencies(all_words: Dictionary, pool: Array, position: String) -> Dictionary:
+	var counts : Dictionary = {}
+	for key in pool:
+		var ph : String = all_words[key][position]
+		counts[ph] = counts.get(ph, 0) + 1
+	return counts
+
+
+# Linear-scaled 4-10 target bubble count: the richest phoneme (highest word
+# frequency) maps to 10, the rarest to 4. min_freq/max_freq are the extremes
+# across all eligible phonemes for this position (phoneme_frequencies()'s
+# values), not global constants.
+static func cd_target_bubble_count(freq: int, min_freq: int, max_freq: int) -> int:
+	if max_freq == min_freq:
+		return 10
+	var t : float = 4.0 + float(freq - min_freq) / float(max_freq - min_freq) * 6.0
+	return roundi(t)
+
+
+# Distractor phonemes: any of the full phonemes.json set (19 consonants + 5
+# vowels) except the target, each used at most once per round — only the
+# target phoneme repeats across the round's 20-bubble pool.
+static func cd_build_distractor_phonemes(all_phonemes: Dictionary, target_phoneme: String, count: int) -> Array:
+	var candidates : Array = []
+	for ph in all_phonemes:
+		if ph != target_phoneme:
+			candidates.append(ph)
+	candidates.shuffle()
+	return candidates.slice(0, mini(count, candidates.size()))

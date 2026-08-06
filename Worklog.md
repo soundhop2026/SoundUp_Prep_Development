@@ -329,10 +329,40 @@ Future sessions: use windowed mode (drop `--headless`) for any test that needs t
   (but harmless — purely a test-pacing artifact, not a game bug) "placed same phoneme twice"
   printout; fixed by polling `_busy` instead of guessing a wait duration.
 
-Quest F still has zero implementation — Quest A/B, C/D, and E all exist now.
+**Quest F built** (sound count — drag word images sharing the target's phoneme COUNT, not
+identity, onto Play Button, who eats or rejects them):
+- `level15_sound_quest_state.gd` gained `f_bucket_by_count()` (words grouped by `phonemes[]`
+  length: 3/4/5, matching structure exactly — 70/47/13 words), `f_correct_pool()` (up to 14 for
+  the 3/4-count buckets, randomized 8-10 for the thin 5-count bucket per the locked variety fix),
+  `f_build_distractors()`, `f_build_count_schedule()` (100 rounds, 54/36/10 proportional to real
+  bucket size) — verified headless against the real dataset, matching the design lock's own
+  numbers exactly.
+- `level15_sound_quest_f.gd`/`.tscn`: Play Button top-center with a fixed drop-zone slot below it
+  (`drop_zone_level15_soundquest_F.png`); 20-word bobbing pool (rejection-sampled spacing, same
+  `_pick_pool_center()` idiom as Quest A/B and E) drags into the drop zone. Correct (matching
+  phoneme count) -> "nom" sound, word consumed, Play Button grows 30% cumulative (`scale`
+  property, not `size`, so it grows around a fixed anchor). Wrong -> "bleh" sound, resist-bounce
+  back, never destroyed — same idiom as every other quest's wrong-drop. On round completion
+  (every correct word eaten), Play Button exits via a tier scaled to how many were eaten (1-4 hop
+  hop, 5-6 waddle, 8+ roll — count 7 was left unassigned in the locked spec, extended waddle to
+  5-7 as the most conservative reading) before the next round starts fresh (`eaten_count` and
+  scale both reset). This is the last of the six Quest types, so its own completion is the final
+  stub in the chain.
+- **Flagged for the user**: since a round only completes after eating the ENTIRE correct pool
+  (8-14 words, always >=8), the hop and waddle exit tiers may rarely or never actually fire in
+  real play — only the 8+ "roll" tier is reachable under the current "collect everything"
+  completion rule. Worth confirming this is intended, or whether completion should work
+  differently (e.g., a smaller required count) if the lighter tiers are meant to be seen.
+- Verified: windowed-mode drag/drop confirms reject (word survives, Play Button unchanged) and
+  eat (word consumed, Play Button grows following the `1 + 0.3*n` formula) both work; an extended
+  run eating all 14 correct words in one round confirmed the exit sequence and a clean reset for
+  the next round.
+
+**All six Quest types (A-F) now exist and are functionally verified** (none seen live/on-device
+yet). Design phase and implementation phase are both complete for the core Quest mechanics.
 
 Commits: `8cdecd2`, `ab0dc86`, `ba98132`, `a5193e4`, `2c9a06b`, `bdc6e3a`, `1df7ef7`, `6d187e6`,
-`01424c3`, `75ffcb9` — pushed and verified against `origin/main`.
+`01424c3`, `75ffcb9`, `925d642`, `f52d24c` — pushed and verified against `origin/main`.
 
 Commit: (this entry, updated) — pushed and verified against `origin/main`.
 
@@ -372,33 +402,42 @@ Commit: (this entry, updated) — pushed and verified against `origin/main`.
 - **Design phase for Level 1.5 Sound Quest is complete** — all six Quest types (A-F) and the
   two-tier Transition scene are fully locked, verified against real data where it mattered
   (A/B/C/D/E/F all pressure-tested, not just designed on paper).
-- **Implementation of Quest A/B, C/D, and E is functionally complete**: round shell, drag/drop,
-  round advance, Set boundaries, Short Transition, real Long Story Transition (bridge/crowd/
-  hesitate/fail/succeed/join/exit, shared via `Level15SoundQuestTransitions`), and the
-  Quest A->B / C->D handoffs — all built and verified (Quest C/D and Quest E's drag/drop
+- **Implementation of all six Quest types (A/B, C/D, E, F) is functionally complete**: round
+  shells, drag/drop, round advance, Set boundaries, Short Transition, real Long Story Transition
+  (bridge/crowd/hesitate/fail/succeed/join/exit, shared via `Level15SoundQuestTransitions`), and
+  the Quest A->B / C->D handoffs — all built and verified (Quest C/D, E, and F's drag/drop
   specifically windowed-mode-verified with real `push_input()`, see the headless `push_input`
-  finding above). **No live/on-device playthrough yet** — the Long Transition especially needs a
-  visual-feel pass (sizing, hesitation feel, crowd density) once the user can actually watch it,
-  same as Level 1's Quest Transition needed several rounds of iteration to land. Quest E's ladder
-  layout (two stretched rails, not stacked segments) also hasn't been seen live yet, only via
-  screenshot. Quest F not started.
-- All three open questions from earlier this entry are answered: patch-reveal art stays a simple
+  finding above). **No live/on-device playthrough of ANY of it yet** — this is the single biggest
+  open item. Specifically flagged as needing a live pass:
+  - The Long Story Transition (sizing, hesitation feel, crowd density) — same as Level 1's Quest
+    Transition needed several rounds of iteration to land.
+  - Quest E's ladder layout (two stretched rails, not stacked segments) — only seen via
+    screenshot.
+  - Quest F's exit-tier gap (hop/waddle tiers may never fire in practice since a round only
+    completes after eating the whole correct pool, 8-14 words) — worth confirming with the user
+    whether that's intended.
+- All three open questions from the design pass are answered: patch-reveal art stays a simple
   grid (not bespoke), the current bridge PNG is `bridge_level15_soundquest_transition.png` (the
   older `playbutton_bridge_...png.png` has been deleted from disk), and Quest E's ladder rungs
   are confirmed no-letters/audio-only like Quest C/D's bubbles.
-- Not yet designed: the handoff after a Group's full A/B (and eventually C/D/E/F) Sound Quest
-  finishes, back into `game15.gd`/`Level15Progress`'s own Set/Group flow — Level 1.5 doesn't have
-  Level 1's `MAIN_SET_BOUNDARIES`-style boundary model yet. Quest E->F and Quest C/D->E handoffs
-  are similarly unstubbed/undesigned.
+- **Not yet designed, the main remaining architecture gap**: how the six Quest types actually
+  chain together and hand off back into normal Level 1.5 play. Right now each pair/type's
+  completion (`_on_quest_complete()` in A/B and C/D, `_on_quest_complete()` in E and F) is a
+  stubbed print — none of them route anywhere. Needs: Quest B->C, Quest D->E, and Quest F->(back
+  into `game15.gd`/`Level15Progress`'s own Set/Group flow) handoffs, plus Level 1.5's own version
+  of Level 1's `MAIN_SET_BOUNDARIES` boundary model (which Group triggers which Quest type, and
+  when in the Set/Group progression Sound Quest gets inserted at all). This is genuinely
+  undesigned, not just unimplemented — needs a real conversation with the user before building.
 - Quest C/D's bubble spawn uses pure random placement, no minimum-spacing rejection sampling like
-  Quest A/B's word pool, Quest E's branch pool, or Level 1's Word Cloud all use — worth checking
-  live whether 20 bubbles in the field ever visually overlap enough to confuse which one a child
-  is tapping; easy to add the same `_pick_pool_center()`-style spacing logic if it turns out to
-  matter.
-- Given the sheer number of genuinely different mechanics (6 distinct quest types, each its own
-  interaction model), building all of Level 1.5 Sound Quest in one sitting isn't realistic —
-  expect this to span several sessions, likely one quest type at a time, same incremental
-  build-then-live-test rhythm used for Level 1's Sound Quest.
+  Quest A/B's word pool, Quest E's branch pool, Quest F's word pool, or Level 1's Word Cloud all
+  use — worth checking live whether 20 bubbles in the field ever visually overlap enough to
+  confuse which one a child is tapping; easy to add the same `_pick_pool_center()`-style spacing
+  logic if it turns out to matter.
+- Given six genuinely different mechanics all got built in one extended session, a careful
+  full-playthrough live pass (one Quest type at a time, screenshot/video-driven iteration same as
+  Level 1's Sound Quest needed) should be the very next priority before any further building —
+  there's a real risk of compounding first-pass sizing/timing guesses across six quest types
+  without ever having seen one actually played.
 
 ---
 

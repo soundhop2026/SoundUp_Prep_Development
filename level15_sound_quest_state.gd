@@ -200,3 +200,63 @@ static func e_build_distractor_phonemes(all_phonemes: Dictionary, target_phoneme
 			candidates.append(ph)
 	candidates.shuffle()
 	return candidates.slice(0, mini(count, candidates.size()))
+
+
+# ─── Quest F: word pool bucketed by phoneme COUNT (not identity) ───────────
+# All 130 words, grouped by phonemes[].size() — matches structure exactly
+# (CVC=3, CCVC/CVCC=4, CCVCC=5). Returns {count: [word_key, ...]}.
+static func f_bucket_by_count(all_words: Dictionary) -> Dictionary:
+	var buckets : Dictionary = {}
+	for key in all_words:
+		var n : int = all_words[key]["phonemes"].size()
+		if not buckets.has(n):
+			buckets[n] = []
+		buckets[n].append(key)
+	return buckets
+
+
+# Correct-pool size for a round: 3/4-count buckets (70/47 words) use up to
+# 14; the thin 5-count bucket (13 words) is deliberately capped lower
+# (8-10, randomized) rather than the full bucket every time — verified
+# necessary (without the cap, every 5-count round used all 13 words,
+# flat 10/10 usage, zero variety).
+static func f_correct_pool(bucket: Array, target_count: int) -> Array:
+	var pool : Array = bucket.duplicate()
+	pool.shuffle()
+	if target_count == 5:
+		var n : int = randi_range(8, 10)
+		return pool.slice(0, mini(n, pool.size()))
+	return pool.slice(0, mini(14, pool.size()))
+
+
+# Distractors: any word whose phoneme count != target count, from the other
+# two buckets combined, excluding anything already in the correct pool.
+static func f_build_distractors(buckets: Dictionary, target_count: int, correct_pool: Array, count: int) -> Array:
+	var exclude : Dictionary = {}
+	for w in correct_pool:
+		exclude[w] = true
+	var candidates : Array = []
+	for n in buckets:
+		if n == target_count:
+			continue
+		for w in buckets[n]:
+			if not exclude.has(w):
+				candidates.append(w)
+	candidates.shuffle()
+	return candidates.slice(0, mini(count, candidates.size()))
+
+
+# 100-round target-count schedule, proportional to real bucket size (54
+# rounds target 3-phoneme words, 36 target 4-phoneme, 10 target 5-phoneme)
+# rather than an even split, so the round mix doesn't over-rely on the thin
+# 5-phoneme bucket.
+static func f_build_count_schedule() -> Array:
+	var schedule : Array = []
+	for _i in range(54):
+		schedule.append(3)
+	for _i in range(36):
+		schedule.append(4)
+	for _i in range(10):
+		schedule.append(5)
+	schedule.shuffle()
+	return schedule

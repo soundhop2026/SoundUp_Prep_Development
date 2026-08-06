@@ -294,10 +294,45 @@ windowed, both agreeing) happened for Quest C/D's drag test, which is what surfa
 Future sessions: use windowed mode (drop `--headless`) for any test that needs to prove
 `push_input()` actually reaches `_input()` with the right coordinates.
 
-Quest E/F still have zero implementation — Quest A/B and C/D both exist now.
+**Quest E built** (build-the-word — drag phoneme branches onto a ladder, bottom-to-top):
+- `level15_sound_quest_state.gd` gained `build_pool_e()` (all 130 words, all 4 structures — wider
+  than A/B/C/D's 117-word CVC/CCVC/CVCC-only pool), `build_word_schedule()` (100-round schedule,
+  no repeats since 100 < 130), `e_build_distractor_phonemes()` (excludes ALL of the target word's
+  own phonemes, not just one) — verified headless against the real dataset, matching the design
+  lock's own numbers exactly (19 available distractor phonemes in the CCVCC worst case).
+- `level15_sound_quest_e.gd`/`.tscn`: target image top; 12-branch bobbing pool on the right
+  (correct = word's own ordered `phonemes[]`, one branch per occurrence — so a word like "skunk"
+  with two k's spawns two separate k-branches, either one usable for either slot); ladder on the
+  left with Play Button waiting below it. Order enforced live against
+  `_target_phonemes[_filled_count]` — a mismatch (distractor OR a correct-word phoneme presented
+  out of turn) bounces back via the same resist-twice idiom as Quest A/B's wrong-drop, never
+  destroyed. On completion: Play Button climbs the ladder rung by rung, touches the image (word
+  audio once), hops beside it, both walk off together — Play Button's size is fixed to the target
+  image's size for the whole round, no scaling ever, per the locked design. Reuses
+  `Level15SoundQuestTransitions` (`ROUNDS_PER_SET = 10`, 100 total rounds); Quest E->F handoff is
+  a stub since Quest F doesn't exist yet.
+- **Real correction caught via screenshot before committing**: `ladder_frame_level15_soundquest_E.png`
+  is a single straight vertical bar, not a ladder shape. First implementation stacked N copies of
+  it to reach 3-5 rungs, per an over-literal reading of the design summary's "stacked as needed"
+  phrasing — this rendered as one indistinguishable thin line, not a ladder. Corrected to two
+  stretched rail instances (the two vertical sides), with `ladder_rung_level15_soundquest_E.png`
+  (a horizontal bar, already correctly used for the branch pool) crossing between them as rungs
+  fill in — matches the earlier live layout description ("2 ladder frames... on the left") more
+  literally than the compressed Worklog summary did. Also fixed a real off-screen bug caught the
+  same way: Play Button's waiting position (`LADDER_BASE_Y + 90`) landed at y=730, past the 720px
+  canvas — tightened the layout so it sits fully on-screen.
+- Verified: windowed-mode drag/drop confirms an out-of-turn drop bounces back without advancing
+  (branch survives); an extended real run through ~10 consecutive rounds (many different words,
+  including duplicate-phoneme words) placed every rung correctly and advanced rounds cleanly with
+  no corruption. An early version of this same test used a fixed post-drag wait instead of polling
+  `_busy`, which raced with the in-flight `_on_correct_drop()` animation and produced a confusing
+  (but harmless — purely a test-pacing artifact, not a game bug) "placed same phoneme twice"
+  printout; fixed by polling `_busy` instead of guessing a wait duration.
 
-Commits: `8cdecd2`, `ab0dc86`, `ba98132`, `a5193e4`, `2c9a06b`, `bdc6e3a`, `1df7ef7`, `6d187e6`
-— pushed and verified against `origin/main`.
+Quest F still has zero implementation — Quest A/B, C/D, and E all exist now.
+
+Commits: `8cdecd2`, `ab0dc86`, `ba98132`, `a5193e4`, `2c9a06b`, `bdc6e3a`, `1df7ef7`, `6d187e6`,
+`01424c3`, `75ffcb9` — pushed and verified against `origin/main`.
 
 Commit: (this entry, updated) — pushed and verified against `origin/main`.
 
@@ -337,25 +372,28 @@ Commit: (this entry, updated) — pushed and verified against `origin/main`.
 - **Design phase for Level 1.5 Sound Quest is complete** — all six Quest types (A-F) and the
   two-tier Transition scene are fully locked, verified against real data where it mattered
   (A/B/C/D/E/F all pressure-tested, not just designed on paper).
-- **Implementation of Quest A/B and Quest C/D is functionally complete**: round shell, drag/drop,
+- **Implementation of Quest A/B, C/D, and E is functionally complete**: round shell, drag/drop,
   round advance, Set boundaries, Short Transition, real Long Story Transition (bridge/crowd/
-  hesitate/fail/succeed/join/exit, now shared via `Level15SoundQuestTransitions`), and the
-  Quest A->B / Quest C->D handoffs — all built and verified (Quest C/D's drag/drop specifically
-  windowed-mode-verified with real `push_input()`, see the headless `push_input` finding above).
-  **No live/on-device playthrough yet** — the Long Transition especially needs a visual-feel pass
-  (sizing, hesitation feel, crowd density) once the user can actually watch it, same as Level 1's
-  Quest Transition needed several rounds of iteration to land. Quest E/F not started.
+  hesitate/fail/succeed/join/exit, shared via `Level15SoundQuestTransitions`), and the
+  Quest A->B / C->D handoffs — all built and verified (Quest C/D and Quest E's drag/drop
+  specifically windowed-mode-verified with real `push_input()`, see the headless `push_input`
+  finding above). **No live/on-device playthrough yet** — the Long Transition especially needs a
+  visual-feel pass (sizing, hesitation feel, crowd density) once the user can actually watch it,
+  same as Level 1's Quest Transition needed several rounds of iteration to land. Quest E's ladder
+  layout (two stretched rails, not stacked segments) also hasn't been seen live yet, only via
+  screenshot. Quest F not started.
 - All three open questions from earlier this entry are answered: patch-reveal art stays a simple
   grid (not bespoke), the current bridge PNG is `bridge_level15_soundquest_transition.png` (the
   older `playbutton_bridge_...png.png` has been deleted from disk), and Quest E's ladder rungs
   are confirmed no-letters/audio-only like Quest C/D's bubbles.
 - Not yet designed: the handoff after a Group's full A/B (and eventually C/D/E/F) Sound Quest
   finishes, back into `game15.gd`/`Level15Progress`'s own Set/Group flow — Level 1.5 doesn't have
-  Level 1's `MAIN_SET_BOUNDARIES`-style boundary model yet.
-- Quest C/D's bubble spawn (`_spawn_bubbles()`) uses pure random placement, no minimum-spacing
-  rejection sampling like Quest A/B's word pool or Level 1's Word Cloud use — worth checking live
-  whether 20 bubbles in the field ever visually overlap enough to confuse which one a child is
-  tapping; easy to add the same `_pick_pool_center()`-style spacing logic if it turns out to
+  Level 1's `MAIN_SET_BOUNDARIES`-style boundary model yet. Quest E->F and Quest C/D->E handoffs
+  are similarly unstubbed/undesigned.
+- Quest C/D's bubble spawn uses pure random placement, no minimum-spacing rejection sampling like
+  Quest A/B's word pool, Quest E's branch pool, or Level 1's Word Cloud all use — worth checking
+  live whether 20 bubbles in the field ever visually overlap enough to confuse which one a child
+  is tapping; easy to add the same `_pick_pool_center()`-style spacing logic if it turns out to
   matter.
 - Given the sheer number of genuinely different mechanics (6 distinct quest types, each its own
   interaction model), building all of Level 1.5 Sound Quest in one sitting isn't realistic —

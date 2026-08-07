@@ -49,6 +49,13 @@ locked design rules; this file is for session-by-session history and handoff not
 - **Gradle/JDK compatibility**: this project's gradle template (AGP 8.6.1 / Gradle 8.11.1)
   requires **JDK 21**, not newer — JDK 25's class file version isn't supported by Gradle 8.11.1.
   Whatever JDK Mac's Godot export ends up pointing at needs to satisfy this too.
+- **`debug_config.gd`'s `DEBUG_MODE` flag** — deliberately kept **uncommitted** locally, same
+  reasoning as the keystore: `title.gd` only creates the title-screen debug menu button when
+  `DebugConfig.DEBUG_MODE` is true, but the committed value is `false` (so a stray commit can
+  never accidentally ship a release with the debug menu exposed). This Windows machine has had it
+  locally flipped to `true` for testing all session, never pushed — so a fresh clone/pull on
+  another machine (confirmed on Mac, 2026-08-07) correctly comes in at `false` and shows no debug
+  button. Not a bug: just flip the same line locally on each new machine, don't commit it.
 
 ---
 

@@ -446,6 +446,26 @@ Commit: (this entry, updated) — pushed and verified against `origin/main`.
   there's a real risk of compounding first-pass sizing/timing guesses across six quest types
   without ever having seen one actually played.
 
+**Session close**: Sully moved to Mac to continue (Godot + this GitHub repo both set up there)
+partway through wrapping up this session. First thing hit: the title-screen debug button was
+missing after a fresh pull — root-caused to `debug_config.gd`'s `DEBUG_MODE` flag being locally
+flipped to `true` on Windows all session (never committed; the real committed value is `false`,
+by design — see "Before switching machines" above for the fix and the reasoning). Not a bug, just
+the first real instance of a machine-local setting tripping up a switch.
+
+**Going forward, Mac becomes the primary machine, not just an occasional second one** — shipping
+to the Apple App Store needs Xcode, which only runs on Mac, so Sully will be there more often than
+Windows from here on (Windows still used sometimes). Nothing about how this project works changes
+because of that, but it raises the stakes on this Worklog and the "Before switching machines"
+section specifically being complete and accurate, since Mac will now carry more of the day-to-day
+load. Also worth flagging early: iOS export setup (Xcode signing, certificates, provisioning
+profiles) hasn't been started at all yet — everything release-related so far has been Android/
+Google-Play-specific. That'll need its own from-scratch setup on Mac whenever it comes up, likely
+mirroring the same committed-vs-local-secure split the Android keystore already uses.
+
+Claude Code sessions don't carry across machines — this file is what does. Whoever picks this up
+next (same machine or Mac) should start by reading `CLAUDE.md` and this entry in full.
+
 ---
 
 ## 2026-08-04

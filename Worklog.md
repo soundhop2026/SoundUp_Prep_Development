@@ -66,7 +66,7 @@ First live playthrough pass across all six Level 1.5 Sound Quest types (A-F) and
 Transitions (Short/Long) — the single biggest open item flagged at the end of the 2026-08-06
 entry. Started as shipping-mode verification only; several genuine bugs and one real design gap
 were found and fixed along the way, and the Long Transition ended up getting substantially
-rebuilt after live feedback. See `SOUND_QUEST_DESIGN.md` (new) for the full current spec of
+rebuilt after live feedback. See `SoundUp_Level1.5_SoundQuest_Design.md` (new) for the full current spec of
 every Quest type and both Transitions — this entry covers what changed and why, that doc covers
 what it now IS.
 
@@ -193,7 +193,7 @@ across 5s ("slowly slowly... slowly").
   to remove the bridge from the design instead of waiting on new art, that became the real fix.
 
 ### Risks / Gotchas
-- `SOUND_QUEST_DESIGN.md` (new) is the first time Level 1.5 Sound Quest has had a dedicated
+- `SoundUp_Level1.5_SoundQuest_Design.md` (new) is the first time Level 1.5 Sound Quest has had a dedicated
   design reference — CLAUDE.md's own scene-by-scene documentation still doesn't cover Level 1.5
   at all (game15.gd, Sound Quest, or the Transitions). Worth folding a summary into CLAUDE.md
   proper at some point so it's not just a separate doc a future session has to know to check.
@@ -218,6 +218,152 @@ across 5s ("slowly slowly... slowly").
   substantial rework) would be worth a dedicated pass on its own, separate from this session's
   rapid iterate-and-fix loop, once there's been a break to look at them with fresh eyes.
 - Mobile/tablet device testing still outstanding for all of Sound Quest, not just today's changes.
+
+---
+
+## 2026-08-08 (same day, second half) — shipping prep for Prep-through-Level-1 release
+
+### Completed
+Pivoted from Sound Quest verification into concrete pre-ship work for a Prep→Level 1 scoped
+Google Play release (Level 1.5/2/2.5 explicitly out of scope for this ship). Four pieces:
+
+**Sound Quest surfaced in GNB "Where Am I"** (Prep + Level 1 only — Level 1.5 excluded, it has
+no working entry/exit path anywhere in the game, confirmed via a research pass before starting:
+no gameplay hook from `game15.gd`, no debug button, nothing routes into any of the four
+`level15_sound_quest_*.tscn` scenes). Investigated first via a research subagent before touching
+anything, since "expose this in navigation" only makes sense for content that's actually
+completable:
+- `gnb_where_am_i.gd`: each Set Group screen (Screen 3) now shows one extra synthetic ★ card
+  appended after that Group's real Set cards — "Sound Quest — bonus mini-game," with its own
+  ▶ replay button. Built additively (`_sound_quest_entry_for()` returns a dict appended to a
+  *copy* of the group's sets array at render time) specifically so it doesn't touch Screen 2's
+  group tiles or the "X/Y Completed" math, both still driven by the real flat sets list alone.
+  Carries its own no-arg `pfn` closure (routes need to set a start/end index-pair on
+  `SoundQuestState`/`Level1SoundQuestState`, not one flat index like every other card's shared
+  `ld["pfn"]`) — `_on_replay_pressed()` now checks for a per-card `pfn` override first.
+  Group→index-range math (`_prep_group_ranges()`/`_level1_group_ranges()`) derived directly from
+  `PrepLevelProgress`/`LevelProgress`'s own `MAIN_SET_BOUNDARIES`, verified headless against the
+  real boundary arrays: Prep `[3,7,13,19,21,25]` → 6 ranges A-F, Level 1 `[1,3,6,9,11,13,16]` →
+  7 ranges A-G, both matching exactly.
+- **Real safety bug found and fixed before adding the entries**: neither `sound_quest.gd` nor
+  `level1_sound_quest.gd`'s completion handler checked `ReviewState.active` (the flag every
+  other replayable Set already uses to detect "this is a GNB replay, not real progress") — a
+  fully-completed Sound Quest replay would have unconditionally called the real progress
+  singleton's `.advance()`/`.set_prep_completed()`/`.set_level1_completed()`, silently
+  corrupting saved progress or even re-triggering the one-time Level-1 coronation scene. Fixed
+  by adding the exact same guard `prep_game.gd`/`game.gd` already use, as the first check in
+  both `_on_all_quests_complete()` handlers. Confirmed via code review (not live play, given no
+  reliable click-automation this session) that: the guard sits before any real-progress mutation
+  in both files; `ReviewState.active` defaults to `false` so normal play is provably untouched;
+  neither Sound Quest scene has ANY other exit path (no back/quit button at all — completing all
+  4 Quests is the only way out), so there's no route where the flag could leak stucktrue into a
+  later real session; `SaveManager.increment_review_count()` safely handles the new
+  `prep_soundquest_A`/`level1_soundquest_A`-style keys (never used before today).
+
+**Sound Quest description added to the level intro screens** (`level_intro.gd`) — Prep and
+Level 1 only. `LEVEL_DATA` already had unused "level15"/"level2" entries with no route ever
+pointing at them (`LevelIntroState.level_id` is only ever set to "prep"/"level1" anywhere in the
+codebase) — confirmed via the same research pass, so scope matched the GNB decision naturally.
+Added a `bonus_hdr`/`bonus` field pair to just the "prep" and "level1" `LEVEL_DATA` entries and
+a matching render block (reusing the existing `_section()` helper, guarded with `d.has(...)` so
+"level2"/"level15" render exactly as before with no missing-key error).
+
+**Subscription price changed**: Monthly $6.99 → $9.99, Yearly $69.99 → $99.99
+(`choose_plan.gd`) — the only two hardcoded price strings in the whole project, confirmed via a
+full-repo grep before and after.
+
+**Real Google Play Billing integration** (`choose_plan.gd`) — replaced the dev-stub purchase
+flow entirely. Found via direct code read that the "Choose Your Plan" screen, real and reachable
+in actual gameplay (`prep_transition.gd` routes into it after a Prep set boundary), had billing
+completely faked: `_purchase_plan()` printed `"[dev stub] purchase requested"` and immediately
+called `_on_purchase_success()` — meaning on a real Android device, tapping Monthly/Yearly
+granted full premium access to anyone for free, with zero real payment processing. Flagged this
+to the user before touching anything else today, since it directly determines whether a same-day
+ship makes sense.
+- Installed `GodotGooglePlayBilling` v3.3.0 (official Godot SDK integrations plugin,
+  `godot-sdk-integrations/godot-google-play-billing`, downloaded with explicit permission) into
+  `addons/GodotGooglePlayBilling/`, enabled in `project.godot`'s `[editor_plugins]`.
+  `permissions/internet` flipped `false→true` on both Android export presets (required by the
+  plugin, was off since the app had no networking anywhere before this).
+- `choose_plan.gd` rewritten: real `BillingClient` connection lifecycle in `_ready()`, product
+  details queried on connect, `purchase_subscription()` launched on tap, `on_purchase_updated`
+  signal grants access + fires `acknowledge_purchase()` in the background (required within 3
+  days or Google auto-refunds — doesn't block the UX, matches the locked
+  "success -> continue directly" contract), real `query_purchases()` wired to Restore Purchases
+  with a proper "No Purchases Found" dialog (was a silent print before). Everything still
+  no-ops safely on non-Android platforms exactly like the old stub did — verified this Mac
+  still loads the scene with zero errors.
+- **Corrected mid-session, per direct external feedback relayed by the user**: initially built as
+  TWO separate subscription products (`monthly_subscription`/`yearly_subscription`). Corrected to
+  Google's actually-recommended catalog model — ONE subscription product
+  (`soundhop_subscription`) with TWO base plans (`monthly` $9.99, `yearly` $99.99), since a
+  single product with base plans lets Google handle a monthly<->yearly switch as a native
+  in-subscription plan change instead of two independently-overlapping subscriptions. Small,
+  contained fix since product ID and base plan ID were already separate parameters throughout —
+  no structural rework needed, just which constants fed them.
+- Hit the exact known "new `class_name` script needs an editor scan before Godot's global class
+  registry picks it up" gotcha (already documented from 2026-08-04's session) the moment
+  `BillingClient` was referenced — `godot --headless --path . --editor --quit-after 60` fixed it
+  immediately, confirmed via the scan's own log line (`update_scripts_classes | BillingClient`).
+- Version code bumped 1 → 2 on both Android export presets, ahead of generating a real signed
+  AAB (this Mac lacks the toolchain to actually produce one — see Risks below).
+
+### Decisions
+- Level 1.5 Sound Quest is excluded from every piece of today's shipping-prep work (GNB, intro
+  copy) — consistent with the user's explicit "prep to level1" scope for this release, and
+  matches the standing architecture gap (no chaining, no entry point) that made it unsafe to
+  expose regardless.
+- The billing catalog model (one product/two base plans) was corrected mid-build rather than
+  shipped as originally built and fixed later — worth the small rework now since Play Console
+  product IDs, once real subscribers exist against them, are much harder to restructure than
+  GDScript constants are to edit before any Play Console product has been created yet.
+- Chose Windows over Mac for actually generating the signed AAB, after providing an explicit
+  time/risk estimate rather than just picking one — Mac has zero Android toolchain (no JDK, no
+  SDK, no `android/` build template, no keystore) and would be a first-time bring-up with real
+  uncertainty; Windows already produced a working signed build once (v1.0.0) and has the
+  production keystore already in place with no risky transfer needed. Mac becoming primary is
+  still the longer-term direction (Xcode/iOS needs it), just not the path for today's deadline.
+
+### Risks / Gotchas
+- **This Mac cannot currently produce a signed Android build at all** — confirmed no JDK, no
+  Android SDK (Godot's own editor config points at `~/Library/Android/sdk`, which doesn't exist
+  on disk), no `android/` Gradle build template, no keystore env vars set. All of today's
+  billing/GNB/intro work is code-complete and verified loading cleanly, but none of it has been
+  through an actual Gradle build yet on any machine — Windows will be the first real build
+  attempt with today's changes included.
+- The GNB Sound Quest replay guard was verified via careful code review (guard placement,
+  default-false confirmation, no-alternate-exit-path confirmation) rather than an actual live
+  click-through to full Quest completion — no reliable GUI click-automation was available this
+  session. Worth a real live playthrough of a full Sound Quest replay (all 4 Quests) once
+  there's device/build access, to confirm the guard fires exactly as reviewed.
+- Google Play Console has NOT been configured yet — no subscription product exists there at all.
+  Required before any purchase (even a sandboxed test one) can succeed: create
+  `soundhop_subscription` with `monthly` ($9.99) and `yearly` ($99.99) base plans (exact
+  case-sensitive IDs, matching `choose_plan.gd`'s constants), get the app onto an internal
+  testing track, and add a license tester account.
+- iOS StoreKit integration hasn't been started at all — `_is_billing_supported_platform()` still
+  gates on `["Android", "iOS"]`, so iOS currently falls through to the "Subscriptions Not
+  Available" dialog. Separate work, not part of today's scope.
+- The `addons/GodotGooglePlayBilling/` plugin folder is NOT gitignored and needs to be committed
+  (confirmed via `.gitignore` — no `addons` rule exists) — unlike the gitignored, regenerated
+  `android/` folder, this is real source that has to travel with the repo for Windows to build
+  with the plugin included at all.
+
+### Next Session
+- On Windows: `git pull`, confirm `export_presets.cfg` shows `version/code=2` on both Android
+  presets, confirm the `GodotGooglePlayBilling` plugin shows enabled in Project Settings ->
+  Plugins (may need the same editor-scan trick if it doesn't auto-register), regenerate/verify
+  the `android/` Gradle build template still includes the plugin's AAR, then attempt the actual
+  signed AAB export — this is the first real Gradle build with today's plugin integration, so
+  budget real troubleshooting time even on the proven machine.
+- Configure the Play Console subscription product (`soundhop_subscription`, two base plans) and
+  internal testing track before any purchase can be tested — blocks Android purchase testing
+  regardless of build success.
+- iOS StoreKit integration is fully unstarted — separate scoped effort whenever iOS ships.
+- Once Android purchases are confirmed working end-to-end (real test purchase succeeds,
+  acknowledges, grants access, Restore Purchases finds it again), that closes the loop on
+  today's "Configure billing" step — next would be generating the final build and the actual
+  Play Store / App Store submission per the user's 7-step release order.
 
 ---
 

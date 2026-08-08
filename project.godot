@@ -20,6 +20,10 @@ config/icon="res://icon.svg"
 SaveManager="*res://save_manager.gd"
 SceneBackground="*res://scene_background.gd"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg")
+
 [display]
 
 window/size/viewport_width=1280

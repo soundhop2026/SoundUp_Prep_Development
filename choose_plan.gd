@@ -9,18 +9,28 @@ extends Node2D
 # solid-purple version) — easier at-a-glance comparison, lighter/more
 # consistent with the rest of the app's cream-and-line-art look.
 #
-# BILLING — currently stubbed. Selecting Monthly/Yearly is meant to launch
-# the platform's native purchase dialog in-app (Google Play Billing on
-# Android, Apple StoreKit on iOS) — never a webview, never a Play Store app
-# redirect. That integration is a separate, platform-specific effort
-# (store plugins, sandbox accounts, review requirements) out of scope for
-# this pass. _purchase_plan() below is the single, isolated point where
-# that real integration plugs in later — everything else (routing on
-# success/cancel) is already built to the real contract:
+# BILLING — real integration, Android only (GodotGooglePlayBilling plugin
+# v3.3.0, addons/GodotGooglePlayBilling/). iOS StoreKit is separate,
+# not-yet-started work — _is_billing_supported_platform() below still gates
+# on ["Android", "iOS"], so on iOS this currently falls through to the
+# "Subscriptions Not Available" dialog until that integration exists.
+#
+# ── Google Play Console setup required before this works on a real device ──
+# ONE subscription product with TWO base plans (Google's recommended catalog
+# model — not two separate subscription products) so a monthly<->yearly
+# switch is a native in-subscription plan change, not two overlapping
+# subscriptions. These IDs must be created to match EXACTLY (case-sensitive)
+# in Play Console -> Monetize -> Products -> Subscriptions, or every purchase
+# attempt fails with ITEM_UNAVAILABLE / DEVELOPER_ERROR:
+#   Subscription product ID: "soundhop_subscription"
+#     Base plan ID: "monthly"   $9.99
+#     Base plan ID: "yearly"    $99.99
+# App also needs an internal testing track live with a license tester
+# account added before ANY purchase (even a test one) can succeed.
+#
+# Routing contract (unchanged from the stub):
 #   success -> continue directly to the next set
 #   cancel  -> return to this same scene, no progress lost
-#
-# Structure/UX pass — copy and pricing are placeholders.
 # ─────────────────────────────────────────────────────────────────────────────
 
 const FONT_PATH : String = "res://UI_assets/210 연필스케치R.ttf"
@@ -35,13 +45,23 @@ const CARD_H : float = 230.0
 const CARD_GAP : float = 40.0
 const CARDS_Y : float = 150.0
 
+const SUBSCRIPTION_PRODUCT_ID : String = "soundhop_subscription"   # one product, two base plans below
+const MONTHLY_BASE_PLAN_ID : String = "monthly"
+const YEARLY_BASE_PLAN_ID  : String = "yearly"
+
 var _font : Font = null
+var _billing : BillingClient = null
+var _billing_ready : bool = false   # true once query_product_details_response confirms the subscription product exists
+
+func _base_plan_id(plan_id: String) -> String:
+	return MONTHLY_BASE_PLAN_ID if plan_id == "monthly" else YEARLY_BASE_PLAN_ID
 
 
 func _ready() -> void:
 	if ResourceLoader.exists(FONT_PATH):
 		_font = load(FONT_PATH)
 	SceneBackground.set_color(BG_COLOR)
+	_init_billing()
 
 	var bg := ColorRect.new()
 	bg.color        = BG_COLOR
@@ -71,7 +91,7 @@ func _build_monthly_card() -> void:
 		22, PURPLE, HORIZONTAL_ALIGNMENT_CENTER, card)
 	_make_label("Full Access", Vector2(0, 58), Vector2(CARD_W, 24),
 		15, GRAY_TEXT, HORIZONTAL_ALIGNMENT_CENTER, card)
-	_price_label(card, "$6.99", "/month", 100.0)
+	_price_label(card, "$9.99", "/month", 100.0)
 
 	var btn := _card_button()
 	btn.pressed.connect(_purchase_plan.bind("monthly", card))
@@ -88,7 +108,7 @@ func _build_yearly_card() -> void:
 		22, PURPLE, HORIZONTAL_ALIGNMENT_CENTER, card)
 	_make_label("Full Access", Vector2(0, 76), Vector2(CARD_W, 24),
 		15, GRAY_TEXT, HORIZONTAL_ALIGNMENT_CENTER, card)
-	_price_label(card, "$69.99", "/year", 118.0)
+	_price_label(card, "$99.99", "/year", 118.0)
 	_make_label("Pay for 10 months.\nGet 2 months free.", Vector2(0, 158), Vector2(CARD_W, 44),
 		13, GRAY_TEXT, HORIZONTAL_ALIGNMENT_CENTER, card)
 
@@ -192,9 +212,45 @@ func _build_platform_note() -> void:
 		Vector2(0, 534), Vector2(1280, 24), 14, GRAY_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 
 
-# ─── Billing (stub — see header comment) ────────────────────────────────────
+# ─── Billing ─────────────────────────────────────────────────────────────────
 func _is_billing_supported_platform() -> bool:
 	return OS.get_name() in ["Android", "iOS"]
+
+
+# GodotGooglePlayBilling's BillingClient safely no-ops everywhere (its own
+# _plugin_singleton stays null) on any platform other than a real Android
+# export, so it's safe to always instantiate/connect here rather than
+# gating construction itself — only the actual purchase/restore ACTIONS
+# need the OS.get_name() == "Android" gate, matching where real money
+# could move.
+func _init_billing() -> void:
+	if OS.get_name() != "Android":
+		return
+	_billing = BillingClient.new()
+	add_child(_billing)
+	_billing.connected.connect(_on_billing_connected)
+	_billing.connect_error.connect(_on_billing_connect_error)
+	_billing.query_product_details_response.connect(_on_query_product_details_response)
+	_billing.query_purchases_response.connect(_on_query_purchases_response)
+	_billing.on_purchase_updated.connect(_on_purchase_updated)
+	_billing.acknowledge_purchase_response.connect(_on_acknowledge_purchase_response)
+	_billing.start_connection()
+
+
+func _on_billing_connected() -> void:
+	_billing.query_product_details(
+		PackedStringArray([SUBSCRIPTION_PRODUCT_ID]), BillingClient.ProductType.SUBS)
+
+
+func _on_billing_connect_error(response_code: int, debug_message: String) -> void:
+	printerr("[billing] connect_error ", response_code, ": ", debug_message)
+
+
+func _on_query_product_details_response(response: Dictionary) -> void:
+	if response.get("response_code", -1) == BillingClient.BillingResponseCode.OK:
+		_billing_ready = true
+	else:
+		printerr("[billing] query_product_details failed: ", response)
 
 
 func _highlight_card(card: Panel) -> void:
@@ -211,12 +267,45 @@ func _purchase_plan(plan_id: String, card: Panel) -> void:
 		_show_unsupported_platform_dialog()
 		return
 
-	# STUB: real integration launches Google Play Billing (Android) / Apple
-	# StoreKit (iOS) here, in-app — never a browser, never a store-app
-	# redirect — and calls _on_purchase_success()/_on_purchase_cancelled()
-	# from its result callback instead of resolving immediately.
-	print("[dev stub] purchase requested: ", plan_id)
-	_on_purchase_success()
+	if OS.get_name() != "Android" or _billing == null or not _billing_ready:
+		# Not yet connected/product details not confirmed (e.g. brand-new
+		# connection still in flight, or Play Store unreachable) — iOS also
+		# lands here for now since StoreKit isn't wired in yet.
+		await get_tree().create_timer(0.15).timeout
+		_show_unsupported_platform_dialog()
+		return
+
+	var result : Dictionary = _billing.purchase_subscription(SUBSCRIPTION_PRODUCT_ID, _base_plan_id(plan_id))
+	if result.get("response_code", -1) != BillingClient.BillingResponseCode.OK:
+		printerr("[billing] purchase_subscription launch failed: ", result)
+	# On success the native Play Billing dialog takes over; on_purchase_updated
+	# fires with the result once the user completes or cancels it.
+
+
+# Fires once per purchase attempt result, whether from this session's own
+# purchase_subscription() call or (rarely) an out-of-band update.
+func _on_purchase_updated(response: Dictionary) -> void:
+	var code : int = response.get("response_code", -1)
+	if code == BillingClient.BillingResponseCode.USER_CANCELED:
+		_on_purchase_cancelled()
+		return
+	if code != BillingClient.BillingResponseCode.OK:
+		printerr("[billing] on_purchase_updated error ", code, ": ", response)
+		return
+	for purchase in response.get("purchases", []):
+		if purchase.get("purchase_state", -1) == BillingClient.PurchaseState.PURCHASED:
+			# Acknowledge in the background — Google auto-refunds an
+			# unacknowledged purchase within 3 days, but the UX doesn't wait
+			# on it; access is granted the moment Play confirms PURCHASED.
+			if not purchase.get("is_acknowledged", false):
+				_billing.acknowledge_purchase(purchase.get("purchase_token", ""))
+			_on_purchase_success()
+			return
+
+
+func _on_acknowledge_purchase_response(response: Dictionary) -> void:
+	if response.get("response_code", -1) != BillingClient.BillingResponseCode.OK:
+		printerr("[billing] acknowledge_purchase failed: ", response)
 
 
 func _on_purchase_success() -> void:
@@ -232,11 +321,28 @@ func _on_purchase_cancelled() -> void:
 
 
 func _on_restore_pressed() -> void:
-	# STUB: real integration queries the platform's restore mechanism here.
 	if SaveManager.is_subscribed():
 		_continue_granted()
-	else:
-		print("[dev stub] restore purchases: none found")
+		return
+	if OS.get_name() != "Android" or _billing == null:
+		_show_no_purchases_dialog()
+		return
+	_billing.query_purchases(BillingClient.ProductType.SUBS)
+
+
+func _on_query_purchases_response(response: Dictionary) -> void:
+	if response.get("response_code", -1) != BillingClient.BillingResponseCode.OK:
+		printerr("[billing] query_purchases failed: ", response)
+		_show_no_purchases_dialog()
+		return
+	for purchase in response.get("purchases", []):
+		if purchase.get("purchase_state", -1) == BillingClient.PurchaseState.PURCHASED:
+			if not purchase.get("is_acknowledged", false):
+				_billing.acknowledge_purchase(purchase.get("purchase_token", ""))
+			SaveManager.set_subscribed(true)
+			_continue_granted()
+			return
+	_show_no_purchases_dialog()
 
 
 func _on_not_now_pressed() -> void:
@@ -247,8 +353,9 @@ func _on_not_now_pressed() -> void:
 	get_tree().change_scene_to_file("res://title.tscn")
 
 
-# ─── Unsupported platform (e.g. Windows/macOS during dev) ──────────────────
-func _show_unsupported_platform_dialog() -> void:
+# ─── Simple dismissible message dialog — shared by the unsupported-platform
+# ─── and no-purchases-found cases below ─────────────────────────────────────
+func _show_message_dialog(title: String, body: String) -> void:
 	var dim := ColorRect.new()
 	dim.color        = Color(0.0, 0.0, 0.0, 0.55)
 	dim.size         = get_viewport_rect().size
@@ -278,10 +385,9 @@ func _show_unsupported_platform_dialog() -> void:
 	card.add_theme_stylebox_override("panel", sty)
 	dim.add_child(card)
 
-	_make_label("Subscriptions Not Available", Vector2(0, 26), Vector2(CARD_W2, 34),
+	_make_label(title, Vector2(0, 26), Vector2(CARD_W2, 34),
 		22, PURPLE, HORIZONTAL_ALIGNMENT_CENTER, card)
-	_make_label("Subscriptions are available on Android phones,\ntablets, and iPhone/iPad.",
-		Vector2(30, 76), Vector2(CARD_W2 - 60, 70), 17, PURPLE, HORIZONTAL_ALIGNMENT_CENTER, card)
+	_make_label(body, Vector2(30, 76), Vector2(CARD_W2 - 60, 70), 17, PURPLE, HORIZONTAL_ALIGNMENT_CENTER, card)
 
 	var close_btn := Button.new()
 	close_btn.text     = "Close"
@@ -303,6 +409,19 @@ func _show_unsupported_platform_dialog() -> void:
 		close_btn.add_theme_stylebox_override(s, bsty)
 	close_btn.pressed.connect(func(): dim.queue_free())   # dismiss -> already on Choose Your Plan
 	card.add_child(close_btn)
+
+
+# ─── Unsupported platform (e.g. Windows/macOS during dev, or iOS until ──────
+# ─── StoreKit is wired in) ──────────────────────────────────────────────────
+func _show_unsupported_platform_dialog() -> void:
+	_show_message_dialog("Subscriptions Not Available",
+		"Subscriptions are available on Android phones,\ntablets, and iPhone/iPad.")
+
+
+# ─── Restore Purchases found nothing ────────────────────────────────────────
+func _show_no_purchases_dialog() -> void:
+	_show_message_dialog("No Purchases Found",
+		"We couldn't find an active subscription\nfor this Google Play account.")
 
 
 # ─── Routing once access is granted — same context pattern as premium_intro ─

@@ -27,6 +27,8 @@ const LEVEL_DATA : Dictionary = {
 		"how":       "Listen as each sound plays, then hear each picture.\nTap the picture that starts with the sound you heard.",
 		"rc":        "Round cubes  —  fade away one by one as you play.",
 		"sc":        "Set cubes  —  earned between sets.",
+		"bonus_hdr": "Bonus: Sound Quest",
+		"bonus":     "Between some sets, a playful sound-sorting game —\nhunt for a hidden picture and sort sounds into bins.",
 	},
 	"level1": {
 		"bg_color":  "#6EB5FF",
@@ -40,6 +42,8 @@ const LEVEL_DATA : Dictionary = {
 		"how":       "Tap the LISTEN bar, hear the sound, and think.\nFind the picture that matches — on your own.\nWrong? \"Oops, try again\" — start the round over.",
 		"rc":        "Round cubes  —  fade away one by one as you play.",
 		"sc":        "Set cubes  —  earned between sets.",
+		"bonus_hdr": "Bonus: Sound Quest",
+		"bonus":     "Between some sets, sort a whole word-cloud into\nsound bins, then hunt for a hidden picture.",
 	},
 	"level2": {
 		"bg_color":  "#8DB33A",
@@ -133,6 +137,11 @@ func _ready() -> void:
 	y += LINE_H + 14.0
 	_make_label(d["sc"], Vector2(COL_R_X, y), Vector2(COL_W, LINE_H + 6),
 		BODY_SIZE, txt_col)
+	y += LINE_H + 14.0
+
+	if d.has("bonus_hdr"):
+		y += 20.0
+		y = _section(d["bonus_hdr"], d["bonus"], COL_R_X, y, txt_col)
 
 	# ── Ready to Play button ──────────────────────────────────
 	_build_ready_btn(txt_col, bg_col, lid)

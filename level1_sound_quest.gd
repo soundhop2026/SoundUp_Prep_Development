@@ -654,6 +654,11 @@ func _finish_round() -> void:
 
 
 func _on_all_quests_complete() -> void:
+	if ReviewState.active:
+		ReviewState.active = false
+		SaveManager.increment_review_count(ReviewState.set_key)
+		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
+		return
 	if LevelProgress.has_next():
 		LevelProgress.advance()
 		SaveManager.set_level1_set_index(LevelProgress.current_index)

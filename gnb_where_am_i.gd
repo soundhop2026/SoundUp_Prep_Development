@@ -235,6 +235,63 @@ func _level15_group_meta() -> Dictionary:
 	}
 
 
+# ─── Sound Quest replay entries (Prep + Level 1 only — Level 1.5 Sound Quest
+# ─── has no working entry/exit path anywhere in the game yet, out of scope) ───
+# Sound Quest is a per-GROUP bonus activity, not one of a Group's own flat
+# Sets, so it's appended as one extra synthetic card onto that Group's set
+# list at render time (_show_sets_page()) rather than folded into
+# _prep_sets()/_level1_sets() — keeps Screen 2's group tiles and "X/Y
+# Completed" math (both driven by the real flat sets list) untouched.
+# Carries its own no-arg "pfn" (see _on_replay_pressed()'s override check)
+# since it needs to set a start/end index pair on a completely different
+# state singleton, not a single flat set index via the level's own ld["pfn"].
+func _prep_group_ranges() -> Array:
+	var out   : Array = []
+	var start : int   = 0
+	for b in PrepLevelProgress.MAIN_SET_BOUNDARIES:
+		out.append(Vector2i(start, b))
+		start = b + 1
+	return out
+
+
+func _level1_group_ranges() -> Array:
+	var out   : Array = []
+	var start : int   = 0
+	for b in LevelProgress.MAIN_SET_BOUNDARIES:
+		out.append(Vector2i(start, b))
+		start = b + 1
+	return out
+
+
+func _sound_quest_entry_for(level_id: String, letter: String, group_index: int) -> Dictionary:
+	match level_id:
+		"prep":
+			var r : Vector2i = _prep_group_ranges()[group_index]
+			return {
+				"label":     "★",
+				"phonemes":  "Sound Quest — bonus mini-game",
+				"key":       "prep_soundquest_" + letter,
+				"scene":     "res://sound_quest.tscn",
+				"pfn":       func():
+					SoundQuestState.group_start_index = r.x
+					SoundQuestState.group_end_index   = r.y
+					PrepLevelProgress.current_index   = r.y,   # keeps maze-difficulty style correct (sound_quest.gd reads this, not the state singleton, for that)
+			}
+		"level1":
+			var r : Vector2i = _level1_group_ranges()[group_index]
+			return {
+				"label":     "★",
+				"phonemes":  "Sound Quest — bonus mini-game",
+				"key":       "level1_soundquest_" + letter,
+				"scene":     "res://level1_sound_quest.tscn",
+				"pfn":       func():
+					Level1SoundQuestState.group_start_index = r.x
+					Level1SoundQuestState.group_end_index   = r.y,
+			}
+		_:
+			return {}
+
+
 # ─── Header (purple bar — title + subtitle text swap per screen) ──────────────
 func _build_header_bar() -> void:
 	var vp_w : float = get_viewport_rect().size.x
@@ -585,11 +642,16 @@ func _show_sets_page() -> void:
 	_panel_label(_content, "%d / %d Completed" % [group_done, group_total],
 		Vector2(PAGE_PAD, TOP_PAD + 88), Vector2(vp_w - PAGE_PAD * 2, 28), 19, PURPLE)
 
+	var display_sets : Array = group["sets"].duplicate()
+	var sq_entry : Dictionary = _sound_quest_entry_for(ld["id"], letter, _sel_group)
+	if not sq_entry.is_empty():
+		display_sets.append(sq_entry)   # appended past group_total, so it never gets a checkmark
+
 	var cells_area := Control.new()
 	cells_area.position = Vector2(0, TOP_PAD + 130)
 	cells_area.size     = Vector2(vp_w, _content.size.y - (TOP_PAD + 130))
 	_content.add_child(cells_area)
-	_render_set_cells(cells_area, group["sets"], ld, group_done)
+	_render_set_cells(cells_area, display_sets, ld, group_done)
 
 
 # ─── Screen 3 — Set detail (ungrouped levels, e.g. Level 2) ───────────────────
@@ -759,7 +821,14 @@ func _panel_label(parent: Control, text: String, pos: Vector2, sz: Vector2,
 func _on_replay_pressed(sd: Dictionary, ld: Dictionary) -> void:
 	ReviewState.active  = true
 	ReviewState.set_key = sd["key"]
-	ld["pfn"].call(sd["index"])
+	# A set dict's own "pfn" (no-arg) takes precedence over the level's
+	# ld["pfn"] (single flat-index arg) — used by the synthetic Sound Quest
+	# entries, which need to set a start/end range on a different state
+	# singleton entirely, not one flat set index.
+	if sd.has("pfn"):
+		sd["pfn"].call()
+	else:
+		ld["pfn"].call(sd["index"])
 	get_tree().change_scene_to_file(sd["scene"])
 
 

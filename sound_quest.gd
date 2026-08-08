@@ -1294,6 +1294,11 @@ func _qt_find_dead_end(maze, cell: Vector2i, on_path: Dictionary) -> Vector2i:
 func _on_all_quests_complete() -> void:
 	_busy = true
 	await _stop_music()
+	if ReviewState.active:
+		ReviewState.active = false
+		SaveManager.increment_review_count(ReviewState.set_key)
+		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
+		return
 	if PrepLevelProgress.has_next():
 		PrepLevelProgress.advance()
 		get_tree().change_scene_to_file("res://prep_game.tscn")

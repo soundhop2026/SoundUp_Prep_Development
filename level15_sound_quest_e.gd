@@ -287,6 +287,9 @@ func _input(event: InputEvent) -> void:
 func _try_start_drag(pos: Vector2) -> void:
 	if _busy or _dragging:
 		return
+	if Rect2(TARGET_POS, TARGET_SIZE).has_point(pos):
+		_play_sfx(WORD_AUDIO_DIR + _target_word + ".wav")
+		return
 	for i in range(_branch_pool.size() - 1, -1, -1):
 		var b : TextureRect = _branch_pool[i]
 		if not is_instance_valid(b):
@@ -395,11 +398,11 @@ func _resume_bob(b: TextureRect) -> void:
 
 # ─── Round-complete: climb -> touch image -> hop beside -> walk off ────────
 
-const CLIMB_HOP_DUR   : float = 0.3
+const CLIMB_HOP_DUR   : float = 0.8   # slowed further from 0.55 per feedback
 const TOUCH_HOLD      : float = 0.3
 const STAGE_HOP_DUR   : float = 0.25
 const WALK_OFF_X      : float = 1450.0
-const WALK_OFF_DUR    : float = 1.1
+const WALK_OFF_DUR    : float = 2.2    # slowed from 1.1 — walking the image off should feel unhurried, not rushed
 
 func _on_round_complete_climb() -> void:
 	_busy = true

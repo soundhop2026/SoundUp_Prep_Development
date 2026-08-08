@@ -29,6 +29,7 @@ var _schedule  : Array      = []   # target phoneme counts, one per round
 var _round_index : int      = 0
 
 var _target_count  : int   = 0
+var _target_word   : String = ""   # one example word from this round's count bucket — tap Play Button anytime to hear it
 var _correct_pool  : Array = []   # word keys still needing collection this round
 var _eaten_count   : int   = 0
 
@@ -71,6 +72,7 @@ func _start_round() -> void:
 
 	_target_count = _schedule[_round_index]
 	_correct_pool = Level15SoundQuestState.f_correct_pool(_buckets[_target_count], _target_count)
+	_target_word = _correct_pool[randi() % _correct_pool.size()]   # tap Play Button anytime to hear this — no separate image needed
 	_eaten_count = 0
 
 	_spawn_playbutton()
@@ -97,6 +99,10 @@ func _clear_round() -> void:
 
 
 # ─── Play Button (grows 30% per eaten word, cumulative, resets each round) ──
+# No separate target image — tapping Play Button itself plays this round's
+# _target_word audio (see _try_start_drag()), sidestepping the layout fight
+# between a fixed-position image and Play Button's own growth pushing up
+# into whatever space was reserved above it.
 
 const PLAYBUTTON_BASE_SIZE : Vector2 = Vector2(150, 72)
 const PLAYBUTTON_CENTER    : Vector2 = Vector2(640, 160)
@@ -143,9 +149,18 @@ func _spawn_drop_zone() -> void:
 # ─── Word pool (correct + distractors) ──────────────────────────────────────
 
 const WORD_SIZE     : Vector2 = Vector2(90, 90)
-const POOL_CENTER       : Vector2 = Vector2(640, 500)
-const POOL_HALF_EXTENTS : Vector2 = Vector2(600, 180)
-const MIN_SPACING  : float = 100.0
+const POOL_X_CENTER      : float = 640.0
+const POOL_X_HALF_EXTENT : float = 600.0
+const POOL_Y_MIN         : float = 390.0   # clear of the drop zone's bottom edge (323) + half a word + margin
+const POOL_Y_MAX         : float = 660.0   # stays on-canvas (660+45=705, canvas height 720)
+# MIN_SPACING was 100, a pure center-to-center distance — but two 90x90
+# boxes can still overlap at that distance if their centers are diagonally
+# aligned (worst case needs the box diagonal, 90*sqrt(2)=127.3, to
+# guarantee zero overlap at ANY angle). Raised to 130 to actually cover that
+# case; the Y range was also widened asymmetrically (down instead of back
+# up) to keep 20 words packable at the larger spacing without reopening the
+# drop-zone-overlap bug the trim above was fixing.
+const MIN_SPACING  : float = 130.0
 const MAX_ATTEMPTS : int   = 30
 const ROUND_POOL_TOTAL : int = 20
 
@@ -185,11 +200,11 @@ func _spawn_word_pool() -> void:
 
 
 func _pick_pool_center(placed: Array) -> Vector2:
-	var candidate : Vector2 = POOL_CENTER
+	var candidate : Vector2 = Vector2(POOL_X_CENTER, (POOL_Y_MIN + POOL_Y_MAX) / 2.0)
 	for _attempt in range(MAX_ATTEMPTS):
-		candidate = POOL_CENTER + Vector2(
-			randf_range(-1.0, 1.0) * POOL_HALF_EXTENTS.x,
-			randf_range(-1.0, 1.0) * POOL_HALF_EXTENTS.y)
+		candidate = Vector2(
+			POOL_X_CENTER + randf_range(-1.0, 1.0) * POOL_X_HALF_EXTENT,
+			randf_range(POOL_Y_MIN, POOL_Y_MAX))
 		var far_enough := true
 		for p in placed:
 			if candidate.distance_to(p) < MIN_SPACING:
@@ -235,6 +250,13 @@ func _input(event: InputEvent) -> void:
 func _try_start_drag(pos: Vector2) -> void:
 	if _busy or _dragging:
 		return
+	# Tap Play Button (at its CURRENT grown size, not just its base rect) to
+	# hear this round's target word.
+	var pb_half_size : Vector2 = PLAYBUTTON_BASE_SIZE / 2.0 * _playbutton_rect.scale.x
+	var pb_rect : Rect2 = Rect2(PLAYBUTTON_CENTER - pb_half_size, pb_half_size * 2.0)
+	if pb_rect.has_point(pos):
+		_play_sfx(WORD_AUDIO_DIR + _target_word + ".wav")
+		return
 	for i in range(_word_pool.size() - 1, -1, -1):
 		var w : TextureRect = _word_pool[i]
 		if not is_instance_valid(w):
@@ -262,7 +284,10 @@ func _end_drag() -> void:
 		return
 
 	var word_center : Vector2 = w.position + w.size / 2.0
-	var zone_rect : Rect2 = Rect2(DROP_ZONE_POS, DROP_ZONE_SIZE)
+	# Grown generously beyond the visual tray graphic — a kid dropping a word
+	# anywhere near the tray (not pixel-precise on its drawn line) should count.
+	const ZONE_MARGIN : float = 60.0
+	var zone_rect : Rect2 = Rect2(DROP_ZONE_POS, DROP_ZONE_SIZE).grow(ZONE_MARGIN)
 	if zone_rect.has_point(word_center):
 		if w.get_meta("correct"):
 			_on_eaten(w)
@@ -272,6 +297,9 @@ func _end_drag() -> void:
 		_on_drop_empty_space(w)
 
 
+const EAT_HOP_HEIGHT : float = 20.0
+const EAT_HOP_DUR    : float = 0.3
+
 func _on_eaten(w: TextureRect) -> void:
 	_busy = true
 	_word_pool.erase(w)
@@ -280,6 +308,14 @@ func _on_eaten(w: TextureRect) -> void:
 		old_bob.kill()
 
 	_play_sfx(NOM_PATH)
+
+	# Play Button hops up to meet the word, landing back as it's swallowed.
+	var pb_base_y : float = _playbutton_rect.position.y
+	var hop := create_tween()
+	hop.tween_property(_playbutton_rect, "position:y", pb_base_y - EAT_HOP_HEIGHT, EAT_HOP_DUR * 0.5) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	hop.tween_property(_playbutton_rect, "position:y", pb_base_y, EAT_HOP_DUR * 0.5) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
 	var into_pb := create_tween()
 	into_pb.tween_property(w, "position", PLAYBUTTON_CENTER - w.size / 2.0, 0.2) \
@@ -298,9 +334,19 @@ func _on_eaten(w: TextureRect) -> void:
 		_busy = false
 
 
+const REJECT_RECOIL_ANGLE : float = 12.0
+const REJECT_RECOIL_DUR   : float = 0.3
+
 func _on_rejected(w: TextureRect) -> void:
 	_busy = true
 	_play_sfx(BLEH_PATH)
+
+	# Play Button flinches — a quick recoil, echoing the word's own bounce-back.
+	var recoil := create_tween()
+	recoil.tween_property(_playbutton_rect, "rotation_degrees", -REJECT_RECOIL_ANGLE, REJECT_RECOIL_DUR * 0.35) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	recoil.tween_property(_playbutton_rect, "rotation_degrees", 0.0, REJECT_RECOIL_DUR * 0.65) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
 	var start_pos : Vector2 = w.position
 	var zone_center : Vector2 = DROP_ZONE_POS + DROP_ZONE_SIZE / 2.0
@@ -351,7 +397,7 @@ const HOP_HEIGHT   : float = 30.0
 const HOP_COUNT    : int   = 6
 const WADDLE_DUR    : float = 1.3
 const WADDLE_SWAY   : float = 14.0
-const ROLL_DUR      : float = 1.0
+const ROLL_DUR      : float = 2.2   # slowed from 1.0
 
 func _on_round_complete_exit() -> void:
 	_busy = true

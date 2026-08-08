@@ -59,6 +59,168 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-08-08
+
+### Completed
+First live playthrough pass across all six Level 1.5 Sound Quest types (A-F) and both Set
+Transitions (Short/Long) — the single biggest open item flagged at the end of the 2026-08-06
+entry. Started as shipping-mode verification only; several genuine bugs and one real design gap
+were found and fixed along the way, and the Long Transition ended up getting substantially
+rebuilt after live feedback. See `SOUND_QUEST_DESIGN.md` (new) for the full current spec of
+every Quest type and both Transitions — this entry covers what changed and why, that doc covers
+what it now IS.
+
+**Quest A/B, Quest E**: verified working as designed. Quest E got two small fixes — tapping the
+target image now plays the word audio (was previously silent/no-op, tap-to-hear wasn't wired up
+for the image itself even though the design called for it), and the rung-climb/walk-off pacing
+slowed twice per live feedback (climb 0.3s -> 0.55s -> 0.8s per rung; walk-off 1.1s -> 2.2s).
+
+**Quest C/D — substantial rebuild**: live testing immediately surfaced a real design gap, not a
+bug — the original build had no way for a child to know the round's target phoneme at all
+(bubbles are audio-only by design, but nothing ever announced what to listen for). Fixed
+incrementally into a materially different Quest C/D than what shipped 2026-08-06:
+- Added a target image (top) + Play Button (below it) as a matched pair, both tap-anytime:
+  image plays the target word's audio, Play Button plays the target phoneme in isolation
+  (resolves the initial-vs-final ambiguity a raw word can't).
+- Correct-drop model changed from "bubble disappears, consumed" to "bubble pops in place (the
+  phoneme audio IS the feedback, no separate chime) and is replaced by a fresh distractor rising
+  from the bottom" — field never visibly thins out over a round.
+- Bubble field boundary reworked twice (buffer below Play Button 18px -> 78px) after live
+  feedback that bubbles rising close to Play Button read as if it were auto-popping on its own.
+- New signature ending, distinct from every other Quest's exit (deliberately, per direct
+  request — each Quest should have its own personality): both breathe 3x, Play Button hops onto
+  the target image's head, the image gives a tiny surprised squash, then carries Play Button off
+  in a waddling walk. The landing spot is computed per-round from the actual image's pixel
+  content (scans for the topmost non-transparent pixels — a mop's handle tip, not just its
+  bounding-box center) rather than one fixed spot, since every round shows a different word's
+  image and a fixed spot only looked right on roundish/centered ones.
+- `playbutton.png`'s own vertical padding (visible face content stops at 80.1% of its texture
+  height, ~20% transparent below it) was measured directly and used to anchor the landing so the
+  visible chin, not the padded box, touches the image.
+
+**Quest F — two real bugs found and fixed, plus polish**:
+- The round's target-example word was being picked FROM the correct pool but never removed from
+  it, so it showed up twice (once as intended reference, once as a duplicate draggable choice)
+  — and worse, the round's "catch this many" total still counted it even though the pool now
+  built one fewer visible choice than that total required, meaning the round could never
+  actually complete. Fixed by removing the target word from the pool at selection time.
+- The word pool's spawn area was never fenced off from the drop zone above it — a word's
+  bounding box could land with its top edge inside the tray purely by chance (pre-existing bug,
+  unrelated to anything built today, just never caught until live testing). Fixed by raising the
+  pool's spawn floor to sit clear of the drop zone.
+- Separately, the spacing check between pool words used straight-line distance between centers
+  (100px) without accounting for the fact that two square 90x90 boxes need the box's own
+  diagonal (~127px) as separation to guarantee zero overlap at any angle — raised to 130px.
+- Replaced the corner/above-Play-Button target image experiments (both ran into real layout
+  problems — Play Button's 30%-per-eaten growth ate into whatever space was reserved above it)
+  with the same solution as Quest C/D's redesign: tap Play Button itself to hear the target
+  word, no separate image needed. Hit-test accounts for Play Button's current grown size, not
+  just its base size.
+- Added reactive animations that were missing: Play Button now hops to meet a correctly-caught
+  word (previously only the word moved, Play Button sat static) and flinches with a quick recoil
+  on a wrong drop, alongside the existing bleh sound. Slowed the "roll" exit tier 1.0s -> 2.2s.
+
+**Long Transition — rebuilt from scratch, twice**: the version verified 2026-08-06 (Play Button
+crosses a bridge, joins a Louis-face crowd) drifted through several wrong turns before landing.
+In order: (1) confirmed via direct visual inspection that the bridge asset
+(`bridge_level15_soundquest_transition.png`) is a placeholder — a single curved line, no deck,
+no rails, no structure — not something fixable in code; (2) built real arc-following motion for
+it anyway (measuring the line's actual curve from pixel data) before the asset problem was fully
+reckoned with; (3) per direct feedback that the bridge added complexity in service of an asset
+that wasn't real, removed the bridge entirely — the story was never really about the bridge, it
+was hesitation/courage/joining friends, and that plays fine on flat open ground. Final locked
+sequence (also captured in the new design doc):
+1. Large Play Button (left) and a waiting group of smaller Play Buttons (right, not Louis faces
+   — an earlier drift used Louis, corrected) both present from the start, group bouncing +
+   breathing the whole time, encouragingly.
+2. Play Button takes a few steps toward the group, gets nervous, walks back — repeats 4x.
+3. Finally walks the full distance, speeding up slightly near the end, and settles at the
+   group's near edge (not a fixed point that could land anywhere inside the cluster).
+4. The whole group "talks" — 5 gentle bob/breathe cycles together.
+5. Then dances (hop + swirl combined, faster/bigger than the talk phase) for as long as the BGM
+   keeps playing, holding back the final ~10s of the track specifically so the beats below still
+   have music under them instead of finishing in silence.
+6. Breathes together 4 more times, calmer.
+7. Exits together, hopping (not sliding) all the way off screen.
+Also: Play Button (left) and the waiting group (right) are sized independently but tied by a
+locked ratio (crowd = 0.9x the crossing Play Button, both grew together the one time they needed
+to — an earlier pass grew only the crowd and left the crossing Play Button static, caught live
+and corrected); crowd count 8 -> 13; crowd spacing tuned twice (strict non-overlap, then loosened
+back into a "wagle wagle" cluster per direct feedback, same idiom as Level 1's Word Cloud); and
+both Short and Long now force Level 1.5's own background color (`game15.gd`'s exact `#A83A22`)
+for their duration, overriding whatever pastel color the calling Quest scene set, then release it
+back when the transition ends — per direct request, still deciding on the other five Quest
+scenes' colors separately.
+
+**Short Transition**: resized (160x160 -> 6x per request -> shrunk 70% back down to 288x288,
+net 1.8x original) and re-choreographed from a single smooth 1.4s glide into an 8-hop bounce
+across 5s ("slowly slowly... slowly").
+
+**Real technical findings, worth remembering**:
+- `AudioStreamPlayer.finished` resolved near-instantly in my background-launched test runs
+  despite `playing` reporting true — almost certainly an audio-session quirk specific to how a
+  background-launched process gets (or doesn't get) real audio device access, not a bug in the
+  game logic. Switched the Long Transition's "wait for the music" logic to duration-based math
+  (`stream.get_length()` minus elapsed time) instead of awaiting the signal — more robust
+  regardless of the root cause, and avoids depending on a signal that may not fire reliably in
+  every environment.
+- Re-hit the exact `get_meta()`-missing-key-still-logs-an-error gotcha that `level15_sound_quest_ab.gd`
+  already had a documented guard for (`has_meta()` first) — reintroduced it in a new function
+  during the Long Transition rebuild before catching it via the actual runtime error. Worth
+  grepping for `get_meta(` without a preceding `has_meta(` guard if this class of bug shows up
+  again elsewhere.
+- Verifying a Godot scene/component without a debug-menu entry point doesn't require one — a
+  throwaway scene+script pair instantiating just the component under test (`Level15SoundQuestTransitions.new()`,
+  calling `play_short()`/`play_long()` directly) is faster to iterate on than playing through
+  real rounds to trigger it, and can be deleted afterward without touching the real game.
+
+### Decisions
+- Shipping-mode scope drifted deliberately, with explicit check-ins each time: Quest C/D's
+  target-cue gap and Quest F's round-breaking bug were real, not cosmetic, so fixing them was
+  squarely in scope; the Long Transition's full rebuild went further than "verify what's built"
+  because the user redirected explicitly and repeatedly with a fully-specified story, not because
+  scope crept unnoticed.
+- Every Quest type keeps its own distinct signature ending (Quest F rolls, Quest C/D does a
+  piggyback-ride) rather than sharing one reused animation, per direct request — reusing Quest
+  F's roll for Quest C/D was tried first and explicitly reversed for this reason.
+- Per-image landing-spot detection (Quest C/D) and per-texture content-bounds measurement
+  (`playbutton.png`'s padding, the bridge asset's actual shape before it was removed) were done
+  by writing small headless Godot scripts that load the real texture and scan pixel alpha values,
+  not by guessing coordinates — same "verify against real data" discipline the original Sound
+  Quest design pass used for word/phoneme counts.
+- The bridge asset being a placeholder was treated as a genuine content gap to flag, not
+  something to route around with a code trick (e.g., drawing a fake deck) — once the user chose
+  to remove the bridge from the design instead of waiting on new art, that became the real fix.
+
+### Risks / Gotchas
+- `SOUND_QUEST_DESIGN.md` (new) is the first time Level 1.5 Sound Quest has had a dedicated
+  design reference — CLAUDE.md's own scene-by-scene documentation still doesn't cover Level 1.5
+  at all (game15.gd, Sound Quest, or the Transitions). Worth folding a summary into CLAUDE.md
+  proper at some point so it's not just a separate doc a future session has to know to check.
+- Every Sound Quest scene (A/B, C/D, E, F) still has its own distinct pastel background color,
+  separate from `game15.gd`'s main-gameplay color — confirmed intentional/pre-existing, not
+  touched this session except for the two Transitions (which now override to `game15.gd`'s
+  color specifically). Whether to unify the other five is explicitly undecided — user wants to
+  think about it separately, not urgent.
+- None of today's fixes have been played on a real device yet — same standing gap as every
+  prior Sound Quest session, everything verified via windowed Mac testing only.
+- The Quest B->C, D->E, F->(back into game15.gd/Level15Progress) handoffs are still stubbed
+  prints, unchanged from 2026-08-06 — not touched this session, still the main remaining
+  architecture gap before Level 1.5 Sound Quest could ship for real.
+
+### Next Session
+- Decide the remaining five Quest scenes' background colors (explicitly deferred by the user
+  this session).
+- The Quest-to-Quest and Group-to-Group handoff architecture (flagged every session since
+  2026-08-06, still unbuilt) is the next real blocker for Level 1.5 Sound Quest as a whole,
+  independent of today's fixes.
+- A live playthrough of today's Quest C/D and Quest F changes specifically (both got the most
+  substantial rework) would be worth a dedicated pass on its own, separate from this session's
+  rapid iterate-and-fix loop, once there's been a break to look at them with fresh eyes.
+- Mobile/tablet device testing still outstanding for all of Sound Quest, not just today's changes.
+
+---
+
 ## 2026-08-06
 
 ### Completed

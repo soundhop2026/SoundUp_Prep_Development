@@ -27,16 +27,22 @@ static var debug_skip_to_transition : bool = false
 # actually exist.
 #
 # Shared by Prep and Level 1 Sound Quest alike — everything below the
-# phoneme-detection step reads from the same level-agnostic asset folders
+# phoneme-detection step reads from the same level-agnostic manifest
 # regardless of which caller's round JSONs were used to find the phonemes.
 #
-# Two-step fix: read every given JSON path only to find out which PHONEMES
-# this Group range covers (each round's own phoneme_audio field is a
-# reliable, already-correct signal for that), then pull the actual word
-# list for each of those phonemes straight from its image folder
-# (SoundUp_level1_word images/<LETTER>/) — the true complete bank —
-# deriving word_audio/phoneme_audio from the matching asset folders rather
-# than from whatever a specific round happened to reference.
+# Two-step: read every given JSON path only to find out which PHONEMES this
+# Group range covers (each round's own phoneme_audio field is a reliable,
+# already-correct signal for that), then pull the actual word list for each
+# of those phonemes from the checked-in manifest (see WORD_MANIFEST_PATH
+# below) rather than discovering it live via folder enumeration — a packed
+# export's DirAccess enumerates ".import" sidecar filenames instead of the
+# real ".png" names, so the old live-discovery approach silently produced
+# an empty word bank in every exported build (Android and iOS alike) while
+# still working when run from an unpacked source checkout, which is why it
+# passed every editor/desktop test. The manifest is generated once from
+# source by tools/generate_sound_quest_manifest.gd and loaded here via
+# plain FileAccess — the same explicit-path loading regular gameplay
+# already relies on successfully in packed builds.
 static func build_word_pool(json_paths: Array) -> Array:
 	var letters : Dictionary = {}   # phoneme letter -> true
 	for path in json_paths:
@@ -58,11 +64,13 @@ static func build_word_pool(json_paths: Array) -> Array:
 	var sorted_letters : Array = letters.keys()
 	sorted_letters.sort()   # deterministic pool order across runs
 
+	var manifest : Dictionary = _load_word_manifest()
 	var seen : Dictionary = {}
 	var pool : Array = []
 	for letter in sorted_letters:
-		var image_folder : String = _resolve_image_folder(letter)
-		for word in _list_words_for_phoneme(image_folder):
+		var entry : Dictionary = manifest.get(letter, {})
+		var image_folder : String = entry.get("folder", letter)
+		for word in entry.get("words", []):
 			var image_path : String = "res://SoundUp_level1_word images/%s/%s.png" % [image_folder, word]
 			if seen.has(image_path):
 				continue
@@ -73,6 +81,32 @@ static func build_word_pool(json_paths: Array) -> Array:
 				"phoneme_audio": "res://BGM&effect/SoundUp_level1_phonemes/%s.wav" % letter,
 			})
 	return pool
+
+
+# ─── Word manifest ───────────────────────────────────────────────────────────
+const WORD_MANIFEST_PATH : String = "res://sound_quest_word_manifest.json"
+
+static var _word_manifest_cache : Dictionary = {}
+static var _word_manifest_loaded : bool = false
+
+static func _load_word_manifest() -> Dictionary:
+	if _word_manifest_loaded:
+		return _word_manifest_cache
+	_word_manifest_loaded = true
+	if not FileAccess.file_exists(WORD_MANIFEST_PATH):
+		push_error("SoundQuestState: missing " + WORD_MANIFEST_PATH)
+		return _word_manifest_cache
+	var file : FileAccess = FileAccess.open(WORD_MANIFEST_PATH, FileAccess.READ)
+	if file == null:
+		push_error("SoundQuestState: failed to open " + WORD_MANIFEST_PATH)
+		return _word_manifest_cache
+	var data = JSON.parse_string(file.get_as_text())
+	file.close()
+	if typeof(data) == TYPE_DICTIONARY:
+		_word_manifest_cache = data
+	else:
+		push_error("SoundQuestState: malformed " + WORD_MANIFEST_PATH)
+	return _word_manifest_cache
 
 
 # The image folder name doesn't always match the phoneme_audio basename it's

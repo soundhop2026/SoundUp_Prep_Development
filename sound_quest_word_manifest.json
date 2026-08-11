@@ -1,0 +1,295 @@
+{
+	"B": {
+		"folder": "B",
+		"words": [
+			"bag",
+			"ball",
+			"banana",
+			"bat",
+			"bear",
+			"bed",
+			"bicycle",
+			"boat",
+			"box",
+			"bus"
+		]
+	},
+	"C_soft": {
+		"folder": "C-soft",
+		"words": [
+			"celery",
+			"cent",
+			"cereal",
+			"circle",
+			"circus",
+			"city"
+		]
+	},
+	"D": {
+		"folder": "D",
+		"words": [
+			"deer",
+			"desk",
+			"dirt",
+			"dog",
+			"doll",
+			"donut",
+			"drum",
+			"duck"
+		]
+	},
+	"F": {
+		"folder": "F",
+		"words": [
+			"fan",
+			"farm",
+			"feather",
+			"fire",
+			"fish",
+			"flag",
+			"flower",
+			"fox",
+			"frog"
+		]
+	},
+	"G_hard": {
+		"folder": "G-hard",
+		"words": [
+			"game",
+			"gate",
+			"gift",
+			"girl",
+			"goat",
+			"goose",
+			"guitar",
+			"gum"
+		]
+	},
+	"G_soft": {
+		"folder": "G_soft",
+		"words": [
+			"gem",
+			"genie",
+			"germ",
+			"giant",
+			"ginger",
+			"giraffe",
+			"gym"
+		]
+	},
+	"H": {
+		"folder": "H",
+		"words": [
+			"hammer",
+			"hand",
+			"hat",
+			"heart",
+			"helicopter",
+			"horse",
+			"house"
+		]
+	},
+	"J": {
+		"folder": "J",
+		"words": [
+			"jacket",
+			"jam",
+			"jar",
+			"jeep",
+			"jet",
+			"juice",
+			"jump",
+			"jungle"
+		]
+	},
+	"K": {
+		"folder": "K",
+		"words": [
+			"kangaroo",
+			"kettle",
+			"key",
+			"kid",
+			"king",
+			"kitchen",
+			"kite",
+			"kitten",
+			"koala"
+		]
+	},
+	"L": {
+		"folder": "L",
+		"words": [
+			"ladder",
+			"lamp",
+			"leaf",
+			"leg",
+			"lemon",
+			"lion",
+			"lips",
+			"lock",
+			"log"
+		]
+	},
+	"M": {
+		"folder": "M",
+		"words": [
+			"mail",
+			"man",
+			"map",
+			"mask",
+			"milk",
+			"monkey",
+			"moon",
+			"mouse",
+			"mug"
+		]
+	},
+	"N": {
+		"folder": "N",
+		"words": [
+			"nap",
+			"necklace",
+			"needle",
+			"nest",
+			"net",
+			"night",
+			"noodles"
+		]
+	},
+	"P": {
+		"folder": "P",
+		"words": [
+			"pan",
+			"panda",
+			"pear",
+			"pen",
+			"pig",
+			"pillow",
+			"pizza",
+			"pot",
+			"purse"
+		]
+	},
+	"Q": {
+		"folder": "Q",
+		"words": [
+			"quack",
+			"quail",
+			"quarter",
+			"queen",
+			"quiet",
+			"quilt"
+		]
+	},
+	"R": {
+		"folder": "R",
+		"words": [
+			"rabbit",
+			"rain",
+			"ring",
+			"road",
+			"robot",
+			"rock",
+			"rocket",
+			"run"
+		]
+	},
+	"S": {
+		"folder": "S",
+		"words": [
+			"sand",
+			"seal",
+			"snake",
+			"snowman",
+			"soap",
+			"sock",
+			"soup",
+			"star",
+			"sun"
+		]
+	},
+	"T": {
+		"folder": "T",
+		"words": [
+			"table",
+			"ten",
+			"tiger",
+			"top",
+			"tortoise",
+			"towel",
+			"train",
+			"tree",
+			"truck"
+		]
+	},
+	"V": {
+		"folder": "V",
+		"words": [
+			"vacuum",
+			"van",
+			"vase",
+			"vest",
+			"vet",
+			"village",
+			"violin",
+			"volcano"
+		]
+	},
+	"W": {
+		"folder": "W",
+		"words": [
+			"wall",
+			"wave",
+			"web",
+			"wig",
+			"win",
+			"window",
+			"wolf",
+			"worm"
+		]
+	},
+	"X_gz": {
+		"folder": "X-gz",
+		"words": [
+			"exact",
+			"exam",
+			"example",
+			"exhaust",
+			"exotic"
+		]
+	},
+	"X_ks": {
+		"folder": "X-ks",
+		"words": [
+			"ax",
+			"box",
+			"fix",
+			"fox",
+			"mix",
+			"ox",
+			"six",
+			"taxi"
+		]
+	},
+	"Y": {
+		"folder": "Y",
+		"words": [
+			"yak",
+			"yard",
+			"yawn",
+			"yogurt",
+			"yoyo"
+		]
+	},
+	"Z": {
+		"folder": "Z",
+		"words": [
+			"zebra",
+			"zero",
+			"zigzag",
+			"zipper",
+			"zoo",
+			"zucchini"
+		]
+	}
+}

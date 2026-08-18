@@ -14,6 +14,8 @@ config/name="SoundUp_Prep_Development"
 run/main_scene="res://title.tscn"
 config/features=PackedStringArray("4.5", "Mobile")
 config/icon="res://icon.svg"
+boot_splash/show_image=false
+boot_splash/bg_color=Color(0.294118, 0, 0.509804, 1)
 
 [autoload]
 

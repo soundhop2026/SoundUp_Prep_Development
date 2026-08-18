@@ -68,6 +68,7 @@ const YEARLY_BASE_PLAN_ID  : String = "yearly"
 
 const IOS_MONTHLY_PRODUCT_ID : String = "com.acron.learningsounds.monthly"
 const IOS_YEARLY_PRODUCT_ID  : String = "com.acron.learningsounds.yearly"
+const PRIVACY_POLICY_URL : String = "https://www.getsoundhop.com/privacy-policy"
 
 var _font : Font = null
 var _billing : BillingClient = null
@@ -108,6 +109,7 @@ func _ready() -> void:
 	_build_restore_btn()
 	_build_not_now_btn()
 	_build_platform_note()
+	_build_privacy_policy_link()
 	_build_copyright_label()
 
 
@@ -238,6 +240,30 @@ func _build_not_now_btn() -> void:
 func _build_platform_note() -> void:
 	_make_label("Subscriptions are available on Android phones, tablets, and iPhone/iPad.",
 		Vector2(0, 534), Vector2(1280, 24), 14, GRAY_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+
+
+# Small text link, same idiom as the platform note above it — opens the
+# real SoundHop Privacy Policy page in the device's browser. Sits inside
+# this existing screen (no new scene) per direct request.
+func _build_privacy_policy_link() -> void:
+	var link := LinkButton.new()
+	link.text     = "Privacy Policy"
+	link.underline = LinkButton.UNDERLINE_MODE_ALWAYS
+	if _font:
+		link.add_theme_font_override("font", _font)
+	link.add_theme_font_size_override("font_size", 14)
+	link.add_theme_color_override("font_color",       GRAY_TEXT)
+	link.add_theme_color_override("font_hover_color", PURPLE)
+	link.pressed.connect(_on_privacy_policy_pressed)
+	# LinkButton has no horizontal_alignment property (unlike Label/Button) —
+	# size to its own measured text width, then center that box manually.
+	link.size     = link.get_minimum_size()
+	link.position = Vector2((1280.0 - link.size.x) / 2.0, 568.0)
+	add_child(link)
+
+
+func _on_privacy_policy_pressed() -> void:
+	OS.shell_open(PRIVACY_POLICY_URL)
 
 
 # ─── Billing ─────────────────────────────────────────────────────────────────

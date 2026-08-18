@@ -9,13 +9,15 @@ extends Node2D
 # solid-purple version) — easier at-a-glance comparison, lighter/more
 # consistent with the rest of the app's cream-and-line-art look.
 #
-# BILLING — real integration, Android only (GodotGooglePlayBilling plugin
-# v3.3.0, addons/GodotGooglePlayBilling/). iOS StoreKit is separate,
-# not-yet-started work — _is_billing_supported_platform() below still gates
-# on ["Android", "iOS"], so on iOS this currently falls through to the
-# "Subscriptions Not Available" dialog until that integration exists.
+# BILLING — real integration on both platforms.
+#   Android: GodotGooglePlayBilling plugin v3.3.0, addons/GodotGooglePlayBilling/.
+#   iOS:     godot-storekit2 plugin v0.2 (StoreKit 2), ios/plugins/godot-storekit2/.
+# Each platform's SDK only ever runs on its own OS — GodotStoreKit2 doesn't
+# exist as a class outside an iOS export, and BillingClient's native
+# singleton stays null outside Android — so both can be wired up
+# unconditionally and just no-op on the wrong platform.
 #
-# ── Google Play Console setup required before this works on a real device ──
+# ── Google Play Console setup required before Android purchases work ──
 # ONE subscription product with TWO base plans (Google's recommended catalog
 # model — not two separate subscription products) so a monthly<->yearly
 # switch is a native in-subscription plan change, not two overlapping
@@ -27,6 +29,21 @@ extends Node2D
 #     Base plan ID: "yearly"    $99.99
 # App also needs an internal testing track live with a license tester
 # account added before ANY purchase (even a test one) can succeed.
+#
+# ── App Store Connect setup required before iOS purchases work ──
+# TWO separate auto-renewable subscription products (StoreKit 2 has no
+# multi-base-plan concept like Play Billing — each duration is its own
+# product), ideally in the same subscription group so a monthly<->yearly
+# switch is a plan change rather than two overlapping subscriptions:
+#   Monthly: "com.acron.learningsounds.monthly"   $9.99
+#   Yearly:  "com.acron.learningsounds.yearly"    $99.99
+# Sandbox testing requires a Sandbox Apple ID (App Store Connect ->
+# Users and Access -> Sandbox Testers) signed into the Sandbox account on
+# the test device before any purchase, including Restore, will resolve.
+# StoreKit 2 verifies every transaction's JWS signature internally before
+# it is ever surfaced to this script — reaching PURCHASED/RESTORED here
+# already IS the verified-success signal; there is no separate
+# acknowledge/verify step like Android's acknowledge_purchase().
 #
 # Routing contract (unchanged from the stub):
 #   success -> continue directly to the next set
@@ -49,12 +66,23 @@ const SUBSCRIPTION_PRODUCT_ID : String = "soundhop_subscription"   # one product
 const MONTHLY_BASE_PLAN_ID : String = "monthly"
 const YEARLY_BASE_PLAN_ID  : String = "yearly"
 
+const IOS_MONTHLY_PRODUCT_ID : String = "com.acron.learningsounds.monthly"
+const IOS_YEARLY_PRODUCT_ID  : String = "com.acron.learningsounds.yearly"
+
 var _font : Font = null
 var _billing : BillingClient = null
-var _billing_ready : bool = false   # true once query_product_details_response confirms the subscription product exists
+var _billing_ready : bool = false   # true once the current platform's product info is confirmed loaded
+
+var _storekit : GDScriptStoreKit2 = null
+var _ios_monthly_ready : bool = false
+var _ios_yearly_ready  : bool = false
 
 func _base_plan_id(plan_id: String) -> String:
 	return MONTHLY_BASE_PLAN_ID if plan_id == "monthly" else YEARLY_BASE_PLAN_ID
+
+
+func _ios_product_id(plan_id: String) -> String:
+	return IOS_MONTHLY_PRODUCT_ID if plan_id == "monthly" else IOS_YEARLY_PRODUCT_ID
 
 
 func _ready() -> void:
@@ -217,24 +245,32 @@ func _is_billing_supported_platform() -> bool:
 	return OS.get_name() in ["Android", "iOS"]
 
 
-# GodotGooglePlayBilling's BillingClient safely no-ops everywhere (its own
-# _plugin_singleton stays null) on any platform other than a real Android
-# export, so it's safe to always instantiate/connect here rather than
-# gating construction itself — only the actual purchase/restore ACTIONS
-# need the OS.get_name() == "Android" gate, matching where real money
-# could move.
+# Both SDKs safely no-op on the wrong platform (BillingClient's native
+# _plugin_singleton stays null outside Android; GDScriptStoreKit2's
+# _store_kit stays null outside iOS since GodotStoreKit2 isn't a registered
+# class there), so it's safe to always instantiate/connect the current
+# platform's client here rather than gating construction itself — only the
+# actual purchase/restore ACTIONS need an OS.get_name() gate, matching
+# where real money could move.
 func _init_billing() -> void:
-	if OS.get_name() != "Android":
-		return
-	_billing = BillingClient.new()
-	add_child(_billing)
-	_billing.connected.connect(_on_billing_connected)
-	_billing.connect_error.connect(_on_billing_connect_error)
-	_billing.query_product_details_response.connect(_on_query_product_details_response)
-	_billing.query_purchases_response.connect(_on_query_purchases_response)
-	_billing.on_purchase_updated.connect(_on_purchase_updated)
-	_billing.acknowledge_purchase_response.connect(_on_acknowledge_purchase_response)
-	_billing.start_connection()
+	match OS.get_name():
+		"Android":
+			_billing = BillingClient.new()
+			add_child(_billing)
+			_billing.connected.connect(_on_billing_connected)
+			_billing.connect_error.connect(_on_billing_connect_error)
+			_billing.query_product_details_response.connect(_on_query_product_details_response)
+			_billing.query_purchases_response.connect(_on_query_purchases_response)
+			_billing.on_purchase_updated.connect(_on_purchase_updated)
+			_billing.acknowledge_purchase_response.connect(_on_acknowledge_purchase_response)
+			_billing.start_connection()
+		"iOS":
+			_storekit = GDScriptStoreKit2.new()
+			_storekit.product_info_received.connect(_on_ios_product_info_received)
+			_storekit.transaction_state_changed.connect(_on_ios_transaction_state_changed)
+			_storekit.synchronized.connect(_on_ios_synchronized)
+			_storekit.request_product_info(IOS_MONTHLY_PRODUCT_ID)
+			_storekit.request_product_info(IOS_YEARLY_PRODUCT_ID)
 
 
 func _on_billing_connected() -> void:
@@ -253,6 +289,48 @@ func _on_query_product_details_response(response: Dictionary) -> void:
 		printerr("[billing] query_product_details failed: ", response)
 
 
+func _on_ios_product_info_received(info: GDScriptStoreKit2.ProductInfo) -> void:
+	if not info.error.is_empty():
+		printerr("[storekit] request_product_info failed: ", info.error)
+		return
+	match info.product_id:
+		IOS_MONTHLY_PRODUCT_ID:
+			_ios_monthly_ready = true
+		IOS_YEARLY_PRODUCT_ID:
+			_ios_yearly_ready = true
+	if _ios_monthly_ready and _ios_yearly_ready:
+		_billing_ready = true
+
+
+# Fires for both a fresh purchase and a restore (sync()) — StoreKit 2 also
+# fires this on its own for transactions that happened externally (another
+# device, a refund) whenever the app is running, which is why simply
+# opening this screen can silently unlock an already-subscribed parent
+# without them having to press Restore.
+func _on_ios_transaction_state_changed(transaction: GDScriptStoreKit2.TransactionData) -> void:
+	if not transaction.error.is_empty():
+		printerr("[storekit] transaction error: ", transaction.error)
+		return
+	match transaction.transaction_state:
+		GDScriptStoreKit2.TransactionState.PURCHASED, GDScriptStoreKit2.TransactionState.RESTORED:
+			if transaction.product_id in [IOS_MONTHLY_PRODUCT_ID, IOS_YEARLY_PRODUCT_ID]:
+				SaveManager.set_subscribed(true)
+				_continue_granted()
+		GDScriptStoreKit2.TransactionState.CANCELED:
+			_on_purchase_cancelled()
+		_:
+			pass   # FAILED / REFUNDED / PENDING / DEFERRED / EXPIRED — no action here
+
+
+# sync()'s network round-trip finished. Any RESTORED transaction it found
+# already arrived (and was handled) via _on_ios_transaction_state_changed
+# above before this fires, so if we're still here and still unsubscribed,
+# there was genuinely nothing to restore.
+func _on_ios_synchronized() -> void:
+	if not SaveManager.is_subscribed():
+		_show_no_purchases_dialog()
+
+
 func _highlight_card(card: Panel) -> void:
 	var t := create_tween()
 	t.tween_property(card, "scale", Vector2(1.04, 1.04), 0.12).set_ease(Tween.EASE_OUT)
@@ -267,19 +345,34 @@ func _purchase_plan(plan_id: String, card: Panel) -> void:
 		_show_unsupported_platform_dialog()
 		return
 
-	if OS.get_name() != "Android" or _billing == null or not _billing_ready:
-		# Not yet connected/product details not confirmed (e.g. brand-new
-		# connection still in flight, or Play Store unreachable) — iOS also
-		# lands here for now since StoreKit isn't wired in yet.
-		await get_tree().create_timer(0.15).timeout
-		_show_unsupported_platform_dialog()
-		return
-
-	var result : Dictionary = _billing.purchase_subscription(SUBSCRIPTION_PRODUCT_ID, _base_plan_id(plan_id))
-	if result.get("response_code", -1) != BillingClient.BillingResponseCode.OK:
-		printerr("[billing] purchase_subscription launch failed: ", result)
-	# On success the native Play Billing dialog takes over; on_purchase_updated
-	# fires with the result once the user completes or cancels it.
+	match OS.get_name():
+		"Android":
+			if _billing == null or not _billing_ready:
+				# Not yet connected/product details not confirmed (e.g.
+				# brand-new connection still in flight, or Play Store
+				# unreachable).
+				await get_tree().create_timer(0.15).timeout
+				_show_unsupported_platform_dialog()
+				return
+			var result : Dictionary = _billing.purchase_subscription(SUBSCRIPTION_PRODUCT_ID, _base_plan_id(plan_id))
+			if result.get("response_code", -1) != BillingClient.BillingResponseCode.OK:
+				printerr("[billing] purchase_subscription launch failed: ", result)
+			# On success the native Play Billing dialog takes over;
+			# on_purchase_updated fires with the result once the user
+			# completes or cancels it.
+		"iOS":
+			if _storekit == null or not _billing_ready:
+				# Product info for both plans not confirmed loaded yet.
+				await get_tree().create_timer(0.15).timeout
+				_show_unsupported_platform_dialog()
+				return
+			_storekit.purchase_product(_ios_product_id(plan_id))
+			# On success the native StoreKit purchase sheet takes over;
+			# transaction_state_changed fires with the result once the user
+			# completes or cancels it.
+		_:
+			await get_tree().create_timer(0.15).timeout
+			_show_unsupported_platform_dialog()
 
 
 # Fires once per purchase attempt result, whether from this session's own
@@ -324,10 +417,22 @@ func _on_restore_pressed() -> void:
 	if SaveManager.is_subscribed():
 		_continue_granted()
 		return
-	if OS.get_name() != "Android" or _billing == null:
-		_show_no_purchases_dialog()
-		return
-	_billing.query_purchases(BillingClient.ProductType.SUBS)
+	match OS.get_name():
+		"Android":
+			if _billing == null:
+				_show_no_purchases_dialog()
+				return
+			_billing.query_purchases(BillingClient.ProductType.SUBS)
+		"iOS":
+			if _storekit == null:
+				_show_no_purchases_dialog()
+				return
+			_storekit.sync()
+			# _on_ios_transaction_state_changed grants access if sync() finds
+			# an active purchase; _on_ios_synchronized shows the "nothing
+			# found" dialog once the round-trip finishes with no match.
+		_:
+			_show_no_purchases_dialog()
 
 
 func _on_query_purchases_response(response: Dictionary) -> void:
@@ -411,8 +516,7 @@ func _show_message_dialog(title: String, body: String) -> void:
 	card.add_child(close_btn)
 
 
-# ─── Unsupported platform (e.g. Windows/macOS during dev, or iOS until ──────
-# ─── StoreKit is wired in) ──────────────────────────────────────────────────
+# ─── Unsupported platform (e.g. Windows/macOS during dev) ───────────────────
 func _show_unsupported_platform_dialog() -> void:
 	_show_message_dialog("Subscriptions Not Available",
 		"Subscriptions are available on Android phones,\ntablets, and iPhone/iPad.")
@@ -421,7 +525,7 @@ func _show_unsupported_platform_dialog() -> void:
 # ─── Restore Purchases found nothing ────────────────────────────────────────
 func _show_no_purchases_dialog() -> void:
 	_show_message_dialog("No Purchases Found",
-		"We couldn't find an active subscription\nfor this Google Play account.")
+		"We couldn't find an active subscription\nfor this account.")
 
 
 # ─── Routing once access is granted — same context pattern as premium_intro ─

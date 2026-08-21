@@ -45,8 +45,6 @@ var _pressed        : bool         = false
 var _can_press      : bool         = false
 var _letter_landing : Array[bool]  = []
 var _drift_tweens   : Array        = []
-var _prep_btn       : Button       = null
-var _level1_btn     : Button       = null
 var _sway_tween     : Tween        = null
 var _debug_btn      : Button       = null
 var _gnb_btn        : Button       = null
@@ -264,10 +262,7 @@ func _animate_in() -> void:
 
 	await get_tree().create_timer(3.0).timeout
 	_start_sway()
-	if SaveManager.is_path_chosen():
-		_can_press = true
-	else:
-		_create_choice_buttons()
+	_can_press = true
 
 # ─── Idle sway ────────────────────────────────────────────────────────────────
 func _start_sway() -> void:
@@ -283,56 +278,6 @@ func _stop_sway() -> void:
 		_sway_tween.kill()
 		_sway_tween = null
 	$PlayButton.position.x = _vp_cx - 907.0 * BTN_SCALE * 0.5
-
-# ─── Choice buttons (shown when path_chosen == false) ────────────────────────
-func _create_choice_buttons() -> void:
-	const BTN_W  : float = 250.0
-	const BTN_H  : float =  58.0
-	const GAP    : float =  50.0
-	const BTN_Y  : float = 525.0
-	const PURPLE : Color = Color("#4B0083")
-	const GOLD   : Color = Color("#FFB703")
-	const RADIUS : int   = 18
-
-	var start_x : float = (get_viewport_rect().size.x - BTN_W * 2.0 - GAP) / 2.0
-
-	for i in range(2):
-		var btn := Button.new()
-		btn.text         = "Prep Level" if i == 0 else "Level 1"
-		btn.size         = Vector2(BTN_W, BTN_H)
-		btn.position     = Vector2(start_x + i * (BTN_W + GAP), BTN_Y)
-		btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
-		btn.z_index      = 5
-		if _font:
-			btn.add_theme_font_override("font", _font)
-		btn.add_theme_font_size_override("font_size", 28)
-		btn.add_theme_color_override("font_color",         GOLD)
-		btn.add_theme_color_override("font_hover_color",   GOLD)
-		btn.add_theme_color_override("font_pressed_color", GOLD)
-		btn.add_theme_color_override("font_focus_color",   GOLD)
-
-		var style := StyleBoxFlat.new()
-		style.bg_color                   = PURPLE
-		style.corner_radius_top_left     = RADIUS
-		style.corner_radius_top_right    = RADIUS
-		style.corner_radius_bottom_left  = RADIUS
-		style.corner_radius_bottom_right = RADIUS
-		style.content_margin_left        = 20.0
-		style.content_margin_right       = 20.0
-		style.content_margin_top         = 8.0
-		style.content_margin_bottom      = 8.0
-		btn.add_theme_stylebox_override("normal",  style)
-		btn.add_theme_stylebox_override("hover",   style)
-		btn.add_theme_stylebox_override("pressed", style)
-		btn.add_theme_stylebox_override("focus",   style)
-
-		if i == 0:
-			_prep_btn = btn
-			btn.pressed.connect(_on_prep_chosen)
-		else:
-			_level1_btn = btn
-			btn.pressed.connect(_on_level1_chosen)
-		add_child(btn)
 
 func _create_gnb_entry() -> void:
 	const BTN_W  : float = 72.0
@@ -368,40 +313,21 @@ func _create_gnb_entry() -> void:
 func _on_gnb_pressed() -> void:
 	get_tree().change_scene_to_file("res://gnb_home.tscn")
 
-func _on_prep_chosen() -> void:
-	if _pressed:
-		return
-	_pressed = true
-	SaveManager.set_path_chosen()
-	_animate_out_then_route("prep")
-
-func _on_level1_chosen() -> void:
-	if _pressed:
-		return
-	_pressed = true
-	SaveManager.set_path_chosen()
-	SaveManager.set_chose_level1_path()
-	_animate_out_then_route("level1")
-
 # ─── Play button pressed ──────────────────────────────────────────────────────
 func _on_play_pressed() -> void:
 	if _pressed or not _can_press:
 		return
 	_pressed = true
 	$PlayButton.pressed.disconnect(_on_play_pressed)
-	_animate_out_then_route("")
+	_animate_out_then_route()
 
 # ─── BGM looping ──────────────────────────────────────────────────────────────
 func _on_bgm_finished() -> void:
 	$BGMPlayer.play()
 
 # ─── Exit animation + routing ─────────────────────────────────────────────────
-func _animate_out_then_route(choice: String) -> void:
+func _animate_out_then_route() -> void:
 	_stop_sway()
-	if _prep_btn:
-		_prep_btn.disabled   = true
-	if _level1_btn:
-		_level1_btn.disabled = true
 
 	var bgm_fade := create_tween()
 	bgm_fade.tween_property($BGMPlayer, "volume_db", -40.0, 1.0)
@@ -443,38 +369,40 @@ func _animate_out_then_route(choice: String) -> void:
 	await bt.finished
 	await get_tree().create_timer(1.0).timeout
 
-	match choice:
-		"prep":
-			LevelIntroState.level_id = "prep"
-			get_tree().change_scene_to_file("res://level_intro.tscn")
-		"level1":
-			LevelIntroState.level_id = "level1"
-			get_tree().change_scene_to_file("res://level_intro.tscn")
-		_:
-			if SaveManager.is_level2_completed():
-				pass  # TODO: route to next level when built
-			elif SaveManager.is_level15_completed():
-				Level2Progress.current_index  = SaveManager.get_level2_set_index()
-				get_tree().change_scene_to_file("res://game2.tscn")
-			elif SaveManager.is_level1_completed():
-				Level15Progress.current_index = SaveManager.get_level15_set_index()
-				get_tree().change_scene_to_file("res://game15.tscn")
-			elif SaveManager.is_prep_completed():
-				LevelProgress.current_index   = SaveManager.get_level1_set_index()
-				get_tree().change_scene_to_file("res://game.tscn")
-			elif SaveManager.get_level1_set_index() > 0:
-				# Mid-progress in Level 1 (past set 1) — clearly on Level 1 path
-				LevelProgress.current_index   = SaveManager.get_level1_set_index()
-				get_tree().change_scene_to_file("res://game.tscn")
-			elif SaveManager.get_prep_set_index() > 0:
-				# Mid-progress in Prep — on Prep path (direct or redirected)
-				PrepLevelProgress.load_from_save()
-				get_tree().change_scene_to_file("res://prep_game.tscn")
-			elif SaveManager.is_chose_level1_path():
-				# Both indices 0 — child chose Level 1 but hasn't finished set 1 yet
-				LevelProgress.current_index = 0
-				get_tree().change_scene_to_file("res://game.tscn")
-			else:
-				# Chose Prep path, at start
-				PrepLevelProgress.load_from_save()
-				get_tree().change_scene_to_file("res://prep_game.tscn")
+	if SaveManager.is_level2_completed():
+		pass  # TODO: route to next level when built
+	elif SaveManager.is_level15_completed():
+		Level2Progress.current_index  = SaveManager.get_level2_set_index()
+		get_tree().change_scene_to_file("res://game2.tscn")
+	elif SaveManager.is_level1_completed():
+		Level15Progress.current_index = SaveManager.get_level15_set_index()
+		get_tree().change_scene_to_file("res://game15.tscn")
+	elif SaveManager.is_prep_completed():
+		LevelProgress.current_index   = SaveManager.get_level1_set_index()
+		get_tree().change_scene_to_file("res://game.tscn")
+	elif SaveManager.get_level1_set_index() > 0:
+		# Mid-progress in Level 1 (past set 1) — clearly on Level 1 path
+		LevelProgress.current_index   = SaveManager.get_level1_set_index()
+		get_tree().change_scene_to_file("res://game.tscn")
+	elif SaveManager.get_prep_set_index() > 0:
+		# Mid-progress in Prep — on Prep path (direct or redirected)
+		PrepLevelProgress.load_from_save()
+		get_tree().change_scene_to_file("res://prep_game.tscn")
+	elif SaveManager.is_chose_level1_path():
+		# Both indices 0 — a legacy save from before the title-screen choice
+		# buttons were removed; a returning player who chose Level 1 back
+		# then but hasn't finished set 1 yet
+		LevelProgress.current_index = 0
+		get_tree().change_scene_to_file("res://game.tscn")
+	elif SaveManager.is_path_chosen():
+		# Already been shown the Prep intro before (see the branch below) —
+		# skip straight back in, same as any other return-to-title press.
+		PrepLevelProgress.load_from_save()
+		get_tree().change_scene_to_file("res://prep_game.tscn")
+	else:
+		# Genuinely first-ever Play press on this device — same intro copy
+		# screen the old "Prep Level" choice button used to route through,
+		# shown exactly once.
+		SaveManager.set_path_chosen()
+		LevelIntroState.level_id = "prep"
+		get_tree().change_scene_to_file("res://level_intro.tscn")

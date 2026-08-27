@@ -42,6 +42,7 @@ func _ready() -> void:
 	_build_back_button()
 	_build_logo()
 	_build_menu_buttons()
+	_build_subscribe_link()
 
 
 func _build_back_button() -> void:
@@ -166,6 +167,43 @@ func _build_menu_buttons() -> void:
 
 		btn.pressed.connect(_on_menu_pressed.bind(targets[i]))
 		add_child(btn)
+
+
+func _build_subscribe_link() -> void:
+	# Small, low-key direct entry to the subscription screen — visible to all
+	# users, not just App Review. Existing paywall (prep_transition.gd, after
+	# the 2 free Prep sets) is untouched; this just adds a second door into
+	# the SAME premium_intro.tscn -> choose_plan.tscn flow, without setting
+	# PremiumIntroState.context_id, so it falls into the same "prep" default
+	# branch a genuinely fresh, never-played install already uses today.
+	const BTN_W : float = 200.0
+	const BTN_H : float =  36.0
+
+	var btn := Button.new()
+	btn.text         = "Subscribe"
+	btn.size         = Vector2(BTN_W, BTN_H)
+	btn.position     = Vector2((1280.0 - BTN_W) * 0.5, 675.0)
+	btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+	btn.z_index      = 5
+
+	if _font:
+		btn.add_theme_font_override("font", _font)
+	btn.add_theme_font_size_override("font_size", 20)
+	btn.add_theme_color_override("font_color",         PURPLE)
+	btn.add_theme_color_override("font_hover_color",   PURPLE)
+	btn.add_theme_color_override("font_pressed_color", PURPLE)
+	btn.add_theme_color_override("font_focus_color",   PURPLE)
+
+	var blank := StyleBoxEmpty.new()
+	for s in ["normal", "hover", "pressed", "focus"]:
+		btn.add_theme_stylebox_override(s, blank)
+
+	btn.pressed.connect(_on_subscribe_pressed)
+	add_child(btn)
+
+
+func _on_subscribe_pressed() -> void:
+	get_tree().change_scene_to_file("res://premium_intro.tscn")
 
 
 func _on_back_pressed() -> void:

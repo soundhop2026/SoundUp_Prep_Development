@@ -25,3 +25,15 @@ This file is maintained separately from Collie's `Worklog.md`.
 - **LOCKED — Design standards:** Game scene background `#F5E6CC`; title scene background `#FFB703`; game scene font color `#4B0082`.
 - **LOCKED — Letter assets:** Andika is the asset-creation font. Alphabet letters are delivered only as transparent PNG assets; runtime font rendering is not used for them.
 - **FINALIZED — Project structure:** `game2_specs` is the source of truth. Implementation/version control follows the GitHub workflow, and the Game 2 folder structure is aligned across Mac and Windows.
+
+## 2026-08-27–28
+
+- **CONFIRMED — Apple App Review 2.1(b):** The reviewer could not find the Monthly and Yearly in-app purchases.
+- **CONFIRMED — Existing release access:** The subscription flow became accessible only after completing the first two free Prep Sets, each containing 10 rounds, for a total of 20 regular Prep rounds. Sound Quest did not count toward those 20 rounds.
+- **RESOLVED — Subscription entry point:** Added a directly accessible Subscribe entry to GNB Home that is visible to all users and leads through premium intro → plan selection → Monthly/Yearly.
+- **CONFIRMED — iOS Build 6 clean-build issue:** A clean build exposed a `godot-storekit2` Swift `next(isolation:)` linker problem. Changing the minimum iOS version from 14 to 15 alone did not resolve it.
+- **RESOLVED — StoreKit plugin patch:** Removed the plugin source's iOS 18.4-only dead branch and retained the existing `product.currentEntitlement` path as a minimal patch, then rebuilt the plugin.
+- **CONFIRMED — iOS Build 6 archive:** Archive and signed IPA creation succeeded from clean caches. The IPA was verified with `MinimumOSVersion` 15.0 and `CFBundleVersion` 6.
+- **CONFIRMED — App Store submission:** Transporter upload succeeded. Monthly, Yearly, iOS App 1.0 Build 6, and the SoundHop Learning Access subscription group were resubmitted together as four items. Final status was Waiting for Review.
+- **PENDING — Google Play Target API:** Google notified us that SoundHop must meet the Target API requirement by 2026-08-31. The exact required API level is not yet confirmed and remains TBD.
+- **NEXT — Google Play verification:** In the next Windows session, open Play Console → 문제 보기, confirm the actual required Target API level, and only then make the change. Do not infer the API level.

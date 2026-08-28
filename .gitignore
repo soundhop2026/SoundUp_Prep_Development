@@ -1,6 +1,15 @@
 # Godot 4+ specific ignores
 .godot/
-/android/
+/android/*
+!/android/build/
+/android/build/*
+!/android/build/config.gradle
+!/android/build/build.gradle
+!/android/build/gradle/
+/android/build/gradle/*
+!/android/build/gradle/wrapper/
+/android/build/gradle/wrapper/*
+!/android/build/gradle/wrapper/gradle-wrapper.properties
 *.apk
 *.aab
 *.apk.idsig

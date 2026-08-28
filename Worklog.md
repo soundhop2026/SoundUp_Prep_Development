@@ -40,12 +40,14 @@ locked design rules; this file is for session-by-session history and handoff not
   all local to this Windows setup and will differ on Mac. On this machine: Godot 4.5.1 at
   `C:\Users\user\Downloads\Godot_v4.5.1-stable_win64.exe\`, JDK via Android Studio's bundled JBR
   (`C:\Program Files\Android\Android Studio\jbr`, **not** the system JDK — see below), Android
-  SDK Platform 35 + Build-Tools 35.0.0 installed alongside the machine's existing 36.1.
-- **`android/` folder is gitignored** (Godot-regenerated build template) — including a local fix
-  inside it: `checkReleaseBuilds false` added to `android/build/build.gradle`'s `lintOptions`
-  block, working around an AGP/lint tooling crash (`lintVitalAnalyzeStandardRelease` failing with
-  `MessageBus... Already disposed`). This will need reapplying on Mac too if/when the Android
-  build template gets (re)installed there.
+  SDK Platform 35 + 36, Build-Tools 36.1.0 (required — matches the committed `config.gradle` as
+  of 2026-08-28).
+- **`android/build/config.gradle`, `build.gradle`, and `gradle/wrapper/gradle-wrapper.properties`
+  are now version-controlled** (as of 2026-08-28, see that entry) via narrow `.gitignore`
+  exceptions — the rest of the generated `android/` template stays gitignored. This includes the
+  `checkReleaseBuilds false` lint-crash workaround in `build.gradle`'s `lintOptions` block, which
+  no longer needs manual reapplication if the build template is ever reinstalled, since it's
+  committed now, not just a local hand-edit.
 - **Gradle/JDK compatibility**: this project's gradle template (AGP 8.6.1 / Gradle 8.11.1)
   requires **JDK 21**, not newer — JDK 25's class file version isn't supported by Gradle 8.11.1.
   Whatever JDK Mac's Godot export ends up pointing at needs to satisfy this too.
@@ -56,6 +58,104 @@ locked design rules; this file is for session-by-session history and handoff not
   locally flipped to `true` for testing all session, never pushed — so a fresh clone/pull on
   another machine (confirmed on Mac, 2026-08-07) correctly comes in at `false` and shows no debug
   button. Not a bug: just flip the same line locally on each new machine, don't commit it.
+
+---
+
+## 2026-08-28
+
+### Completed
+- **Reproducible Android API 36 build configuration** (primary commit `b2ce3c5`). Google Play
+  requires targeting Android 16 (API 36) by 2026-08-31. `target_sdk="36"` set on both Android
+  presets in `export_presets.cfg` via Godot's existing project-property override. `compileSdk`/
+  `buildTools` bumped to 36/36.1.0 in `android/build/config.gradle`; AGP deliberately left at
+  8.6.1 — confirmed via an actual clean build (stale Gradle output wiped, no daemon reuse) that
+  compileSdk 36 genuinely builds clean on this AGP version, matching a real-world Godot-community
+  report of the same combination working, despite Google's own docs listing 8.9.1 as the
+  "officially supported" minimum.
+- **Made the Android build template version-controlled**, not just gitignored-and-hand-edited.
+  `android/build/config.gradle`, `build.gradle`, and `gradle/wrapper/gradle-wrapper.properties`
+  are now tracked via narrow `.gitignore` exceptions (the full generated template is ~274MB;
+  only these three small files carry real customization — everything else stays ignored). This
+  directly closes the exact failure mode already seen once with the `checkReleaseBuilds` lint
+  fix (a hand-edit to a gitignored file, silently lost on template reinstall) — that workaround
+  is now itself preserved inside the committed `build.gradle`.
+- **Fixed a broken production Android export preset** (commit `868eaef`). The "Android" (AAB)
+  preset had picked up editor-resave corruption: its `export_path` had been overwritten to end
+  in `.apk` while still set to App Bundle format (`gradle_build/export_format=1`), and it was
+  marked `runnable=true` alongside the testing preset — invalid, since Godot only supports one
+  runnable preset per platform. Fixed: `export_path` restored to `LearningSounds.aab`, production
+  preset set `runnable=false`, leaving "Android APK (testing)" as the sole runnable Android
+  preset.
+- Diagnosed a real Android/PC-Editor bug via live evidence (save file + `godot.log`): pressing
+  the title screen's PlayButton did nothing when `SaveManager.is_level2_completed()` was `true`
+  (a bare `pass`/TODO stub with no fallback routing). Confirmed this is only reachable via the
+  `unlock_all_levels()` QA debug utility, not real play — left the code unchanged per product
+  decision (Level 1.5 update will address GNB/routing gaps together). Reset the local PC QA save
+  to a genuine fresh-install state for retesting rather than deleting the file outright.
+- Found the Level 1.5 Sound Quest GNB gap: none of the 7 Sound Quest scene scripts
+  (`sound_quest.gd`, `level1_sound_quest.gd`, the four `level15_sound_quest_*.gd` variants,
+  `_transitions.gd`) have the GNB hamburger entry that `title.gd`/`game.gd`/`prep_game.gd`/
+  `game15.gd`/`game2.gd`/`game25.gd` all have. Confirmed via source review, not a regression from
+  today's work — deferred to the Level 1.5 update per product decision.
+- Real-device Android testing was blocked most of the session by a USB connection stuck in
+  Charging-only mode, despite the tablet's own Developer Options default already being set to
+  File Transfer. Ruled out cable and port (both swapped, no change) before finding the actual
+  fix: **rebooting the tablet itself** cleared it — a stuck USB-gadget-driver state on the
+  device side, not a PC/driver/cable/port issue.
+- Godot 4.5.1's Android one-click-deploy device icon never appeared in the editor toolbar despite
+  `adb devices` showing the tablet fully authorized (`device` state) — tried an editor restart
+  with the device already connected, and opening the Export dialog once; neither helped. Worked
+  around it entirely: exported a debug APK from the CLI (`--export-debug "Android APK (testing)"`)
+  and `adb install -r`'d it directly — this reproduces exactly what one-click-deploy does
+  internally, without needing Godot to ever recognize the device. Root cause of the missing icon
+  itself is still unresolved; see Next Session.
+- Bumped `version/code` 5 → 6 on both Android presets once it was confirmed 5 was already the
+  live Production versionCode on Play Console (so 5 could not be reused). Rebuilt the release
+  AAB clean, verified `versionCode=6`, `versionName="1.0.0"` (unchanged), `targetSdkVersion=36`,
+  and a genuine release signature (`jarsigner`: `jar verified.`, cert matches the production
+  keystore) — all read directly from the rebuilt manifest/artifact, not assumed. Submitted to
+  Google Play Production.
+
+### Decisions
+- Version-controlling a small, surgical slice of the Android build template (3 files, <25KB)
+  beats both extremes: committing the full ~274MB generated template (Godot's own docs
+  discourage this for repo size) and a separate patch/post-template script (more moving parts
+  for a payload this small, and can't actually survive a template reinstall any more reliably
+  than committing the files directly, since Godot's reinstall action overwrites the same files
+  either way).
+- AGP stays pinned at 8.6.1 rather than bumping to 9.0+ — a real Godot-community report
+  confirms this exact combination (compileSdk 36, AGP 8.6.1, same Godot version family) works,
+  and Godot's own template is built/tested against 8.6.1 specifically; fighting that pairing
+  risks breaking exports for a version-ceiling technicality rather than an actual failure.
+- Left the `is_level2_completed(): pass` dead-end branch in `title.gd` unchanged rather than
+  adding a fallback route — introducing a new routing/product decision immediately before a
+  release wasn't worth it for a QA-debug-only edge case with no real-player exposure today.
+
+### Risks / Gotchas
+- The `android/` folder's `.gitignore` exceptions are nested (`/android/*`, `!/android/build/`,
+  `/android/build/*`, `!/android/build/config.gradle`, etc.) — un-ignoring a deeply nested file
+  requires explicitly un-ignoring every parent directory level first, or git won't even look
+  inside to find the exception.
+- **Future Godot engine version upgrades will need these three tracked files re-diffed** against
+  a freshly regenerated template before recommitting — `config.gradle`/`build.gradle` aren't
+  guaranteed to keep the same shape across engine versions, and reinstalling the template will
+  silently overwrite the committed customization with whatever the new version ships.
+- The Android SDK path note in "Before switching machines" above is now stale — Build-Tools
+  36.1.0 (not just 35.0.0) is required to match the committed `config.gradle`, and the
+  `checkReleaseBuilds` lint fix no longer needs manual reapplication on template reinstall, since
+  `android/build/build.gradle` (which carries it) is now committed, not gitignored.
+- Root cause of Godot 4.5.1's Android one-click-deploy icon not appearing (despite a fully
+  healthy, authorized `adb devices` connection) is still unknown. A build-tools/target-SDK
+  mismatch warning tied to the same symptom exists in a Godot 4.4.1 GitHub issue, but nothing
+  matching it appears in our own logs — unconfirmed, not ruled out either.
+
+### Next Session
+- Investigate the missing one-click-deploy icon further if routine device testing via the
+  manual CLI-export + `adb install` workaround becomes too tedious.
+- Level 1.5 update: add GNB coverage to all 7 Sound Quest scenes, and decide/implement a real
+  fallback for `title.gd`'s `is_level2_completed()` branch once Level 2/2.5 content exists.
+- Confirm Google Play's review outcome for versionCode 6 (submitted this session, pending
+  Google's review as of this entry).
 
 ---
 

@@ -37,3 +37,10 @@ This file is maintained separately from Collie's `Worklog.md`.
 - **CONFIRMED — App Store submission:** Transporter upload succeeded. Monthly, Yearly, iOS App 1.0 Build 6, and the SoundHop Learning Access subscription group were resubmitted together as four items. Final status was Waiting for Review.
 - **PENDING — Google Play Target API:** Google notified us that SoundHop must meet the Target API requirement by 2026-08-31. The exact required API level is not yet confirmed and remains TBD.
 - **NEXT — Google Play verification:** In the next Windows session, open Play Console → 문제 보기, confirm the actual required Target API level, and only then make the change. Do not infer the API level.
+
+## 2026-08-28
+
+- **OPERATING PRINCIPLE — Prevent rework to create speed:** Speed does not come from skipping steps; it comes from a process that prevents rework.
+- **LOCKED SEQUENCE:** Protect what is already verified → narrow the root cause using evidence → make the minimum necessary change → verify the actual release artifact → confirm the final submission state before closing.
+- **TODAY'S EXAMPLE — Android release:** The API 36 / versionCode 6 release demonstrated this sequence: verified work was preserved, the blocking cause was isolated from evidence, the change stayed minimal, the release artifact itself was checked, and the Play submission state was confirmed before close-out.
+- **SCOPE DISCIPLINE:** Newly discovered issues that are unrelated to an active release fix must be recorded for later and not mixed into the release change.

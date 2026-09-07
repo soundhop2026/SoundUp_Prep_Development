@@ -69,6 +69,7 @@ const YEARLY_BASE_PLAN_ID  : String = "yearly"
 const IOS_MONTHLY_PRODUCT_ID : String = "com.acron.learningsounds.monthly"
 const IOS_YEARLY_PRODUCT_ID  : String = "com.acron.learningsounds.yearly"
 const PRIVACY_POLICY_URL : String = "https://www.getsoundhop.com/privacy-policy"
+const TERMS_OF_USE_URL   : String = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
 
 var _font : Font = null
 var _billing : BillingClient = null
@@ -110,6 +111,7 @@ func _ready() -> void:
 	_build_not_now_btn()
 	_build_platform_note()
 	_build_privacy_policy_link()
+	_build_terms_of_use_link()
 	_build_copyright_label()
 
 
@@ -238,7 +240,12 @@ func _build_not_now_btn() -> void:
 
 
 func _build_platform_note() -> void:
-	_make_label("Subscriptions are available on Android phones, tablets, and iPhone/iPad.",
+	# Platform-specific wording: the iOS build must not mention Android
+	# (Apple Guideline 2.3.10) — Android's own build keeps its original text.
+	var note_text : String = "Subscriptions are available on iPhone and iPad."
+	if OS.get_name() == "Android":
+		note_text = "Subscriptions are available on Android phones, tablets, and iPhone/iPad."
+	_make_label(note_text,
 		Vector2(0, 534), Vector2(1280, 24), 14, GRAY_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 
 
@@ -264,6 +271,28 @@ func _build_privacy_policy_link() -> void:
 
 func _on_privacy_policy_pressed() -> void:
 	OS.shell_open(PRIVACY_POLICY_URL)
+
+
+# Same idiom as the Privacy Policy link above, stacked directly below it —
+# opens Apple's Standard EULA (required by App Review for the subscription
+# screen; https://www.apple.com/legal/internet-services/itunes/dev/stdeula/).
+func _build_terms_of_use_link() -> void:
+	var link := LinkButton.new()
+	link.text     = "Terms of Use"
+	link.underline = LinkButton.UNDERLINE_MODE_ALWAYS
+	if _font:
+		link.add_theme_font_override("font", _font)
+	link.add_theme_font_size_override("font_size", 14)
+	link.add_theme_color_override("font_color",       GRAY_TEXT)
+	link.add_theme_color_override("font_hover_color", PURPLE)
+	link.pressed.connect(_on_terms_of_use_pressed)
+	link.size     = link.get_minimum_size()
+	link.position = Vector2((1280.0 - link.size.x) / 2.0, 594.0)
+	add_child(link)
+
+
+func _on_terms_of_use_pressed() -> void:
+	OS.shell_open(TERMS_OF_USE_URL)
 
 
 # ─── Billing ─────────────────────────────────────────────────────────────────
@@ -544,8 +573,11 @@ func _show_message_dialog(title: String, body: String) -> void:
 
 # ─── Unsupported platform (e.g. Windows/macOS during dev) ───────────────────
 func _show_unsupported_platform_dialog() -> void:
-	_show_message_dialog("Subscriptions Not Available",
-		"Subscriptions are available on Android phones,\ntablets, and iPhone/iPad.")
+	# Same platform-specific wording as _build_platform_note() — see there.
+	var msg : String = "Subscriptions are available on iPhone and iPad."
+	if OS.get_name() == "Android":
+		msg = "Subscriptions are available on Android phones,\ntablets, and iPhone/iPad."
+	_show_message_dialog("Subscriptions Not Available", msg)
 
 
 # ─── Restore Purchases found nothing ────────────────────────────────────────

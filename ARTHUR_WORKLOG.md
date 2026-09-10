@@ -44,3 +44,12 @@ This file is maintained separately from Collie's `Worklog.md`.
 - **LOCKED SEQUENCE:** Protect what is already verified → narrow the root cause using evidence → make the minimum necessary change → verify the actual release artifact → confirm the final submission state before closing.
 - **TODAY'S EXAMPLE — Android release:** The API 36 / versionCode 6 release demonstrated this sequence: verified work was preserved, the blocking cause was isolated from evidence, the change stayed minimal, the release artifact itself was checked, and the Play submission state was confirmed before close-out.
 - **SCOPE DISCIPLINE:** Newly discovered issues that are unrelated to an active release fix must be recorded for later and not mixed into the release change.
+
+## 2026-09-10 — Game 1
+
+- **VERIFIED — Parent Gate interaction:** Parent Gate requires a 3-second press-and-hold, shown by a bottom-up amber fill during the hold.
+- **RESOLVED — Mobile-only horizontal centering:** The root cause was gameplay content being positioned from a fixed/design-space center instead of the phone's runtime viewport center. Game 1 gameplay scenes now share the runtime viewport-center solution so phone layouts center horizontally while non-phone layouts remain correct.
+- **RESOLVED — Apple Silicon iPhone Simulator:** Restored iPhone Simulator testing on Apple Silicon. Godot 4.5.1's installed iOS export template lacked the required iOS Simulator `arm64` support; the export-template repair was made durable so it survives clean/export use rather than depending on a one-off generated-project edit.
+- **VERIFIED — Mobile UI positioning:** Corrected mobile placement for `PointedHand`, `EvalPlayButton`, and `Where Am I` so these elements align correctly and avoid the prior overlap/offset behavior.
+- **LOCKED — Where Am I lifecycle:** Pressing `Where Am I` immediately stops gameplay audio. Returning restores the same Round in an active, playable state without advancing the Round or changing progress.
+- **PENDING — Galaxy physical-device verification:** Verification on a physical Galaxy device remains required before promoting these Game 1 changes to Framework. Framework was not modified.

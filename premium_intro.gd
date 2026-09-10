@@ -45,7 +45,8 @@ const HOVER_HALF_DUR  : float = 0.9   # slightly stronger/quicker than idle brea
 var _font       : Font   = null
 var _face       : TextureButton = null
 var _fill       : TextureRect   = null
-var _fill_step  : int    = 0     # 0, 1, 2, 3 -> empty, 1/3, 2/3, full
+var _fill_atlas : AtlasTexture  = null
+var _fill_step  : int    = 0     # 0, 1, 2, 3 -> empty, bottom 1/3, bottom 2/3, full
 var _instruction: Label  = null
 var _holding    : bool   = false
 var _hold_time  : float  = 0.0
@@ -106,21 +107,53 @@ func _build_face() -> void:
 
 
 # Interior-amber-fill overlay for the hold gesture — a child of _face so it
-# automatically breathes/scales in sync with it. Starts fully transparent;
-# _process() steps its alpha to 1/3, 2/3, 1.0 as the hold progresses.
+# automatically breathes/scales in sync with it. A spatial bottom-up reveal,
+# not an opacity fade: _set_fill_step() shrinks BOTH the visible node rect
+# and the source AtlasTexture region together, from the bottom, so the
+# visible amber is always fully opaque — only how much of it is shown
+# changes. Starts fully hidden; _process() advances it to 1/3, 2/3, full.
 func _build_fill_overlay() -> void:
-	var atlas := AtlasTexture.new()
-	atlas.atlas  = load(FILL_PATH) as Texture2D
-	atlas.region = FILL_INK_RECT
+	_fill_atlas = AtlasTexture.new()
+	_fill_atlas.atlas  = load(FILL_PATH) as Texture2D
+	_fill_atlas.region = FILL_INK_RECT
 
 	_fill = TextureRect.new()
-	_fill.texture      = atlas
-	_fill.stretch_mode = TextureRect.STRETCH_SCALE
-	_fill.position     = ORIG_INK_POS * FACE_SCALE
-	_fill.size         = ORIG_INK_SIZE * FACE_SCALE
-	_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_fill.modulate.a   = 0.0
+	_fill.texture      = _fill_atlas
+	_fill.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE   # like _face's ignore_texture_size —
+	_fill.stretch_mode = TextureRect.STRETCH_SCALE         # without this, Control clamps .size
+	_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE       # up to the texture's own minimum size
 	_face.add_child(_fill)
+
+	_set_fill_step(0)
+
+
+# step: 0 (hidden), 1 (bottom 1/3), 2 (bottom 2/3), 3 (full). Reveals from
+# the bottom by taking only the bottom `frac` slice of both the on-screen
+# target rect and the source atlas region, scaled identically, so the
+# revealed amber is pixel-for-pixel the same as the "full" state — never
+# stretched, never partially transparent.
+func _set_fill_step(step: int) -> void:
+	_fill_step = step
+	if step <= 0:
+		_fill.visible = false
+		return
+
+	_fill.visible = true
+	var frac : float = float(step) / 3.0
+
+	var full_pos  : Vector2 = ORIG_INK_POS  * FACE_SCALE
+	var full_size : Vector2 = ORIG_INK_SIZE * FACE_SCALE
+	var visible_h : float   = full_size.y * frac
+	_fill.position = Vector2(full_pos.x, full_pos.y + full_size.y - visible_h)
+	_fill.size     = Vector2(full_size.x, visible_h)
+
+	var src_visible_h : float = FILL_INK_RECT.size.y * frac
+	_fill_atlas.region = Rect2(
+		FILL_INK_RECT.position.x,
+		FILL_INK_RECT.position.y + FILL_INK_RECT.size.y - src_visible_h,
+		FILL_INK_RECT.size.x,
+		src_visible_h
+	)
 
 
 # ─── Idle / hover animation — only one of these tweens runs at a time,
@@ -167,8 +200,7 @@ func _process(delta: float) -> void:
 	# _hold_time can briefly exceed 3 before _on_hold_complete() runs.
 	var step : int = mini(int(_hold_time), 3)
 	if step != _fill_step:
-		_fill_step       = step
-		_fill.modulate.a = float(_fill_step) / 3.0
+		_set_fill_step(step)
 	if _hold_time >= HOLD_DURATION:
 		_on_hold_complete()
 
@@ -178,8 +210,7 @@ func _on_hold_start() -> void:
 	# state change beyond the breathing itself continuing.
 	_holding    = true
 	_hold_time  = 0.0
-	_fill_step  = 0
-	_fill.modulate.a = 0.0
+	_set_fill_step(0)
 
 
 func _on_hold_release() -> void:
@@ -187,15 +218,13 @@ func _on_hold_release() -> void:
 		return   # already completed/cleared in _on_hold_complete()
 	_holding   = false
 	_hold_time = 0.0
-	_fill_step = 0
-	_fill.modulate.a = 0.0
+	_set_fill_step(0)
 	# Breathing was never interrupted — nothing to resume.
 
 
 func _on_hold_complete() -> void:
 	_holding = false
-	_fill_step = 3
-	_fill.modulate.a = 1.0
+	_set_fill_step(3)
 	_face.mouse_filter = Control.MOUSE_FILTER_IGNORE   # ignore the trailing button_up
 	_fade_and_continue()
 

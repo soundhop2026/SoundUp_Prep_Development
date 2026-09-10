@@ -14,14 +14,25 @@ extends Node2D
 
 const FONT_PATH  : String = "res://UI_assets/210 연필스케치R.ttf"
 const FACE_PATH  : String = "res://UI_assets/playbutton.png"
+const FILL_PATH  : String = "res://UI_assets/game 1_parent gate_playbutton.png"
 
 const BG_COLOR    : Color = Color("#FDF0E4")   # pale cream/peach
 const PURPLE      : Color = Color("#4B0082")
 const AMBER       : Color = Color("#FFB703")
 const BROWN       : Color = Color(0.35, 0.25, 0.20)
 
-const HOLD_DURATION : float = 7.0   # seconds to hold before verification succeeds
+const HOLD_DURATION : float = 3.0   # seconds to hold before verification succeeds
 const FACE_SCALE     : float = 0.80
+
+# Interior-fill overlay (Parent Gate hold feedback). FILL_PATH is a separate
+# asset (amber-filled interior, same outline/eyes/smile/triangle) on its own
+# 512x512 canvas — different padding/aspect from playbutton.png's 907x437,
+# but its drawn content has the same proportions. Both ink boxes below were
+# measured directly (PIL alpha-channel bbox) so the fill aligns exactly over
+# the outline via an AtlasTexture region crop, with no asset changes needed.
+const ORIG_INK_POS  : Vector2 = Vector2(244, 88)     # playbutton.png ink bbox origin
+const ORIG_INK_SIZE : Vector2 = Vector2(372, 263)    # playbutton.png ink bbox size
+const FILL_INK_RECT : Rect2   = Rect2(135, 156, 247, 175)   # fill asset's own ink bbox
 
 const BREATH_SCALE_LO : float = 0.98
 const BREATH_SCALE_HI : float = 1.02
@@ -33,6 +44,8 @@ const HOVER_HALF_DUR  : float = 0.9   # slightly stronger/quicker than idle brea
 
 var _font       : Font   = null
 var _face       : TextureButton = null
+var _fill       : TextureRect   = null
+var _fill_step  : int    = 0     # 0, 1, 2, 3 -> empty, 1/3, 2/3, full
 var _instruction: Label  = null
 var _holding    : bool   = false
 var _hold_time  : float  = 0.0
@@ -82,12 +95,32 @@ func _build_face() -> void:
 	# No overlaid triangle here — playbutton.png already draws Louis's
 	# "nose" as a play triangle; adding another one doubled it up.
 
+	_build_fill_overlay()
+
 	_face.button_down.connect(_on_hold_start)
 	_face.button_up.connect(_on_hold_release)
 	_face.mouse_entered.connect(_on_hover_start)
 	_face.mouse_exited.connect(_on_hover_end)
 
 	_start_breathing()
+
+
+# Interior-amber-fill overlay for the hold gesture — a child of _face so it
+# automatically breathes/scales in sync with it. Starts fully transparent;
+# _process() steps its alpha to 1/3, 2/3, 1.0 as the hold progresses.
+func _build_fill_overlay() -> void:
+	var atlas := AtlasTexture.new()
+	atlas.atlas  = load(FILL_PATH) as Texture2D
+	atlas.region = FILL_INK_RECT
+
+	_fill = TextureRect.new()
+	_fill.texture      = atlas
+	_fill.stretch_mode = TextureRect.STRETCH_SCALE
+	_fill.position     = ORIG_INK_POS * FACE_SCALE
+	_fill.size         = ORIG_INK_SIZE * FACE_SCALE
+	_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fill.modulate.a   = 0.0
+	_face.add_child(_fill)
 
 
 # ─── Idle / hover animation — only one of these tweens runs at a time,
@@ -129,6 +162,13 @@ func _process(delta: float) -> void:
 	if not _holding:
 		return
 	_hold_time += delta
+	# Discrete steps only (1/3 at 1s, 2/3 at 2s, full at 3s) — not a
+	# continuous progress-fill. mini() guards the final frame, where
+	# _hold_time can briefly exceed 3 before _on_hold_complete() runs.
+	var step : int = mini(int(_hold_time), 3)
+	if step != _fill_step:
+		_fill_step       = step
+		_fill.modulate.a = float(_fill_step) / 3.0
 	if _hold_time >= HOLD_DURATION:
 		_on_hold_complete()
 
@@ -138,6 +178,8 @@ func _on_hold_start() -> void:
 	# state change beyond the breathing itself continuing.
 	_holding    = true
 	_hold_time  = 0.0
+	_fill_step  = 0
+	_fill.modulate.a = 0.0
 
 
 func _on_hold_release() -> void:
@@ -145,11 +187,15 @@ func _on_hold_release() -> void:
 		return   # already completed/cleared in _on_hold_complete()
 	_holding   = false
 	_hold_time = 0.0
+	_fill_step = 0
+	_fill.modulate.a = 0.0
 	# Breathing was never interrupted — nothing to resume.
 
 
 func _on_hold_complete() -> void:
 	_holding = false
+	_fill_step = 3
+	_fill.modulate.a = 1.0
 	_face.mouse_filter = Control.MOUSE_FILTER_IGNORE   # ignore the trailing button_up
 	_fade_and_continue()
 

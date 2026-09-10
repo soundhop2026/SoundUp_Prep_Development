@@ -99,5 +99,5 @@ offset_left = 1050.0
 offset_top = 280.0
 offset_right = 1957.0
 offset_bottom = 717.0
-scale = Vector2(0.15, 0.15)
+scale = Vector2(0.21, 0.21)
 texture_normal = ExtResource("18_pbtn")

@@ -72,8 +72,11 @@ var _gnb_btn    : Button        = null
 var _blink_tween    : Tween = null
 var _eval_btn_tween : Tween = null
 
+var _center_offset : float = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
+
 # ─── Ready ────────────────────────────────────────────────────────────────────
 func _ready() -> void:
+	_center_offset = SceneBackground.center_offset()
 	SceneBackground.set_color(BG_COLOR)
 	$background.color    = BG_COLOR
 	$background.size         = get_viewport_rect().size
@@ -97,7 +100,7 @@ func _setup_image_button() -> void:
 	_img_btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	_img_btn.custom_minimum_size = Vector2(IMG_SIZE, IMG_SIZE)
 	_img_btn.size                = Vector2(IMG_SIZE, IMG_SIZE)
-	_img_btn.position            = Vector2((1280.0 - IMG_SIZE) / 2.0, IMG_Y)
+	_img_btn.position            = Vector2((SceneBackground.viewport_size().x - IMG_SIZE) / 2.0, IMG_Y)
 	_img_btn.pivot_offset        = Vector2(IMG_SIZE / 2.0, IMG_SIZE / 2.0)
 	_img_btn.z_index             = 3
 	_img_btn.visible             = false
@@ -116,7 +119,7 @@ func _build_cube_row(phoneme_count: int, vowel_index: int) -> void:
 	_cube_mid = null
 
 	var total_w : float = phoneme_count * CUBE_SIZE + (phoneme_count - 1) * CUBE_GAP
-	var start_x : float = (1280.0 - total_w) / 2.0
+	var start_x : float = (SceneBackground.viewport_size().x - total_w) / 2.0
 
 	for i in range(phoneme_count):
 		var highlighted : bool = (i == vowel_index - 1)
@@ -155,7 +158,7 @@ func _setup_eval_button() -> void:
 	_eval_btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	_eval_btn.custom_minimum_size = Vector2(EVAL_W, EVAL_H)
 	_eval_btn.size                = Vector2(EVAL_W, EVAL_H)
-	_eval_btn.position            = Vector2(1050.0, 440.0)
+	_eval_btn.position            = Vector2(1050.0 + _center_offset, 440.0)
 	_eval_btn.pivot_offset        = Vector2(EVAL_W / 2.0, EVAL_H / 2.0)
 	_eval_btn.z_index             = 5
 	_eval_btn.visible             = false
@@ -165,7 +168,7 @@ func _setup_eval_button() -> void:
 func _setup_vowel_buttons() -> void:
 	var open_tex : Texture2D = load("res://UI_assets/handsigns/openhand.png") as Texture2D
 	var total_w  : float     = NUM_VOWELS * VOWEL_BTN_W + (NUM_VOWELS - 1) * VOWEL_GAP
-	var start_x  : float     = (1280.0 - total_w) / 2.0
+	var start_x  : float     = (SceneBackground.viewport_size().x - total_w) / 2.0
 	for i in range(NUM_VOWELS):
 		var btn := TextureButton.new()
 		btn.texture_normal        = open_tex
@@ -274,7 +277,7 @@ func _start_round() -> void:
 	_img_btn.texture_normal = load(rounds[round_index]["word_image"]) as Texture2D
 	_img_btn.visible        = true
 
-	_hand.position         = Vector2(1050.0, 280.0)
+	_hand.position         = Vector2(1050.0 + _center_offset, 280.0)
 	_hand.rotation_degrees = -30.0
 	_hand.visible          = true
 
@@ -507,7 +510,7 @@ func _create_gnb_flag() -> void:
 	_gnb_btn              = Button.new()
 	_gnb_btn.text         = ""
 	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
-	_gnb_btn.position     = Vector2(1280.0 - BTN_W - 20.0, 20.0)
+	_gnb_btn.position     = Vector2(SceneBackground.viewport_size().x - BTN_W - 20.0, 20.0)
 	_gnb_btn.z_index      = 10
 	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
 

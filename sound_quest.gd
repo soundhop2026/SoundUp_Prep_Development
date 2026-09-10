@@ -222,8 +222,14 @@ var _last_blocked_time : float = -1000.0   # debounces the wall-bump feedback, s
 
 var _busy : bool = false   # true during Quest Transition / group handoff — input ignored
 
+var _center_offset   : float         = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
+var _slot_positions   : Array[Vector2] = []   # SLOT_POSITIONS recentered by _center_offset
+
 
 func _ready() -> void:
+	_center_offset = SceneBackground.center_offset()
+	for pos in SLOT_POSITIONS:
+		_slot_positions.append(pos + Vector2(_center_offset, 0))
 	SceneBackground.set_color(BG_COLOR)
 	if ResourceLoader.exists(FONT_PATH):
 		_font = load(FONT_PATH)
@@ -346,7 +352,7 @@ func _start_quest() -> void:
 func _make_slot(index: int) -> Dictionary:
 	return {
 		"node"      : null,
-		"base_pos"  : SLOT_POSITIONS[index],
+		"base_pos"  : _slot_positions[index],
 		"word"      : {},
 		"state"     : ST_EMPTY,
 		"bob_tween" : null,
@@ -411,7 +417,7 @@ func _pick_round_words() -> Array:
 
 
 func _place_word_in_slot(index: int, word: Dictionary) -> void:
-	var base_pos : Vector2 = SLOT_POSITIONS[index]
+	var base_pos : Vector2 = _slot_positions[index]
 	var btn := TextureButton.new()
 	btn.ignore_texture_size = true
 	btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
@@ -1035,7 +1041,8 @@ func _play_quest_transition() -> void:
 	_start_music()
 
 	var maze_size : Vector2 = Vector2(QT_MAZE_COLS, QT_MAZE_ROWS) * QT_CELL_SIZE
-	var origin    : Vector2 = QT_MAZE_CENTER - maze_size / 2.0
+	var qt_maze_center : Vector2 = QT_MAZE_CENTER + Vector2(_center_offset, 0)
+	var origin    : Vector2 = qt_maze_center - maze_size / 2.0
 	# goal_col forces the exit onto the east edge, but the row within that
 	# column is picked at random — if it lands on the bottom row (the
 	# south-east CORNER), wall_segments() cuts both its east and south walls
@@ -1073,7 +1080,7 @@ func _play_quest_transition() -> void:
 	play_button.z_index = 5
 	if ResourceLoader.exists("res://UI_assets/playbutton.png"):
 		play_button.texture_normal = load("res://UI_assets/playbutton.png")
-	play_button.position   = QT_TOP_POS - play_button.pivot_offset
+	play_button.position   = (QT_TOP_POS + Vector2(_center_offset, 0)) - play_button.pivot_offset
 	play_button.modulate.a = 0.0
 	deco_container.add_child(play_button)
 
@@ -1092,7 +1099,7 @@ func _play_quest_transition() -> void:
 	# entrance, never diagonally.
 	var entrance_center : Vector2 = deco_maze.start_pos()
 	var entrance_target  : Vector2 = entrance_center - play_button.pivot_offset
-	var above_roof : Vector2 = Vector2(QT_MAZE_CENTER.x, origin.y - 60) - play_button.pivot_offset
+	var above_roof : Vector2 = Vector2(qt_maze_center.x, origin.y - 60) - play_button.pivot_offset
 	# Cleared past the corner, not just nudged past it (a small offset still
 	# visually read as clipping/walking along the wall at this size) — but
 	# dialed back some from the first pass, which flew out further than needed.

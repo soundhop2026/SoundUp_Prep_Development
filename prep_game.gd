@@ -44,16 +44,22 @@ var _round_cubes        : Array[ColorRect] = []
 var _total_set_rounds   : int              = 0
 var _gnb_btn            : Button           = null
 var _back_btn           : TextureButton    = null
+var _center_offset      : float            = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
+var _audio_dead         : bool             = false  # set true once Where Am I is pressed — after
+													  # this, no gameplay audio may ever play again
+													  # for this scene instance (see _safe_play)
 
 func _ready() -> void:
+	_center_offset = SceneBackground.center_offset()
 	SceneBackground.set_color(Color("#A8E063"))
 	$background.color    = Color("#A8E063")
 	$background.size         = get_viewport_rect().size
 	$background.position     = Vector2(0, 0)
 	$background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# Hide eval play button — not used in Prep
-	$EvalPlayButton.visible = false
+	# Hidden until the word-sound step of the auto-play sequence
+	$EvalPlayButton.visible  = false
+	$EvalPlayButton.position = Vector2(1130 + _center_offset, 244)
 
 	# Listen bar is visual only in Prep — child does not press it
 	$ListenButton.position = Vector2(100, 60)
@@ -90,9 +96,10 @@ func _create_gnb_flag() -> void:
 	_gnb_btn              = Button.new()
 	_gnb_btn.text         = ""
 	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
-	_gnb_btn.position     = Vector2(1280.0 - BTN_W - 20.0, 20.0)
+	_gnb_btn.position     = Vector2(SceneBackground.viewport_size().x - BTN_W - 50.0, 35.0)
 	_gnb_btn.z_index      = 10
 	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+	_gnb_btn.scale        = Vector2(1.3, 1.3)   # 30% larger, uniform, scales around pivot_offset (its own center) — position unchanged
 
 	var blank := StyleBoxEmpty.new()
 	for s in ["normal", "hover", "pressed", "focus"]:
@@ -126,15 +133,31 @@ func _create_gnb_flag() -> void:
 	add_child(_gnb_btn)
 
 
+func _safe_play(player: AudioStreamPlayer) -> void:
+	if _audio_dead:
+		return
+	player.play()
+
+func _kill_gameplay_audio() -> void:
+	_audio_dead = true
+	for p in [$ListenSound, $CorrectSound, $OopsSound, $WrongSound,
+			$WordSound1, $WordSound2, $WordSound3, $WordSound4, $WordSound5]:
+		p.stop()
+
 func _on_gnb_flag_pressed() -> void:
 	if get_node_or_null("GNBOverlay") != null:
 		return
+	_kill_gameplay_audio()
 	var overlay := CanvasLayer.new()
 	overlay.layer = 100
 	overlay.name  = "GNBOverlay"
 	var wai : Node = load("res://gnb_where_am_i.tscn").instantiate()
 	wai.set("is_overlay", true)
-	wai.connect("close_requested", func(): overlay.queue_free())
+	wai.connect("close_requested", func():
+		overlay.queue_free()
+		_start_round()   # revives audio and restarts the current round — same
+						  # round_index, no score/progress change (see _start_round)
+	)
 	overlay.add_child(wai)
 	add_child(overlay)
 
@@ -219,24 +242,24 @@ func _update_layout(n: int) -> void:
 	match n:
 		3:
 			_btn_centers = [
-				Vector2(220, 290),
-				Vector2(540, 290),
-				Vector2(860, 290),
+				Vector2(220 + _center_offset, 290),
+				Vector2(540 + _center_offset, 290),
+				Vector2(860 + _center_offset, 290),
 			]
 		4:
 			_btn_centers = [
-				Vector2(370, 270),
-				Vector2(810, 270),
-				Vector2(370, 490),
-				Vector2(810, 490),
+				Vector2(370 + _center_offset, 270),
+				Vector2(810 + _center_offset, 270),
+				Vector2(370 + _center_offset, 490),
+				Vector2(810 + _center_offset, 490),
 			]
 		5:
 			_btn_centers = [
-				Vector2(220, 320),
-				Vector2(540, 320),
-				Vector2(860, 320),
-				Vector2(380, 510),
-				Vector2(700, 510),
+				Vector2(220 + _center_offset, 320),
+				Vector2(540 + _center_offset, 320),
+				Vector2(860 + _center_offset, 320),
+				Vector2(380 + _center_offset, 510),
+				Vector2(700 + _center_offset, 510),
 			]
 
 func _place_button(btn: TextureButton, center: Vector2) -> void:
@@ -253,6 +276,8 @@ func _start_round() -> void:
 		_do_level_complete()
 		return
 
+	_audio_dead      = false   # revive audio — starting/restarting a round always
+							   # means this scene is active and playable again
 	_round_had_error = false   # reset for each new round
 	var rd : Dictionary = rounds[round_index]
 	result_locked = true
@@ -291,11 +316,11 @@ func _run_prep_sequence() -> void:
 	var n  : int        = rd["choices"].size()
 
 	# ── Step 1: Phoneme plays ×2, Listen bar bounces each play ──────────────
-	$PointedHand.position         = Vector2(1050, 280)
+	$PointedHand.position         = Vector2(1120 + _center_offset, 130)
 	$PointedHand.rotation_degrees = -30.0
 	$PointedHand.visible          = true
 	for i in range(2):
-		$ListenSound.play()
+		_safe_play($ListenSound)
 		_bounce_listen_bar()
 		await $ListenSound.finished
 		if gen != _seq_gen: return
@@ -317,7 +342,7 @@ func _run_prep_sequence() -> void:
 			continue
 
 		_bounce_image(btn, i)
-		snd.play()
+		_safe_play(snd)
 		await snd.finished
 		if gen != _seq_gen: return
 		await get_tree().create_timer(0.6).timeout
@@ -363,22 +388,25 @@ func _bounce_listen_bar() -> void:
 func _on_button_pressed(btn_number: int) -> void:
 	if result_locked:
 		return
+	var gen : int = _seq_gen
 	_waiting_for_choice      = false   # cancel the 3-second auto-replay timer
 	result_locked            = true
 	$PointedHand.visible     = false
 	$EvalPlayButton.visible  = false
 
 	await get_tree().create_timer(0.2).timeout
+	if gen != _seq_gen: return
 
 	if btn_number == rounds[round_index].get("correct_slot", 0):
 		# Play the word sound once on correct tap
 		var word_snd : AudioStreamPlayer = get_node("WordSound%d" % btn_number)
 		if word_snd.stream != null:
-			word_snd.play()
+			_safe_play(word_snd)
 		await get_tree().create_timer(0.5).timeout
-		await _do_correct()
+		if gen != _seq_gen: return
+		await _do_correct(gen)
 	else:
-		await _do_wrong()
+		await _do_wrong(gen)
 
 # ─── Round Progress Cubes ─────────────────────────────────────────────────────
 
@@ -406,7 +434,8 @@ func _blend_round_cube() -> void:
 
 # ─── Correct ──────────────────────────────────────────────────────────────────
 
-func _do_correct() -> void:
+func _do_correct(gen: int) -> void:
+	if gen != _seq_gen: return
 	_resolving = true   # block Back — round_index changes below, once resolved
 	# Record round result before advancing — only on this round's first
 	# completion. Back is unlimited for review; replaying an already-scored
@@ -418,24 +447,40 @@ func _do_correct() -> void:
 			_local_wrong += 1
 			_local_wrong_rounds.append(rounds[round_index])
 
-	$CorrectSound.play()
+	_safe_play($CorrectSound)
 	_blend_round_cube()
 	await $CorrectSound.finished
+	if gen != _seq_gen:
+		_resolving = false
+		return
 	await get_tree().create_timer(0.6).timeout
+	if gen != _seq_gen:
+		_resolving = false
+		return
 	_resolving = false
 	round_index += 1
 	_start_round()
 
 # ─── Wrong — replay full prep loop ────────────────────────────────────────────
 
-func _do_wrong() -> void:
+func _do_wrong(gen: int) -> void:
+	if gen != _seq_gen: return
 	_resolving = true   # block Back — this reads round_index again once resolved
 	_round_had_error = true   # mark this round as having an error
-	$OopsSound.play()
+	_safe_play($OopsSound)
 	await $OopsSound.finished
-	$WrongSound.play()
+	if gen != _seq_gen:
+		_resolving = false
+		return
+	_safe_play($WrongSound)
 	await $WrongSound.finished
+	if gen != _seq_gen:
+		_resolving = false
+		return
 	await get_tree().create_timer(0.3).timeout
+	if gen != _seq_gen:
+		_resolving = false
+		return
 	_resolving = false
 	# Restore button positions in case of animation drift, then replay
 	_restore_button_positions()

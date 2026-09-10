@@ -47,6 +47,9 @@ var _transitions : Level15SoundQuestTransitions = null
 
 
 func _ready() -> void:
+	var _center_offset : float = SceneBackground.center_offset()
+	TARGET_POS.x += _center_offset
+	POOL_CENTER.x += _center_offset
 	SceneBackground.set_color(BG_COLOR)
 	var bg := ColorRect.new()
 	bg.color        = BG_COLOR
@@ -104,7 +107,7 @@ func _clear_round() -> void:
 # ─── Target image + patch grid reveal ────────────────────────────────────────
 
 const TARGET_SIZE : Vector2 = Vector2(220, 220)
-const TARGET_POS  : Vector2 = Vector2(530, 40)
+var TARGET_POS  : Vector2 = Vector2(530, 40)   # mobile-alignment fix — recentered in _ready()
 const TARGET_FAINT_ALPHA : float = 0.12
 
 func _spawn_target_image() -> void:
@@ -147,7 +150,7 @@ func _reveal_patch() -> void:
 
 # ─── Word pool (correct + distractors) ──────────────────────────────────────
 
-const POOL_CENTER       : Vector2 = Vector2(640, 480)
+var POOL_CENTER       : Vector2 = Vector2(640, 480)   # mobile-alignment fix — recentered in _ready()
 const POOL_HALF_EXTENTS : Vector2 = Vector2(580, 190)
 const FACE_SCALE  : Vector2 = Vector2(80, 80)
 const MIN_SPACING : float = 90.0

@@ -31,7 +31,8 @@ const WORDS_PATH    := "res://data/words.json"
 const PHONEMES_PATH := "res://data/phonemes.json"
 const OPEN_HAND_TEX := "res://UI_assets/handsigns/openhand.png"
 
-const CANVAS_W := 1280.0
+var CANVAS_W : float = 1280.0   # mobile-alignment fix — set from the live viewport in _ready(),
+                                 # was a const 1280.0; see SceneBackground.viewport_size()
 const BG_COLOR        := Color("#A83A22")
 const OPEN_HAND_COLOR := Color("#E8724A")
 
@@ -185,6 +186,7 @@ var _drag_pos         : Vector2 = Vector2.ZERO
 # ════════════════════════════════════════════════════════════════════════════
 
 func _ready() -> void:
+	CANVAS_W = SceneBackground.viewport_size().x
 	SceneBackground.set_color(BG_COLOR)
 	_bg.size         = get_viewport_rect().size
 	_bg.position     = Vector2.ZERO
@@ -314,7 +316,7 @@ func _process(delta: float) -> void:
 		_hint_stage            = 1
 		_hand.modulate.a       = 1.0
 		_hand.visible          = true
-		_hand.position         = Vector2(1050.0, 280.0)
+		_hand.position         = Vector2(1050.0 + (CANVAS_W / 2.0 - 640.0), 280.0)
 		_hand.rotation_degrees = -30.0
 		_hint_tween = create_tween()
 		_hint_tween.tween_interval(2.0)
@@ -671,21 +673,22 @@ func _setup_identification() -> void:
 		btn.custom_minimum_size = Vector2(IMG_SZ_TRIPLE, IMG_SZ_TRIPLE)
 		btn.size                = Vector2(IMG_SZ_TRIPLE, IMG_SZ_TRIPLE)
 		btn.pivot_offset        = Vector2(IMG_SZ_TRIPLE / 2.0, IMG_SZ_TRIPLE / 2.0)
-		btn.position            = IMG_CENTERS_TRIPLE[i] - Vector2(IMG_SZ_TRIPLE, IMG_SZ_TRIPLE) / 2.0
+		btn.position            = IMG_CENTERS_TRIPLE[i] + Vector2(CANVAS_W / 2.0 - 640.0, 0.0) \
+			- Vector2(IMG_SZ_TRIPLE, IMG_SZ_TRIPLE) / 2.0
 		btn.visible             = true
 
 	_create_iso_cubes(position)
 
 	_create_choices(rd["choices"])
 
-	_eval_btn.position = Vector2(1050.0, 355.0)
+	_eval_btn.position = Vector2(1050.0 + (CANVAS_W / 2.0 - 640.0), 355.0)
 	_eval_btn.visible  = false
 
 	_id_image_listen_walk(words, _id_gen)
 
 
 func _id_image_listen_walk(words: Array, gen: int) -> void:
-	_hand.position         = Vector2(1050.0, 280.0)
+	_hand.position         = Vector2(1050.0 + (CANVAS_W / 2.0 - 640.0), 280.0)
 	_hand.rotation_degrees = -30.0
 	_hand.visible          = true
 	var img_btns : Array = [_img1, _img2, _img3]
@@ -767,14 +770,14 @@ func _setup_isolation() -> void:
 	_create_iso_cubes(position)
 	_create_choices(rd["choices"])
 
-	_eval_btn.position = Vector2(1050.0, 355.0)
+	_eval_btn.position = Vector2(1050.0 + (CANVAS_W / 2.0 - 640.0), 355.0)
 	_eval_btn.visible  = false
 
 	_iso_word_listen(word_key, _id_gen)
 
 
 func _iso_word_listen(word_key: String, gen: int) -> void:
-	_hand.position         = Vector2(1050.0, 280.0)
+	_hand.position         = Vector2(1050.0 + (CANVAS_W / 2.0 - 640.0), 280.0)
 	_hand.rotation_degrees = -30.0
 	_hand.visible          = true
 	if _id_phase != "image_listen" or _id_gen != gen:
@@ -810,12 +813,12 @@ func _setup_build_word() -> void:
 	_create_cubes(n_cubes, [0])
 	_create_choices(rd["choices"])
 
-	_eval_btn.position = Vector2(1050.0, 355.0)
+	_eval_btn.position = Vector2(1050.0 + (CANVAS_W / 2.0 - 640.0), 355.0)
 	_eval_btn.visible  = false
 
 	# PointedHand → word image, tilted 30° counterclockwise toward image
 	_hand.visible          = true
-	_hand.position         = Vector2(1050.0, 280.0)
+	_hand.position         = Vector2(1050.0 + (CANVAS_W / 2.0 - 640.0), 280.0)
 	_hand.rotation_degrees = -30.0
 
 	_play_word_then_show_eval(word_key, _bw_gen)
@@ -888,7 +891,7 @@ func _sc_word_listen(word_key: String, round_idx: int) -> void:
 	_hint_stage      = 1
 	_hand.modulate.a = 1.0
 	_hand.visible    = true
-	_hand.position         = Vector2(1050.0, 280.0)
+	_hand.position         = Vector2(1050.0 + (CANVAS_W / 2.0 - 640.0), 280.0)
 	_hand.rotation_degrees = -30.0
 	if _hint_tween != null:
 		_hint_tween.kill()
@@ -928,7 +931,7 @@ func _create_sc_clusters() -> void:
 	for i in range(3):
 		var count   : int   = counts[i]
 		var total_w : float = count * SC_CUBE_SIZE
-		var center_x : float = 640.0 + (i - 1) * SC_CLUSTER_SPACING
+		var center_x : float = CANVAS_W / 2.0 + (i - 1) * SC_CLUSTER_SPACING
 		var pos      : Vector2 = Vector2(center_x - total_w / 2.0, SC_CLUSTER_Y)
 
 		var cluster := Panel.new()
@@ -1351,7 +1354,7 @@ func _create_gnb_flag() -> void:
 	_gnb_btn              = Button.new()
 	_gnb_btn.text         = ""
 	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
-	_gnb_btn.position     = Vector2(1280.0 - BTN_W - 20.0, 20.0)
+	_gnb_btn.position     = Vector2(CANVAS_W - BTN_W - 20.0, 20.0)
 	_gnb_btn.z_index      = 10
 	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
 

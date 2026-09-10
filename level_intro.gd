@@ -3,8 +3,8 @@ extends Node2D
 const FONT_PATH : String = "res://UI_assets/210 연필스케치R.ttf"
 
 # Layout
-const COL_L_X  : float = 50.0
-const COL_R_X  : float = 666.0
+var COL_L_X  : float = 50.0    # mobile-alignment fix — recentered in _ready(), was a const
+var COL_R_X  : float = 666.0   # mobile-alignment fix — recentered in _ready(), was a const
 const COL_W    : float = 564.0
 const TOP_Y    : float = 96.0
 const LINE_H   : float = 27.0
@@ -78,6 +78,9 @@ var _ready_btn : Button = null
 var _pulse     : Tween  = null
 
 func _ready() -> void:
+	var _center_offset : float = SceneBackground.center_offset()
+	COL_L_X += _center_offset
+	COL_R_X += _center_offset
 	if ResourceLoader.exists(FONT_PATH):
 		_font = load(FONT_PATH)
 
@@ -99,7 +102,7 @@ func _ready() -> void:
 	add_child(bg)
 
 	# Title — centered
-	_make_label(d["title"], Vector2(0, 22), Vector2(1280, 52),
+	_make_label(d["title"], Vector2(0, 22), Vector2(SceneBackground.viewport_size().x, 52),
 		TITLE_SIZE, txt_col, HORIZONTAL_ALIGNMENT_CENTER)
 
 	# Thin divider
@@ -178,7 +181,7 @@ func _build_ready_btn(txt_col: Color, bg_col: Color, lid: String) -> void:
 	_ready_btn              = Button.new()
 	_ready_btn.text         = "Ready to Play"
 	_ready_btn.size         = Vector2(BTN_W, BTN_H)
-	_ready_btn.position     = Vector2((1280 - BTN_W) * 0.5, 644.0)
+	_ready_btn.position     = Vector2((SceneBackground.viewport_size().x - BTN_W) * 0.5, 644.0)
 	_ready_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
 	_ready_btn.z_index      = 5
 

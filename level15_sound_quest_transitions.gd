@@ -129,9 +129,9 @@ const LONG_BGM : String = "res://soundquest/assets/quest_level15_bgm.mp3"
 const LT_MUSIC_OUTRO_RESERVE : float = 10.0   # seconds of music held back to play under the breathe + hop-away exit beats
 
 const LT_GROUND_Y : float = 400.0   # flat ground level — everyone (crossing Play Button + waiting group) stands here
-const LT_START_X  : float = 160.0   # Play Button's resting spot
+var LT_START_X  : float = 160.0   # Play Button's resting spot — mobile-alignment fix: recentered in play_long()
 
-const LT_HESITATE_APPROACH_X : float = 320.0   # a few steps forward, short of the group
+var LT_HESITATE_APPROACH_X : float = 320.0   # a few steps forward, short of the group — mobile-alignment fix: recentered in play_long()
 const LT_HESITATE_COUNT      : int   = 4       # ~4 attempts before finally succeeding
 const LT_HESITATE_APPROACH_DUR : float = 0.4
 const LT_HESITATE_RETREAT_DUR  : float = 0.4
@@ -163,17 +163,24 @@ const LT_EXIT_DUR : float = 1.2
 const LT_CROWD_COUNT        : int = 13
 const LT_CROWD_SIZE_MULT    : float = 0.9
 const LT_CROWD_FACE_SIZE    : Vector2 = LT_PLAYBUTTON_SIZE * LT_CROWD_SIZE_MULT
-const LT_CROWD_CENTER       : Vector2 = Vector2(1060, LT_GROUND_Y)
+var LT_CROWD_CENTER       : Vector2 = Vector2(1060, LT_GROUND_Y)   # mobile-alignment fix: recentered in play_long()
 const LT_CROWD_HALF_EXTENTS : Vector2 = Vector2(150, 110)
 const LT_CROWD_MIN_SPACING  : float = 55.0
 
 # Crossing Play Button settles at the group's near (left) edge rather than
 # a fixed point that could land anywhere inside the cluster — reads as
 # "arrives and stands with the group," not "teleports into the middle."
-const LT_JOIN_X : float = LT_CROWD_CENTER.x - LT_CROWD_HALF_EXTENTS.x - 40.0
+# var, not const, because it derives from LT_CROWD_CENTER, which is no
+# longer compile-time constant — set alongside it in play_long().
+var LT_JOIN_X : float = 1060.0 - LT_CROWD_HALF_EXTENTS.x - 40.0
 const LT_CROWD_MAX_ATTEMPTS : int = 30
 
 func play_long() -> void:
+	var _center_offset : float = SceneBackground.center_offset()
+	LT_START_X            += _center_offset
+	LT_HESITATE_APPROACH_X += _center_offset
+	LT_CROWD_CENTER.x     += _center_offset
+	LT_JOIN_X              = LT_CROWD_CENTER.x - LT_CROWD_HALF_EXTENTS.x - 40.0
 	var bg_cover : ColorRect = _lt_cover_background()
 	_lt_start_music()
 

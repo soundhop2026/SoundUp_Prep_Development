@@ -58,6 +58,8 @@ var _gnb_btn    : Button        = null
 var _blink_tween    : Tween = null
 var _eval_btn_tween : Tween = null
 
+var _center_offset : float = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
+
 # ─── Drag input ───────────────────────────────────────────────────────────────
 func _input(event: InputEvent) -> void:
 	if phase != "wait_answer" or result_locked:
@@ -146,6 +148,7 @@ func _cancel_drag() -> void:
 
 # ─── Ready ────────────────────────────────────────────────────────────────────
 func _ready() -> void:
+	_center_offset = SceneBackground.center_offset()
 	SceneBackground.set_color(BG_COLOR)
 	$background.color        = BG_COLOR
 	$background.size         = get_viewport_rect().size
@@ -165,7 +168,7 @@ func _setup_cube_button() -> void:
 	_cube_btn               = Button.new()
 	_cube_btn.custom_minimum_size = Vector2(CUBE_SIZE, CUBE_SIZE)
 	_cube_btn.size          = Vector2(CUBE_SIZE, CUBE_SIZE)
-	_cube_btn.position      = Vector2((1280.0 - CUBE_SIZE) / 2.0, CUBE_Y)
+	_cube_btn.position      = Vector2((SceneBackground.viewport_size().x - CUBE_SIZE) / 2.0, CUBE_Y)
 	_cube_btn.pivot_offset  = Vector2(CUBE_SIZE / 2.0, CUBE_SIZE / 2.0)
 	_cube_btn.z_index       = 3
 	_cube_btn.text          = ""
@@ -202,7 +205,7 @@ func _setup_eval_button() -> void:
 	_eval_btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	_eval_btn.custom_minimum_size = Vector2(EVAL_W, EVAL_H)
 	_eval_btn.size                = Vector2(EVAL_W, EVAL_H)
-	_eval_btn.position            = Vector2(1050.0, 300.0)
+	_eval_btn.position            = Vector2(1050.0 + _center_offset, 300.0)
 	_eval_btn.pivot_offset        = Vector2(EVAL_W / 2.0, EVAL_H / 2.0)
 	_eval_btn.z_index             = 5
 	_eval_btn.visible             = false
@@ -310,7 +313,7 @@ func _start_round() -> void:
 
 	# Cube blinks; pointed hand sits in same position as game2
 	_start_cube_blink()
-	_hand.position         = Vector2(1050.0, 280.0)
+	_hand.position         = Vector2(1050.0 + _center_offset, 280.0)
 	_hand.rotation_degrees = -30.0
 	_hand.visible          = true
 
@@ -354,7 +357,7 @@ func _show_image_buttons() -> void:
 	_clear_image_buttons()
 	var n       : int   = _image_order.size()
 	var total_w : float = n * IMG_SIZE + (n - 1) * IMG_GAP
-	var start_x : float = (1280.0 - total_w) / 2.0
+	var start_x : float = (SceneBackground.viewport_size().x - total_w) / 2.0
 	for i in range(n):
 		var btn := TextureButton.new()
 		btn.texture_normal      = load(_image_order[i]["image"]) as Texture2D
@@ -495,7 +498,7 @@ func _create_gnb_flag() -> void:
 	_gnb_btn              = Button.new()
 	_gnb_btn.text         = ""
 	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
-	_gnb_btn.position     = Vector2(1280.0 - BTN_W - 20.0, 20.0)
+	_gnb_btn.position     = Vector2(SceneBackground.viewport_size().x - BTN_W - 20.0, 20.0)
 	_gnb_btn.z_index      = 10
 	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
 

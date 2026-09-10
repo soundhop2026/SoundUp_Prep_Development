@@ -46,7 +46,8 @@ const ROUNDS_PER_QUEST  : int = 14
 const BINS_PER_ROUND    : int = 4
 
 # ─── Word Cloud layout ──────────────────────────────────────────────────────
-const CLOUD_CENTER       : Vector2 = Vector2(640, 280)
+var CLOUD_CENTER       : Vector2 = Vector2(640, 280)   # mobile-alignment fix — set from the
+                                                         # live viewport in _ready(), was a const
 const CLOUD_HALF_EXTENTS : Vector2 = Vector2(600, 190)   # leaves room below for the Bin row
 const CLOUD_FACE_SCALE   : Vector2 = Vector2(0.085, 0.085)   # smaller than the Transition's decoys — up to 178 faces need to fit at once
 const CLOUD_MIN_SPACING  : float = 42.0
@@ -80,6 +81,9 @@ var _busy        : bool  = false   # guards input during round-complete fade / d
 
 
 func _ready() -> void:
+	var _center_offset : float = SceneBackground.center_offset()
+	CLOUD_CENTER.x       += _center_offset
+	QT_CLUSTER_CENTER.x  += _center_offset
 	SceneBackground.set_color(BG_COLOR)
 	if ResourceLoader.exists(FONT_PATH):
 		_font = load(FONT_PATH)
@@ -689,7 +693,8 @@ const FACE_SCALE  : Vector2 = Vector2(0.135, 0.135)
 # Louis face, not a giveaway-by-being-tiny.
 const REAL_FACE_SCALE : Vector2 = Vector2(0.2838, 0.2838)
 
-const QT_CLUSTER_CENTER       : Vector2 = Vector2(640, 340)
+var QT_CLUSTER_CENTER       : Vector2 = Vector2(640, 340)   # mobile-alignment fix — set from
+                                                              # the live viewport in _ready()
 const QT_CLUSTER_HALF_EXTENTS : Vector2 = Vector2(500, 260)
 
 const QT_MIN_FACE_SPACING : float = 55.0

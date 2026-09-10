@@ -63,9 +63,15 @@ var _info_label2  : Label = null   # "Set 1A" — smaller
 var _for_l15 : bool = false
 var _for_l2  : bool = false
 
+var _center_offset  : float         = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
+var _star_positions : Array[Vector2] = []   # STAR_POSITIONS recentered by _center_offset
+
 # ─── Setup ────────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
+	_center_offset = SceneBackground.center_offset()
+	for pos in STAR_POSITIONS:
+		_star_positions.append(pos + Vector2(_center_offset, 0))
 	_for_l15                    = Level15Progress.active
 	_for_l2                     = Level2Progress.active
 	var _vp := get_viewport_rect().size
@@ -79,7 +85,7 @@ func _ready() -> void:
 	else:
 		$background.color = Color(0.431, 0.710, 1.0, 1.0)     # sky blue — Level 1
 	SceneBackground.set_color($background.color)
-	$PlayButtonImage.position   = Vector2(640, 290)
+	$PlayButtonImage.position   = Vector2(640 + _center_offset, 290)
 	$PlayButtonImage.scale      = Vector2(BASE_SCALE, BASE_SCALE)
 	$PlayButtonImage.modulate   = Color(1.0, 1.0, 1.0, 1.0)
 	_create_info_label()
@@ -105,7 +111,7 @@ func _create_info_label() -> void:
 	_info_label.text                 = level_text
 	_info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_info_label.position             = Vector2(0, 68)
-	_info_label.size                 = Vector2(1280, 50)
+	_info_label.size                 = Vector2(SceneBackground.viewport_size().x, 50)
 	_info_label.z_index              = 1
 	_info_label.modulate.a           = 0.0
 	_info_label.add_theme_font_size_override("font_size", 24)
@@ -116,7 +122,7 @@ func _create_info_label() -> void:
 	_info_label2.text                 = set_text
 	_info_label2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_info_label2.position             = Vector2(0, 102)
-	_info_label2.size                 = Vector2(1280, 40)
+	_info_label2.size                 = Vector2(SceneBackground.viewport_size().x, 40)
 	_info_label2.z_index              = 1
 	_info_label2.modulate.a           = 0.0
 	_info_label2.add_theme_font_size_override("font_size", 18)
@@ -130,7 +136,7 @@ func _create_stars() -> void:
 	for i in range(3):
 		var sp := Sprite2D.new()
 		sp.texture  = star_tex
-		sp.position = STAR_POSITIONS[i]
+		sp.position = _star_positions[i]
 		sp.scale    = Vector2(_star_scale, _star_scale)
 		sp.modulate = COLOR_EMPTY
 		add_child(sp)
@@ -150,11 +156,11 @@ func _create_cubes() -> void:
 		sp.modulate = CUBE_EMPTY
 		sp.visible  = false
 		if i < row1:
-			var start_x : float = 640.0 - ((row1 - 1) * CUBE_STEP) / 2.0
+			var start_x : float = 640.0 + _center_offset - ((row1 - 1) * CUBE_STEP) / 2.0
 			sp.position = Vector2(start_x + i * CUBE_STEP, CUBE_ROW1_Y)
 		else:
 			var j       : int   = i - row1
-			var start_x : float = 640.0 - ((row2 - 1) * CUBE_STEP) / 2.0
+			var start_x : float = 640.0 + _center_offset - ((row2 - 1) * CUBE_STEP) / 2.0
 			sp.position = Vector2(start_x + j * CUBE_STEP, CUBE_ROW2_Y)
 		add_child(sp)
 		_cubes.append(sp)
@@ -236,7 +242,7 @@ func _stop_star_dance() -> void:
 
 # Each star loops: random rotation + bounce + scale + wiggle until flag clears.
 func _dance_star(idx: int) -> void:
-	var base_pos := STAR_POSITIONS[idx]
+	var base_pos := _star_positions[idx]
 	while _star_dancing:
 		var rot := randf_range(-8.0,   8.0)
 		var dx  := randf_range(-10.0, 10.0)
@@ -339,7 +345,7 @@ func _play_transition() -> void:
 		stars = 2
 
 	var gap     : float = 200.0
-	var start_x : float = 640.0 - (stars - 1) * gap / 2.0
+	var start_x : float = 640.0 + _center_offset - (stars - 1) * gap / 2.0
 	var final_y : float = 490.0
 
 	for i in range(stars):

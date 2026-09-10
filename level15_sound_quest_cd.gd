@@ -62,6 +62,11 @@ var _transitions : Level15SoundQuestTransitions = null
 
 
 func _ready() -> void:
+	var _center_offset : float = SceneBackground.center_offset()
+	TARGET_POS.x     += _center_offset
+	PLAYBUTTON_POS.x += _center_offset
+	FIELD_X_MIN      += _center_offset
+	FIELD_X_MAX      += _center_offset
 	SceneBackground.set_color(BG_COLOR)
 	var bg := ColorRect.new()
 	bg.color        = BG_COLOR
@@ -120,7 +125,8 @@ func _clear_round() -> void:
 
 # ─── Target image (top) — tap anytime to hear the target word ──────────────
 
-const TARGET_POS  : Vector2 = Vector2(565, 50)   # pulled down from y=20 for top breathing room
+var TARGET_POS  : Vector2 = Vector2(565, 50)   # pulled down from y=20 for top breathing room —
+                                                # mobile-alignment fix: recentered in _ready()
 const TARGET_SIZE : Vector2 = Vector2(150, 120)
 
 func _spawn_target_image() -> void:
@@ -189,7 +195,8 @@ func _find_tip_landing_pos(tex: Texture2D) -> Vector2:
 
 # ─── Play Button (below target image) — tap anytime to hear the phoneme ────
 
-const PLAYBUTTON_POS  : Vector2 = Vector2(565, 180)   # shifted down with TARGET_POS, same 10px gap preserved
+var PLAYBUTTON_POS  : Vector2 = Vector2(565, 180)   # shifted down with TARGET_POS, same 10px gap
+                                                     # preserved — mobile-alignment fix: recentered in _ready()
 const PLAYBUTTON_SIZE : Vector2 = Vector2(150, 72)
 
 func _spawn_playbutton() -> void:
@@ -209,8 +216,8 @@ func _spawn_playbutton() -> void:
 
 const BUBBLE_SIZE     : Vector2 = Vector2(70, 60)
 const BUBBLE_COUNT    : int     = 20
-const FIELD_X_MIN     : float   = 60.0
-const FIELD_X_MAX     : float   = 950.0
+var FIELD_X_MIN     : float   = 60.0    # mobile-alignment fix — recentered in _ready()
+var FIELD_X_MAX     : float   = 950.0   # mobile-alignment fix — recentered in _ready()
 const FIELD_TOP_Y     : float   = 330.0   # below Play Button's bottom edge (180+72=252) with the same 78px safety buffer
 const FIELD_BOTTOM_Y  : float   = 700.0
 const RISE_SPEED      : float   = 20.0   # px/sec

@@ -47,6 +47,10 @@ var _transitions : Level15SoundQuestTransitions = null
 
 
 func _ready() -> void:
+	var _center_offset : float = SceneBackground.center_offset()
+	PLAYBUTTON_CENTER.x += _center_offset
+	DROP_ZONE_POS.x      += _center_offset
+	POOL_X_CENTER        += _center_offset
 	SceneBackground.set_color(BG_COLOR)
 	var bg := ColorRect.new()
 	bg.color        = BG_COLOR
@@ -105,7 +109,7 @@ func _clear_round() -> void:
 # into whatever space was reserved above it.
 
 const PLAYBUTTON_BASE_SIZE : Vector2 = Vector2(150, 72)
-const PLAYBUTTON_CENTER    : Vector2 = Vector2(640, 160)
+var PLAYBUTTON_CENTER    : Vector2 = Vector2(640, 160)   # mobile-alignment fix — recentered in _ready()
 const GROWTH_PER_EATEN     : float   = 0.3
 
 func _spawn_playbutton() -> void:
@@ -132,7 +136,7 @@ func _grow_playbutton() -> void:
 # ─── Drop zone (fixed, in front of Play Button) ─────────────────────────────
 
 const DROP_ZONE_SIZE : Vector2 = Vector2(300, 63)
-const DROP_ZONE_POS  : Vector2 = Vector2(490, 260)
+var DROP_ZONE_POS  : Vector2 = Vector2(490, 260)   # mobile-alignment fix — recentered in _ready()
 
 func _spawn_drop_zone() -> void:
 	var tex : Texture2D = load(DROP_ZONE_TEXTURE_PATH)
@@ -149,7 +153,7 @@ func _spawn_drop_zone() -> void:
 # ─── Word pool (correct + distractors) ──────────────────────────────────────
 
 const WORD_SIZE     : Vector2 = Vector2(90, 90)
-const POOL_X_CENTER      : float = 640.0
+var POOL_X_CENTER      : float = 640.0   # mobile-alignment fix — recentered in _ready()
 const POOL_X_HALF_EXTENT : float = 600.0
 const POOL_Y_MIN         : float = 390.0   # clear of the drop zone's bottom edge (323) + half a word + margin
 const POOL_Y_MAX         : float = 660.0   # stays on-canvas (660+45=705, canvas height 720)

@@ -56,6 +56,10 @@ var _transitions : Level15SoundQuestTransitions = null
 
 
 func _ready() -> void:
+	var _center_offset : float = SceneBackground.center_offset()
+	TARGET_POS.x  += _center_offset
+	LADDER_X      += _center_offset
+	POOL_CENTER.x += _center_offset
 	SceneBackground.set_color(BG_COLOR)
 	var bg := ColorRect.new()
 	bg.color        = BG_COLOR
@@ -116,7 +120,7 @@ func _clear_round() -> void:
 
 # ─── Target image ─────────────────────────────────────────────────────────
 
-const TARGET_POS  : Vector2 = Vector2(560, 20)
+var TARGET_POS  : Vector2 = Vector2(560, 20)   # mobile-alignment fix — recentered in _ready()
 const TARGET_SIZE : Vector2 = Vector2(140, 110)
 
 func _spawn_target_image() -> void:
@@ -137,7 +141,7 @@ func _spawn_target_image() -> void:
 # the ladder is TWO of them side by side (the two rails), each stretched to
 # the needed height, not N copies stacked into one line.
 
-const LADDER_X          : float = 170.0
+var LADDER_X          : float = 170.0   # mobile-alignment fix — recentered in _ready()
 const LADDER_RAIL_WIDTH : float = 10.0
 const LADDER_RAIL_GAP   : float = 70.0    # distance between the two rails
 const SLOT_HEIGHT       : float = 76.0    # vertical space per rung level
@@ -190,7 +194,7 @@ func _spawn_playbutton() -> void:
 
 const RUNG_SIZE     : Vector2 = Vector2(90, 34)
 const BRANCH_TOTAL  : int     = 12
-const POOL_CENTER       : Vector2 = Vector2(870, 420)
+var POOL_CENTER       : Vector2 = Vector2(870, 420)   # mobile-alignment fix — recentered in _ready()
 const POOL_HALF_EXTENTS : Vector2 = Vector2(330, 230)
 const MIN_SPACING  : float = 60.0
 const MAX_ATTEMPTS : int   = 30

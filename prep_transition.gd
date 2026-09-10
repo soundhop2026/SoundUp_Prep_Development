@@ -26,6 +26,7 @@ var _cubes       : Array[Sprite2D] = []
 var _cube_scale  : float           = 1.0
 var _info_label  : Label           = null
 var _info_label2 : Label           = null
+var _center_offset : float         = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
 
 # ─── Info labels ──────────────────────────────────────────────────────────────
 
@@ -34,7 +35,7 @@ func _create_info_labels() -> void:
 	_info_label.text                 = "Prep Level"
 	_info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_info_label.position             = Vector2(0, 68)
-	_info_label.size                 = Vector2(1280, 50)
+	_info_label.size                 = Vector2(SceneBackground.viewport_size().x, 50)
 	_info_label.z_index              = 1
 	_info_label.modulate.a           = 0.0
 	_info_label.add_theme_font_size_override("font_size", 24)
@@ -45,7 +46,7 @@ func _create_info_labels() -> void:
 	_info_label2.text                 = "Set " + PrepLevelProgress.current_set_label()
 	_info_label2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_info_label2.position             = Vector2(0, 102)
-	_info_label2.size                 = Vector2(1280, 40)
+	_info_label2.size                 = Vector2(SceneBackground.viewport_size().x, 40)
 	_info_label2.z_index              = 1
 	_info_label2.modulate.a           = 0.0
 	_info_label2.add_theme_font_size_override("font_size", 18)
@@ -55,12 +56,13 @@ func _create_info_labels() -> void:
 # ─── Setup ────────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
+	_center_offset = SceneBackground.center_offset()
 	SceneBackground.set_color(Color("#A8E063"))
 	$background.color           = Color("#A8E063")
 	$background.size            = get_viewport_rect().size
 	$background.position        = Vector2(0, 0)
 	$background.mouse_filter    = Control.MOUSE_FILTER_IGNORE
-	$PlayButtonImage.position   = Vector2(640, 290)
+	$PlayButtonImage.position   = Vector2(640 + _center_offset, 290)
 	$PlayButtonImage.scale      = Vector2(BASE_SCALE, BASE_SCALE)
 	$PlayButtonImage.modulate   = Color(1.0, 1.0, 1.0, 1.0)
 	_create_info_labels()
@@ -83,11 +85,11 @@ func _create_cube_board() -> void:
 		sp.modulate = CUBE_EMPTY
 		sp.visible  = false
 		if i < row1:
-			var start_x : float = 640.0 - ((row1 - 1) * CUBE_STEP) / 2.0
+			var start_x : float = 640.0 + _center_offset - ((row1 - 1) * CUBE_STEP) / 2.0
 			sp.position = Vector2(start_x + i * CUBE_STEP, CUBE_ROW1_Y)
 		else:
 			var j       : int   = i - row1
-			var start_x : float = 640.0 - ((row2 - 1) * CUBE_STEP) / 2.0
+			var start_x : float = 640.0 + _center_offset - ((row2 - 1) * CUBE_STEP) / 2.0
 			sp.position = Vector2(start_x + j * CUBE_STEP, CUBE_ROW2_Y)
 		add_child(sp)
 		_cubes.append(sp)
@@ -236,7 +238,7 @@ func _await_keep_hopping_then_continue() -> void:
 	var btn := Button.new()
 	btn.text         = "Keep Hopping!"
 	btn.size         = Vector2(340, 84)
-	btn.position     = Vector2(640.0 - 170.0, 290.0 - 42.0)
+	btn.position     = Vector2(640.0 + _center_offset - 170.0, 290.0 - 42.0)
 	btn.pivot_offset = btn.size / 2.0
 	var font_path : String = "res://UI_assets/210 연필스케치R.ttf"
 	if ResourceLoader.exists(font_path):

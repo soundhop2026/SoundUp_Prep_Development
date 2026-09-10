@@ -17,7 +17,8 @@ const PURPLE_COLOR : Color = Color("#4B0083")
 
 # ─── Face ─────────────────────────────────────────────────────────────────────
 const FACE_SCALE  : float   = 0.90                  # matches Title Scene PlayButton scale
-const FACE_CENTER : Vector2 = Vector2(640.0, 400.0) # shifted down 100px from title's FACE_CENTER_Y — see crown note below
+var FACE_CENTER : Vector2 = Vector2(640.0, 400.0) # shifted down 100px from title's FACE_CENTER_Y — see crown note below
+                                                   # mobile-alignment fix: recentered in _ready()
 
 # ─── Crown ────────────────────────────────────────────────────────────────────
 const CROWN_SCALE   : float = 0.291  # scaled with face: 0.189 × (0.90 / 0.585)
@@ -52,6 +53,7 @@ var _font         : Font              = null
 
 # ─── Ready ────────────────────────────────────────────────────────────────────
 func _ready() -> void:
+	FACE_CENTER.x += SceneBackground.center_offset()
 	SceneBackground.set_color(BG_COLOR)
 	$background.color        = BG_COLOR
 	$background.size         = get_viewport_rect().size
@@ -116,7 +118,7 @@ func _make_label_line(text: String, y: float, h: float, font_size: int) -> Label
 	lbl.text                 = text
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
-	lbl.size                 = Vector2(1280.0, h)
+	lbl.size                 = Vector2(SceneBackground.viewport_size().x, h)
 	lbl.position              = Vector2(0.0, y)
 	lbl.add_theme_font_size_override("font_size", font_size)
 	lbl.add_theme_color_override("font_color", PURPLE_COLOR)

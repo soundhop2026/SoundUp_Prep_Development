@@ -31,6 +31,8 @@ var _center_offset      : float            = 0.0   # mobile-alignment fix — se
 var _audio_dead         : bool             = false  # set true once Where Am I is pressed — after
 													  # this, no gameplay audio may ever play again
 													  # for this scene instance (see _safe_play)
+var _play_counted       : bool             = false  # true once this scene instance's real-play
+													  # count increment has fired (see _start_round)
 var _round_gen          : int              = 0      # bumped every _start_round() — lets an
 													  # in-flight coroutine from before Where Am I
 													  # was pressed (and later revives on return)
@@ -40,6 +42,14 @@ var _round_gen          : int              = 0      # bumped every _start_round(
 
 const LISTEN_BAR_BASE_POS : Vector2 = Vector2(100, 60)   # must match $ListenButton's _ready()-time position
 
+# EvalPlayButton's X, derived (not guessed) to center-align with game2.gd's
+# ("Where Am I") own eval button. Both buttons' rects have their top-left
+# corner as position/pivot, but different unscaled sizes/scale, so equal
+# base-X does NOT mean equal rendered center — this accounts for that:
+#   Where Am I center X   = 1050 (game2.gd _eval_btn base X) + 150/2 (EVAL_W/2, game2.gd:7)
+#   EvalPlayButton here is offset_left=1050..offset_right=1957 (907 wide,
+#   game.tscn) scaled 0.15 (game.tscn) => rendered half-width = 907*0.15/2
+const EVAL_PLAY_BUTTON_X : float = (1050.0 + 150.0 / 2.0) - (907.0 * 0.15) / 2.0   # = 1056.975, target center matches Where Am I's
 
 func _ready() -> void:
 	_center_offset = SceneBackground.center_offset()
@@ -233,6 +243,12 @@ func _start_round() -> void:
 	if round_index >= rounds.size():
 		_do_level_complete()
 		return
+	if not _play_counted:
+		_play_counted = true
+		if DebugConfig.debug_launch:
+			DebugConfig.debug_launch = false
+		else:
+			SaveManager.increment_review_count("level1_" + LevelProgress.current_set_label())
 	_audio_dead            = false   # revive audio — starting/restarting a round always
 									  # means this scene is active and playable again
 	_round_gen            += 1       # invalidate any still-running previous coroutine
@@ -294,7 +310,6 @@ func _do_level_complete() -> void:
 	result_locked = true
 	if ReviewState.active:
 		ReviewState.active = false
-		SaveManager.increment_review_count(ReviewState.set_key)
 		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
 		return
 	LevelProgress.last_score_pct = float(clean_correct_count) / float(rounds.size()) * 100.0
@@ -411,7 +426,7 @@ func _run_ending_sequence() -> void:
 	await get_tree().create_timer(0.35).timeout
 	if gen != _round_gen: return
 
-	$EvalPlayButton.position = Vector2(1050 + _center_offset, 280)
+	$EvalPlayButton.position = Vector2(EVAL_PLAY_BUTTON_X + _center_offset, 280)
 	$EvalPlayButton.visible  = true
 	_start_eval_pulse()
 
@@ -466,7 +481,7 @@ func _stop_eval_pulse() -> void:
 	if _eval_tween:
 		_eval_tween.kill()
 		_eval_tween = null
-	$EvalPlayButton.position = Vector2(1050 + _center_offset, 280)
+	$EvalPlayButton.position = Vector2(EVAL_PLAY_BUTTON_X + _center_offset, 280)
 
 # ─── Set G word-structure cubes ──────────────────────────────────────────────
 

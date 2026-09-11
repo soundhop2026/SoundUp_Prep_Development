@@ -1,9 +1,9 @@
 extends Node2D
 
 # ─── Sound Quest ────────────────────────────────────────────────────────────
-# Mastery activity (not a teaching activity) shown once per Prep Group, right
-# after that Group's last sub-set finishes (see prep_transition.gd's
-# is_main_set_boundary() branch). Reached via SoundQuestState's handoff.
+# Mastery activity (not a teaching activity), one per Prep Group — optional
+# bonus content, reached only via Where Am I's replay card (SoundQuestState's
+# handoff), never a forced step in Prep progression.
 #
 # 4 words visible at once in a row across the top, sitting still (no idle
 # animation). Tap = hear the phoneme (unlimited, exploration only). A maze
@@ -44,8 +44,8 @@ extends Node2D
 # two consecutive rounds never show an identical picture back to back.
 #
 # 4 Quests per Group; Quest Transition is a purely decorative Play-Button-
-# walks-a-maze celebration between them. After Quest 4, hands back to normal
-# Prep progression exactly like prep_transition.gd's _continue_to_next_set().
+# walks-a-maze celebration between them. After Quest 4, returns to Where Am
+# I — Sound Quest never advances or completes Prep progression itself.
 # ─────────────────────────────────────────────────────────────────────────────
 
 const FONT_PATH : String = "res://UI_assets/210 연필스케치R.ttf"
@@ -221,6 +221,8 @@ var _move_timer : Timer = null   # word audio pauses when no drag-motion arrives
 var _last_blocked_time : float = -1000.0   # debounces the wall-bump feedback, see _on_blocked()
 
 var _busy : bool = false   # true during Quest Transition / group handoff — input ignored
+var _play_counted : bool = false   # true once this scene instance's real-play count
+									# increment has fired (see _start_round)
 
 var _center_offset   : float         = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
 var _slot_positions   : Array[Vector2] = []   # SLOT_POSITIONS recentered by _center_offset
@@ -241,6 +243,7 @@ func _ready() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
+	_create_where_am_i_button()
 	_build_audio_players()
 	_maze_container = Node2D.new()
 	add_child(_maze_container)
@@ -373,6 +376,13 @@ func _start_round_or_finish() -> void:
 
 # Draws ROUND_SIZE (4) words for this round.
 func _start_round() -> void:
+	if not _play_counted:
+		_play_counted = true
+		if DebugConfig.debug_launch:
+			DebugConfig.debug_launch = false
+		else:
+			var letter : String = PrepLevelProgress.set_labels[SoundQuestState.group_end_index].left(1)
+			SaveManager.increment_review_count("prep_soundquest_" + letter)
 	_clear_completed_row()
 	# A maze is ready and visible the moment the round starts, before any
 	# image is touched — _enter_approach_mode() still generates this
@@ -1292,26 +1302,63 @@ func _qt_find_dead_end(maze, cell: Vector2i, on_path: Dictionary) -> Vector2i:
 	return branches[randi() % branches.size()]
 
 
-# ─── Group complete — hand back to normal Prep progression ─────────────────
-# Mirrors prep_transition.gd's _continue_to_next_set() exactly (has_next()
-# BEFORE advance() — CLAUDE.md locked rule #3). Duplicated locally rather than
-# calling into prep_transition.gd since that logic lives on a scene this
-# scene doesn't instance; SoundQuestState intentionally carries no such
-# helper either, per the plan's "no new SaveManager fields" persistence note.
+# ─── Where Am I exit — Sound Quest must never trap the player; this is the
+# ─── only way out besides finishing all 4 Quests ───────────────────────────
+func _create_where_am_i_button() -> void:
+	const BTN_W : float = 72.0
+	const BTN_H : float = 56.0
+
+	var btn := Button.new()
+	btn.text         = ""
+	btn.size         = Vector2(BTN_W, BTN_H)
+	btn.position     = Vector2(SceneBackground.viewport_size().x - BTN_W - 20.0, 20.0)
+	btn.z_index      = 10
+	btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+
+	var blank := StyleBoxEmpty.new()
+	for s in ["normal", "hover", "pressed", "focus"]:
+		btn.add_theme_stylebox_override(s, blank)
+
+	var pill := Panel.new()
+	pill.size         = Vector2(50.0, 52.0)
+	pill.position     = (Vector2(BTN_W, BTN_H) - pill.size) / 2.0
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ps := StyleBoxFlat.new()
+	var pill_color := Color("#4B0082")
+	pill_color.a                  = 0.4
+	ps.bg_color                   = pill_color
+	ps.corner_radius_top_left     = 14
+	ps.corner_radius_top_right    = 14
+	ps.corner_radius_bottom_left  = 14
+	ps.corner_radius_bottom_right = 14
+	pill.add_theme_stylebox_override("panel", ps)
+	btn.add_child(pill)
+
+	var flag_icon := TextureRect.new()
+	flag_icon.texture      = load("res://UI_assets/flag.png") as Texture2D
+	flag_icon.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
+	flag_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	flag_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flag_icon.size         = Vector2(42, 47)
+	flag_icon.position     = (Vector2(BTN_W, BTN_H) - flag_icon.size) / 2.0
+	btn.add_child(flag_icon)
+
+	btn.pressed.connect(_on_where_am_i_pressed)
+	add_child(btn)
+
+
+func _on_where_am_i_pressed() -> void:
+	await _stop_music()
+	ReviewState.active = false
+	get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
+
+
+# ─── Group complete — Sound Quest is optional bonus content, so it has no
+# effect on Prep progression (that's owned entirely by prep_transition.gd
+# now). Every completion returns to Where Am I, the sole hub for both
+# Sound Quest and the main progression.
 func _on_all_quests_complete() -> void:
 	_busy = true
 	await _stop_music()
-	if ReviewState.active:
-		ReviewState.active = false
-		SaveManager.increment_review_count(ReviewState.set_key)
-		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
-		return
-	if PrepLevelProgress.has_next():
-		PrepLevelProgress.advance()
-		get_tree().change_scene_to_file("res://prep_game.tscn")
-	else:
-		SaveManager.set_prep_completed()
-		PrepLevelProgress.reset()
-		LevelTransition.next_level_id = "level1"
-		LevelTransition.level_name    = "Level 1"
-		get_tree().change_scene_to_file("res://level_transition.tscn")
+	ReviewState.active = false
+	get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")

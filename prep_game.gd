@@ -45,6 +45,8 @@ var _total_set_rounds   : int              = 0
 var _gnb_btn            : Button           = null
 var _back_btn           : TextureButton    = null
 var _center_offset      : float            = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
+var _play_counted       : bool             = false  # true once this scene instance's real-play
+													  # count increment has fired (see _start_round)
 var _audio_dead         : bool             = false  # set true once Where Am I is pressed — after
 													  # this, no gameplay audio may ever play again
 													  # for this scene instance (see _safe_play)
@@ -276,6 +278,13 @@ func _start_round() -> void:
 		_do_level_complete()
 		return
 
+	if not _play_counted:
+		_play_counted = true
+		if DebugConfig.debug_launch:
+			DebugConfig.debug_launch = false
+		else:
+			SaveManager.increment_review_count("prep_" + PrepLevelProgress.current_set_label())
+
 	_audio_dead      = false   # revive audio — starting/restarting a round always
 							   # means this scene is active and playable again
 	_round_had_error = false   # reset for each new round
@@ -497,7 +506,6 @@ func _do_level_complete() -> void:
 	result_locked = true
 	if ReviewState.active:
 		ReviewState.active = false
-		SaveManager.increment_review_count(ReviewState.set_key)
 		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
 		return
 	var score_pct : float = 100.0 if _local_total == 0 else \

@@ -32,7 +32,7 @@ const PHONEMES_PATH := "res://data/phonemes.json"
 const OPEN_HAND_TEX := "res://UI_assets/handsigns/openhand.png"
 
 var CANVAS_W : float = 1280.0   # mobile-alignment fix — set from the live viewport in _ready(),
-                                 # was a const 1280.0; see SceneBackground.viewport_size()
+								 # was a const 1280.0; see SceneBackground.viewport_size()
 const BG_COLOR        := Color("#A83A22")
 const OPEN_HAND_COLOR := Color("#E8724A")
 
@@ -121,6 +121,8 @@ var _current_round : Dictionary = {}
 var _result_locked : bool       = false
 var _round_cubes        : Array[ColorRect] = []
 var _total_set_rounds   : int              = 0
+var _play_counted       : bool             = false  # true once this scene instance's real-play
+													  # count increment has fired (see _start_round)
 
 # ── Build-word tracking ──────────────────────────────────────────────────────
 var _build_index : int = 0   # next cube slot to fill
@@ -131,8 +133,8 @@ var _round_hint_used : bool  = false
 var _assisted_rounds : Array = []
 var _scored_rounds   : Dictionary = {} # _round_index -> true once counted toward the set's
 										# score — Back is unlimited for review, but a round's
-                                        # score is locked in on its first completion and never
-                                        # changes on replay
+										# score is locked in on its first completion and never
+										# changes on replay
 
 # ── Dynamic nodes ────────────────────────────────────────────────────────────
 var _cube_nodes   : Array         = []
@@ -592,6 +594,13 @@ func _start_round() -> void:
 	if _round_index >= _rounds.size():
 		_do_set_complete()
 		return
+
+	if not _play_counted:
+		_play_counted = true
+		if DebugConfig.debug_launch:
+			DebugConfig.debug_launch = false
+		else:
+			SaveManager.increment_review_count("level15_" + Level15Progress.current_set_label())
 
 	_current_round   = _rounds[_round_index]
 	_result_locked   = false
@@ -1710,7 +1719,6 @@ func _do_set_complete() -> void:
 	_result_locked = true
 	if ReviewState.active:
 		ReviewState.active = false
-		SaveManager.increment_review_count(ReviewState.set_key)
 		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
 		return
 	var score_pct : float = float(_clean_correct) / float(_rounds.size()) * 100.0

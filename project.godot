@@ -30,6 +30,7 @@ window/size/mode=3
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/size/mode.editor=0
+window/frame_pacing/android/enable_frame_pacing.emulator_dev=false
 
 [editor_plugins]
 

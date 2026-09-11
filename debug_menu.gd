@@ -95,6 +95,7 @@ func _build_scene_shortcuts() -> void:
 		{ "label": "Coronation",    "fn": Callable(self, "_jump_coronation") },
 		{ "label": "Prep Set 2 (Boundary)", "fn": Callable(self, "_jump_prep_set2") },
 		{ "label": "Prep Set 4 (Group Boundary)", "fn": Callable(self, "_jump_prep_set4") },
+		{ "label": "Prep Last Set (Coronation Check)", "fn": Callable(self, "_jump_prep_last_set") },
 	]
 
 	const COL_W  : float = 560.0
@@ -290,6 +291,18 @@ func _jump_prep_set2() -> void:
 # reached only through Where Am I — it no longer gates this boundary).
 func _jump_prep_set4() -> void:
 	PrepLevelProgress.current_index = 3
+	PrepLevelProgress.is_retry      = false
+	PrepLevelProgress.retry_rounds.clear()
+	DebugConfig.debug_launch = true
+	get_tree().change_scene_to_file("res://prep_game.tscn")
+
+# Lands on Set F2 (index 25) — Prep's actual final Main Set. Completing it
+# for real now exercises the genuine boundary path: pass -> premium check
+# (already crossed) -> _continue_to_next_set() -> has_next() false ->
+# set_prep_completed() -> Coronation. Verifies Sound Quest no longer
+# intercepts this, without needing to play all 26 sets to reach it.
+func _jump_prep_last_set() -> void:
+	PrepLevelProgress.current_index = PrepLevelProgress.sets.size() - 1
 	PrepLevelProgress.is_retry      = false
 	PrepLevelProgress.retry_rounds.clear()
 	DebugConfig.debug_launch = true

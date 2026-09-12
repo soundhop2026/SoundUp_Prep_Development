@@ -235,16 +235,15 @@ func _level15_group_meta() -> Dictionary:
 	}
 
 
-# ─── Sound Quest replay entries (Prep + Level 1 only — Level 1.5 Sound Quest
-# ─── has no working entry/exit path anywhere in the game yet, out of scope) ───
-# Sound Quest is a per-GROUP bonus activity, not one of a Group's own flat
-# Sets, so it's appended as one extra synthetic card onto that Group's set
-# list at render time (_show_sets_page()) rather than folded into
+# ─── Sound Quest replay entries (Prep, Level 1, and Level 1.5) ────────────────
+# Sound Quest is optional bonus content, never one of a Group's own flat
+# Sets, so it's appended as extra synthetic card(s) onto a Group's set list
+# at render time (_show_sets_page()) rather than folded into
 # _prep_sets()/_level1_sets() — keeps Screen 2's group tiles and "X/Y
 # Completed" math (both driven by the real flat sets list) untouched.
-# Carries its own no-arg "pfn" (see _on_replay_pressed()'s override check)
-# since it needs to set a start/end index pair on a completely different
-# state singleton, not a single flat set index via the level's own ld["pfn"].
+# Each entry carries its own no-arg "pfn" (see _on_replay_pressed()'s
+# override check) since it needs to set state on a completely different
+# singleton, not a single flat set index via the level's own ld["pfn"].
 func _prep_group_ranges() -> Array:
 	var out   : Array = []
 	var start : int   = 0
@@ -263,11 +262,11 @@ func _level1_group_ranges() -> Array:
 	return out
 
 
-func _sound_quest_entry_for(level_id: String, letter: String, group_index: int) -> Dictionary:
+func _sound_quest_entries_for(level_id: String, letter: String, group_index: int) -> Array:
 	match level_id:
 		"prep":
 			var r : Vector2i = _prep_group_ranges()[group_index]
-			return {
+			return [{
 				"label":     "★",
 				"phonemes":  "Sound Quest — bonus mini-game",
 				"key":       "prep_soundquest_" + letter,
@@ -276,10 +275,10 @@ func _sound_quest_entry_for(level_id: String, letter: String, group_index: int) 
 					SoundQuestState.group_start_index = r.x
 					SoundQuestState.group_end_index   = r.y
 					PrepLevelProgress.current_index   = r.y,   # keeps maze-difficulty style correct (sound_quest.gd reads this, not the state singleton, for that)
-			}
+			}]
 		"level1":
 			var r : Vector2i = _level1_group_ranges()[group_index]
-			return {
+			return [{
 				"label":     "★",
 				"phonemes":  "Sound Quest — bonus mini-game",
 				"key":       "level1_soundquest_" + letter,
@@ -287,9 +286,56 @@ func _sound_quest_entry_for(level_id: String, letter: String, group_index: int) 
 				"pfn":       func():
 					Level1SoundQuestState.group_start_index = r.x
 					Level1SoundQuestState.group_end_index   = r.y,
+			}]
+		"level15":
+			# Level 1.5 Sound Quest (Quests A-F) draws from a fixed word/
+			# phoneme pool spanning the whole level, not a per-Group word
+			# range like Prep/Level 1's — so it isn't really "this Group's"
+			# content. Shown once, under Group A only, rather than repeating
+			# the same 6 cards on every Level 1.5 group screen.
+			if group_index != 0:
+				return []
+			var entry_a : Dictionary = {
+				"label": "★ A", "phonemes": "Sound Quest — bonus mini-game",
+				"key": "level15_soundquest_A", "scene": "res://level15_sound_quest_ab.tscn",
 			}
+			entry_a["pfn"] = func():
+				Level15SoundQuestABState.position     = "initial"
+				Level15SoundQuestABState.total_rounds = 32
+			var entry_b : Dictionary = {
+				"label": "★ B", "phonemes": "Sound Quest — bonus mini-game",
+				"key": "level15_soundquest_B", "scene": "res://level15_sound_quest_ab.tscn",
+			}
+			entry_b["pfn"] = func():
+				Level15SoundQuestABState.position     = "final"
+				Level15SoundQuestABState.total_rounds = 40
+			var entry_c : Dictionary = {
+				"label": "★ C", "phonemes": "Sound Quest — bonus mini-game",
+				"key": "level15_soundquest_C", "scene": "res://level15_sound_quest_cd.tscn",
+			}
+			entry_c["pfn"] = func():
+				Level15SoundQuestCDState.position     = "initial"
+				Level15SoundQuestCDState.total_rounds = 56
+			var entry_d : Dictionary = {
+				"label": "★ D", "phonemes": "Sound Quest — bonus mini-game",
+				"key": "level15_soundquest_D", "scene": "res://level15_sound_quest_cd.tscn",
+			}
+			entry_d["pfn"] = func():
+				Level15SoundQuestCDState.position     = "final"
+				Level15SoundQuestCDState.total_rounds = 56
+			var entry_e : Dictionary = {
+				"label": "★ E", "phonemes": "Sound Quest — bonus mini-game",
+				"key": "level15_soundquest_E", "scene": "res://level15_sound_quest_e.tscn",
+			}
+			entry_e["pfn"] = func(): pass
+			var entry_f : Dictionary = {
+				"label": "★ F", "phonemes": "Sound Quest — bonus mini-game",
+				"key": "level15_soundquest_F", "scene": "res://level15_sound_quest_f.tscn",
+			}
+			entry_f["pfn"] = func(): pass
+			return [entry_a, entry_b, entry_c, entry_d, entry_e, entry_f]
 		_:
-			return {}
+			return []
 
 
 # ─── Header (purple bar — title + subtitle text swap per screen) ──────────────
@@ -642,16 +688,16 @@ func _show_sets_page() -> void:
 	_panel_label(_content, "%d / %d Completed" % [group_done, group_total],
 		Vector2(PAGE_PAD, TOP_PAD + 88), Vector2(vp_w - PAGE_PAD * 2, 28), 19, PURPLE)
 
-	var display_sets : Array = group["sets"].duplicate()
-	var sq_entry : Dictionary = _sound_quest_entry_for(ld["id"], letter, _sel_group)
-	if not sq_entry.is_empty():
-		display_sets.append(sq_entry)   # appended past group_total, so it never gets a checkmark
+	var display_sets  : Array = group["sets"].duplicate()
+	var sq_start_idx  : int   = display_sets.size()
+	for sq_entry in _sound_quest_entries_for(ld["id"], letter, _sel_group):
+		display_sets.append(sq_entry)   # appended past group_total, so these never get a checkmark
 
 	var cells_area := Control.new()
 	cells_area.position = Vector2(0, TOP_PAD + 130)
 	cells_area.size     = Vector2(vp_w, _content.size.y - (TOP_PAD + 130))
 	_content.add_child(cells_area)
-	_render_set_cells(cells_area, display_sets, ld, group_done)
+	_render_set_cells(cells_area, display_sets, ld, group_done, sq_start_idx)
 
 
 # ─── Screen 3 — Set detail (ungrouped levels, e.g. Level 2) ───────────────────
@@ -713,7 +759,8 @@ func _cell_metrics(count: int, area_h: float) -> Dictionary:
 
 # Shared low-level cell grid renderer — used both for Level 2's flat list and
 # for a single Set Group's individual sets on Screen 3.
-func _render_set_cells(parent: Control, cell_sets: Array, ld: Dictionary, local_done: int) -> void:
+func _render_set_cells(parent: Control, cell_sets: Array, ld: Dictionary, local_done: int,
+		sound_quest_start_idx: int = -1) -> void:
 	var metrics  : Dictionary = _cell_metrics(cell_sets.size(), parent.size.y)
 	var row_step : float = metrics["row_step"]
 	var cell_h   : float = metrics["cell_h"]
@@ -725,7 +772,8 @@ func _render_set_cells(parent: Control, cell_sets: Array, ld: Dictionary, local_
 			if idx >= cell_sets.size():
 				break
 			var cell_x : float = page_pad + side * (CELL_W + CELL_GAP)
-			_make_completed_cell(parent, cell_sets[idx], ld, cell_x, row_y, cell_h, idx < local_done)
+			var is_sq  : bool  = sound_quest_start_idx >= 0 and idx >= sound_quest_start_idx
+			_make_completed_cell(parent, cell_sets[idx], ld, cell_x, row_y, cell_h, idx < local_done, is_sq)
 
 
 # Sub-element offsets below were tuned at this reference height (the old
@@ -733,7 +781,8 @@ func _render_set_cells(parent: Control, cell_sets: Array, ld: Dictionary, local_
 const CELL_H_REF : float = 92.0
 
 func _make_completed_cell(parent: Control, sd: Dictionary,
-		ld: Dictionary, cx: float, cy: float, cell_h: float, is_completed: bool = true) -> void:
+		ld: Dictionary, cx: float, cy: float, cell_h: float, is_completed: bool = true,
+		is_sound_quest: bool = false) -> void:
 	var k : float = cell_h / CELL_H_REF
 	var panel := Panel.new()
 	panel.position = Vector2(cx, cy)
@@ -772,8 +821,10 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 		img.mouse_filter   = Control.MOUSE_FILTER_IGNORE
 		panel.add_child(img)
 
-	# Replay count "×N" (completed sets only)
-	if is_completed:
+	# Replay count "×N" — completed Main Sets, or any Sound Quest card (Sound
+	# Quest is never checkmarked/"completed" — it's optional bonus content —
+	# but still shows its own play count using the same existing label style).
+	if is_completed or is_sound_quest:
 		var count : int = SaveManager.get_review_count(sd["key"])
 		_panel_label(panel, "×%d" % count, Vector2(CELL_W - 92, 33 * k), Vector2(46, 26 * k), max(11, int(round(16 * k))), PURPLE)
 

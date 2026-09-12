@@ -101,7 +101,6 @@ else:
 ### Key differences from game.gd
 - Phoneme auto-plays ×2 (child does NOT press Listen)
 - Word sounds auto-play ×1 per image with bounce animation
-- Pointed hand guides attention, disappears before choice window
 - Wrong answer → full loop replay (not try-again screen)
 - 3-second choice window, then auto-replay if no answer
 - No idle hint timer

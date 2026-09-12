@@ -57,6 +57,8 @@ var _drag_bubble : TextureRect = null
 var _drag_offset : Vector2 = Vector2.ZERO
 var _drag_pos    : Vector2 = Vector2.ZERO
 var _busy        : bool = false
+var _play_counted : bool = false   # true once this scene instance's real-play count
+									# increment has fired (see _start_round)
 
 var _transitions : Level15SoundQuestTransitions = null
 
@@ -75,6 +77,7 @@ func _ready() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
+	_create_where_am_i_button()
 	_transitions = Level15SoundQuestTransitions.new()
 	add_child(_transitions)
 
@@ -93,6 +96,13 @@ func _ready() -> void:
 
 
 func _start_round() -> void:
+	if not _play_counted:
+		_play_counted = true
+		if DebugConfig.debug_launch:
+			DebugConfig.debug_launch = false
+		else:
+			var letter : String = "C" if _position == "initial" else "D"
+			SaveManager.increment_review_count("level15_soundquest_" + letter)
 	_busy = true
 	_clear_round()
 
@@ -554,9 +564,54 @@ func _on_quest_complete() -> void:
 		return
 
 	_busy = false
-	print("Level 1.5 Sound Quest — Quest D complete, Group's C/D pair finished.")
-	# Handoff back to game15.gd / Level15Progress not wired yet — same open
-	# item as Quest A/B, needs its own investigation.
+	# Sound Quest is optional bonus content — Quest D's completion has no
+	# effect on any progression. Returns to Where Am I; the player picks
+	# another Sound Quest from there rather than auto-chaining into Quest E.
+	get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
+
+
+# ─── Where Am I exit — Sound Quest must never trap the player ─────────────
+func _create_where_am_i_button() -> void:
+	const BTN_W : float = 72.0
+	const BTN_H : float = 56.0
+
+	var btn := Button.new()
+	btn.text         = ""
+	btn.size         = Vector2(BTN_W, BTN_H)
+	btn.position     = Vector2(SceneBackground.viewport_size().x - BTN_W - 20.0, 20.0)
+	btn.z_index      = 10
+	btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+
+	var blank := StyleBoxEmpty.new()
+	for s in ["normal", "hover", "pressed", "focus"]:
+		btn.add_theme_stylebox_override(s, blank)
+
+	var pill := Panel.new()
+	pill.size         = Vector2(50.0, 52.0)
+	pill.position     = (Vector2(BTN_W, BTN_H) - pill.size) / 2.0
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ps := StyleBoxFlat.new()
+	var pill_color := Color("#4B0082")
+	pill_color.a                  = 0.4
+	ps.bg_color                   = pill_color
+	ps.corner_radius_top_left     = 14
+	ps.corner_radius_top_right    = 14
+	ps.corner_radius_bottom_left  = 14
+	ps.corner_radius_bottom_right = 14
+	pill.add_theme_stylebox_override("panel", ps)
+	btn.add_child(pill)
+
+	var flag_icon := TextureRect.new()
+	flag_icon.texture      = load("res://UI_assets/flag.png") as Texture2D
+	flag_icon.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
+	flag_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	flag_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flag_icon.size         = Vector2(42, 47)
+	flag_icon.position     = (Vector2(BTN_W, BTN_H) - flag_icon.size) / 2.0
+	btn.add_child(flag_icon)
+
+	btn.pressed.connect(func(): get_tree().change_scene_to_file("res://gnb_where_am_i.tscn"))
+	add_child(btn)
 
 
 func _play_target_audio() -> void:

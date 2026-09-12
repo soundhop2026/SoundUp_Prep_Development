@@ -41,6 +41,8 @@ var _scored_rounds      : Dictionary = {} # round_index -> true once counted tow
 										   # changes on replay
 var _round_cubes        : Array[ColorRect] = []
 var _total_set_rounds   : int              = 0
+var _play_counted       : bool  = false  # true once this scene instance's real-play count
+										  # increment has fired (see _start_round)
 var _walk_gen           : int    = 0
 var _image_order        : Array  = []   # [{word, audio, image, is_correct}, ...]
 var _dragging           : bool  = false
@@ -280,6 +282,12 @@ func _start_round() -> void:
 	if round_index >= rounds.size():
 		_do_level_complete()
 		return
+	if not _play_counted:
+		_play_counted = true
+		if DebugConfig.debug_launch:
+			DebugConfig.debug_launch = false
+		else:
+			SaveManager.increment_review_count("level2_" + Level2Progress.current_set_label())
 	_cancel_drag()
 	result_locked    = false
 	phase            = "wait_listen"
@@ -379,7 +387,6 @@ func _do_level_complete() -> void:
 	_stop_eval_pulse()
 	if ReviewState.active:
 		ReviewState.active = false
-		SaveManager.increment_review_count(ReviewState.set_key)
 		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
 		return
 	Level2Progress.last_score_pct = \

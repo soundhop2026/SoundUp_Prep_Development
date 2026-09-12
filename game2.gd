@@ -73,6 +73,8 @@ var _blink_tween    : Tween = null
 var _eval_btn_tween : Tween = null
 
 var _center_offset : float = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
+var _play_counted  : bool  = false  # true once this scene instance's real-play count
+									 # increment has fired (see _start_round)
 
 # ─── Ready ────────────────────────────────────────────────────────────────────
 func _ready() -> void:
@@ -254,6 +256,12 @@ func _start_round() -> void:
 	if round_index >= rounds.size():
 		_do_level_complete()
 		return
+	if not _play_counted:
+		_play_counted = true
+		if DebugConfig.debug_launch:
+			DebugConfig.debug_launch = false
+		else:
+			SaveManager.increment_review_count("level2_" + Level2Progress.current_set_label())
 	result_locked    = false
 	idle_time        = 0.0
 	phase            = "wait_listen"
@@ -319,7 +327,6 @@ func _do_level_complete() -> void:
 	_stop_eval_pulse()
 	if ReviewState.active:
 		ReviewState.active = false
-		SaveManager.increment_review_count(ReviewState.set_key)
 		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
 		return
 	Level2Progress.last_score_pct = \

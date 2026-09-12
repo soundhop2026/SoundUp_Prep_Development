@@ -95,6 +95,7 @@ func _build_scene_shortcuts() -> void:
 		{ "label": "Coronation",    "fn": Callable(self, "_jump_coronation") },
 		{ "label": "Prep Set 2 (Boundary)", "fn": Callable(self, "_jump_prep_set2") },
 		{ "label": "Prep Set 4 (Group Boundary)", "fn": Callable(self, "_jump_prep_set4") },
+		{ "label": "Prep Last Set (Coronation Check)", "fn": Callable(self, "_jump_prep_last_set") },
 	]
 
 	const COL_W  : float = 560.0
@@ -165,11 +166,15 @@ func _on_test_premium_flow_pressed() -> void:
 func _on_test_sound_quest_pressed() -> void:
 	SoundQuestState.group_start_index = 0
 	SoundQuestState.group_end_index   = 3
+	DebugConfig.debug_launch = true
 	get_tree().change_scene_to_file("res://sound_quest.tscn")
 
 
 # Jumps straight into the Quest Transition celebration itself, skipping the
-# need to actually play through a full Quest to trigger it.
+# need to actually play through a full Quest to trigger it. Doesn't set
+# DebugConfig.debug_launch — this path never reaches _start_round() (where
+# the flag gets consumed), so setting it here would incorrectly suppress
+# the next unrelated real play's count instead.
 func _on_test_quest_transition_pressed() -> void:
 	SoundQuestState.group_start_index        = 0
 	SoundQuestState.group_end_index          = 3
@@ -182,12 +187,15 @@ func _on_test_quest_transition_pressed() -> void:
 func _on_test_level1_sound_quest_pressed() -> void:
 	Level1SoundQuestState.group_start_index = 0
 	Level1SoundQuestState.group_end_index   = 1
+	DebugConfig.debug_launch = true
 	get_tree().change_scene_to_file("res://level1_sound_quest.tscn")
 
 
 # Jumps straight into Level 1's Quest Transition celebration itself,
 # skipping the Rounds phase — same idea as _on_test_quest_transition_pressed
-# above, for isolated preview without grinding a full Quest.
+# above, for isolated preview without grinding a full Quest. Doesn't set
+# DebugConfig.debug_launch — same reason as that function: this path never
+# reaches _start_round(), so the flag would go uncleared.
 func _on_test_level1_quest_transition_pressed() -> void:
 	Level1SoundQuestState.group_start_index        = 0
 	Level1SoundQuestState.group_end_index          = 1
@@ -266,6 +274,7 @@ func _jump_prep() -> void:
 	PrepLevelProgress.current_index = 0
 	PrepLevelProgress.is_retry      = false
 	PrepLevelProgress.retry_rounds.clear()
+	DebugConfig.debug_launch = true
 	get_tree().change_scene_to_file("res://prep_game.tscn")
 
 # Lands on Set A2 (index 1) — the last free set. Completing it triggers the
@@ -274,27 +283,43 @@ func _jump_prep_set2() -> void:
 	PrepLevelProgress.current_index = 1
 	PrepLevelProgress.is_retry      = false
 	PrepLevelProgress.retry_rounds.clear()
+	DebugConfig.debug_launch = true
 	get_tree().change_scene_to_file("res://prep_game.tscn")
 
-# Lands on Set A4 (index 3) — the last sub-set of Group A. Completing it
-# triggers the real Sound Quest routing hook: Transition -> is_main_set_
-# boundary() -> Sound Quest (Group A's combined word pool).
+# Lands on Set A4 (index 3) — the last sub-set of Group A. Completing it now
+# just continues Prep normally (Sound Quest is optional bonus content,
+# reached only through Where Am I — it no longer gates this boundary).
 func _jump_prep_set4() -> void:
 	PrepLevelProgress.current_index = 3
 	PrepLevelProgress.is_retry      = false
 	PrepLevelProgress.retry_rounds.clear()
+	DebugConfig.debug_launch = true
+	get_tree().change_scene_to_file("res://prep_game.tscn")
+
+# Lands on Set F2 (index 25) — Prep's actual final Main Set. Completing it
+# for real now exercises the genuine boundary path: pass -> premium check
+# (already crossed) -> _continue_to_next_set() -> has_next() false ->
+# set_prep_completed() -> Coronation. Verifies Sound Quest no longer
+# intercepts this, without needing to play all 26 sets to reach it.
+func _jump_prep_last_set() -> void:
+	PrepLevelProgress.current_index = PrepLevelProgress.sets.size() - 1
+	PrepLevelProgress.is_retry      = false
+	PrepLevelProgress.retry_rounds.clear()
+	DebugConfig.debug_launch = true
 	get_tree().change_scene_to_file("res://prep_game.tscn")
 
 func _jump_level1() -> void:
 	LevelProgress.current_index = 0
 	LevelProgress.is_retry      = false
 	LevelProgress.retry_rounds.clear()
+	DebugConfig.debug_launch = true
 	get_tree().change_scene_to_file("res://game.tscn")
 
 func _jump_level15() -> void:
 	Level15Progress.current_index = 0
 	Level15Progress.is_retry      = false
 	Level15Progress.retry_rounds.clear()
+	DebugConfig.debug_launch = true
 	get_tree().change_scene_to_file("res://game15.tscn")
 
 func _jump_level2() -> void:
@@ -302,6 +327,7 @@ func _jump_level2() -> void:
 	Level2Progress.active        = true
 	Level2Progress.is_retry      = false
 	Level2Progress.retry_rounds.clear()
+	DebugConfig.debug_launch = true
 	get_tree().change_scene_to_file("res://game2.tscn")
 
 func _jump_set_transition() -> void:

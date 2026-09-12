@@ -6,7 +6,6 @@ extends Node2D
 # Key differences from game.gd:
 #   • Phoneme auto-plays ×3 (child does not press Listen)
 #   • Word sounds auto-play ×2 per image with image bounce animation
-#   • Pointed hand guides attention throughout, disappears before choice
 #   • Wrong answer → full loop replay (no separate try-again)
 #   • No Play Button, no Eval system, no idle hint timer
 #   • No back button
@@ -45,6 +44,8 @@ var _total_set_rounds   : int              = 0
 var _gnb_btn            : Button           = null
 var _back_btn           : TextureButton    = null
 var _center_offset      : float            = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
+var _play_counted       : bool             = false  # true once this scene instance's real-play
+													  # count increment has fired (see _start_round)
 var _audio_dead         : bool             = false  # set true once Where Am I is pressed — after
 													  # this, no gameplay audio may ever play again
 													  # for this scene instance (see _safe_play)
@@ -69,10 +70,6 @@ func _ready() -> void:
 	$ListenButton.pressed.connect(_on_listen_ignored)
 	_create_gnb_flag()
 	_setup_back_button()
-
-	$PointedHand.visible = false
-	$PointedHand.scale   = Vector2(0.08, 0.08)
-	$PointedHand.z_index = 5
 
 	$ImageButton1.pressed.connect(_on_button_pressed.bind(1))
 	$ImageButton2.pressed.connect(_on_button_pressed.bind(2))
@@ -276,6 +273,13 @@ func _start_round() -> void:
 		_do_level_complete()
 		return
 
+	if not _play_counted:
+		_play_counted = true
+		if DebugConfig.debug_launch:
+			DebugConfig.debug_launch = false
+		else:
+			SaveManager.increment_review_count("prep_" + PrepLevelProgress.current_set_label())
+
 	_audio_dead      = false   # revive audio — starting/restarting a round always
 							   # means this scene is active and playable again
 	_round_had_error = false   # reset for each new round
@@ -284,7 +288,6 @@ func _start_round() -> void:
 	_seq_gen     += 1   # invalidate any still-running previous sequence
 
 	$ListenSound.stop()
-	$PointedHand.visible    = false
 	$EvalPlayButton.visible = false
 
 	$ListenSound.stream = load(rd["phoneme_audio"])
@@ -316,9 +319,6 @@ func _run_prep_sequence() -> void:
 	var n  : int        = rd["choices"].size()
 
 	# ── Step 1: Phoneme plays ×2, Listen bar bounces each play ──────────────
-	$PointedHand.position         = Vector2(1120 + _center_offset, 130)
-	$PointedHand.rotation_degrees = -30.0
-	$PointedHand.visible          = true
 	for i in range(2):
 		_safe_play($ListenSound)
 		_bounce_listen_bar()
@@ -332,7 +332,6 @@ func _run_prep_sequence() -> void:
 	if gen != _seq_gen: return
 
 	# ── Step 2: Word sound ×1 per image — EvalPlayButton shown ──────────────
-	$PointedHand.visible    = false
 	$EvalPlayButton.visible = true
 
 	for i in range(n):
@@ -391,7 +390,6 @@ func _on_button_pressed(btn_number: int) -> void:
 	var gen : int = _seq_gen
 	_waiting_for_choice      = false   # cancel the 3-second auto-replay timer
 	result_locked            = true
-	$PointedHand.visible     = false
 	$EvalPlayButton.visible  = false
 
 	await get_tree().create_timer(0.2).timeout
@@ -497,7 +495,6 @@ func _do_level_complete() -> void:
 	result_locked = true
 	if ReviewState.active:
 		ReviewState.active = false
-		SaveManager.increment_review_count(ReviewState.set_key)
 		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
 		return
 	var score_pct : float = 100.0 if _local_total == 0 else \

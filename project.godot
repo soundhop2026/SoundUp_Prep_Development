@@ -13,18 +13,14 @@ config_version=5
 config/name="SoundUp_Prep_Development"
 run/main_scene="res://title.tscn"
 config/features=PackedStringArray("4.5", "Mobile")
-config/icon="res://icon.svg"
-boot_splash/show_image=false
 boot_splash/bg_color=Color(0.294118, 0, 0.509804, 1)
+boot_splash/show_image=false
+config/icon="res://icon.svg"
 
 [autoload]
 
 SaveManager="*res://save_manager.gd"
 SceneBackground="*res://scene_background.gd"
-
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg")
 
 [display]
 
@@ -34,6 +30,11 @@ window/size/mode=3
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/size/mode.editor=0
+window/frame_pacing/android/enable_frame_pacing.emulator_dev=false
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg")
 
 [rendering]
 

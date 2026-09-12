@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://prep_game.gd" id="1_eow3j"]
 [ext_resource type="Texture2D" path="res://SoundUp_level1_word images/B/bear.png" id="5_eow3j"]
@@ -9,7 +9,6 @@
 [ext_resource type="AudioStream" uid="uid://55ei8hp2a1x" path="res://BGM&effect/SoundUp_feedback/gayageum_correct.wav" id="10_vef74"]
 [ext_resource type="AudioStream" uid="uid://dtr7stbe5l75x" path="res://BGM&effect/SoundUp_feedback/gayageum_wrong.wav" id="11_hve3p"]
 [ext_resource type="AudioStream" uid="uid://7ccfa3vqbged" path="res://BGM&effect/SoundUp_feedback/oops_try_again.wav" id="12_iotsf"]
-[ext_resource type="Texture2D" path="res://UI_assets/handsigns/pointed.png" id="13_215e1"]
 [ext_resource type="AudioStream" uid="uid://dbngqdr3fab6l" path="res://BGM&effect/SoundUp_feedback/Listen.wav" id="15_rvswv"]
 [ext_resource type="Texture2D" path="res://UI_assets/playbutton.png" id="18_pbtn"]
 
@@ -74,11 +73,6 @@ stream = ExtResource("11_hve3p")
 
 [node name="OopsSound" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("12_iotsf")
-
-[node name="PointedHand" type="Sprite2D" parent="."]
-visible = false
-scale = Vector2(0.08, 0.08)
-texture = ExtResource("13_215e1")
 
 [node name="ListenVoice" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("15_rvswv")

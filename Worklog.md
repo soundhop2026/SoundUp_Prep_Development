@@ -61,6 +61,96 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-09-11
+
+### Completed
+- Established a permanent Android Emulator development environment on this Windows machine
+  (previously nonexistent — zero AVDs, zero system images installed). Enabled Windows Hypervisor
+  Platform (WHPX) for hardware acceleration (required an admin action + reboot), installed
+  `system-images;android-36;google_apis_playstore;x86_64`, created AVD `SoundHop_Galaxy_Phone`
+  (Pixel 6 profile). Hit and fixed a real `avdmanager` bug along the way: it fatally errors on a
+  missing *optional* `devices.xml` inside a freshly-downloaded system image's own folder instead
+  of skipping it — fixed with a minimal valid stub XML at that path (an SDK-installation file,
+  not a project file, so it needs redoing on any other machine that installs this system image
+  fresh).
+- Diagnosed and permanently fixed a black-screen-on-emulator rendering bug: Godot's Vulkan
+  swapchain `QueuePresentKHR` fails with error 5 whenever
+  `display/window/frame_pacing/android/enable_frame_pacing` (Godot's own default: `true`) is
+  active on the Android Emulator — a confirmed, upstream, already-acknowledged Godot/Android
+  Emulator compatibility bug (`godotengine/godot#121035`), not fixed in 4.5.1. Confirmed via
+  direct evidence, not guesswork: tried both real GPU passthrough and full software
+  (`swiftshader_indirect`) rendering, identical failure both times; disabling frame pacing fixed
+  it immediately and completely on both.
+- Implemented the permanent fix as an isolated, zero-manual-toggle architecture (commit
+  `edfc703`): a dedicated `Android Emulator (Dev)` export preset carrying
+  `custom_features="emulator_dev"`, paired with a Godot-native feature-tag project-setting
+  override (`window/frame_pacing/android/enable_frame_pacing.emulator_dev=false` in
+  `project.godot`). Verified the mechanism genuinely reaches Godot's engine-internal Android code
+  — a real, confirmed risk going in, since Godot's own docs warn feature-tag overrides aren't
+  automatically honored by every setting read — via an actual build+install+launch test, not
+  assumption. Production and physical-device-testing presets confirmed untouched, diff-reviewed
+  line by line before committing.
+- Diagnosed a separate, unrelated issue: no audible SoundHop audio on the emulator despite the
+  rendering fix. Traced the full pipeline layer by layer (Android media volume, SoundHop's own
+  `AudioStreamPlayer`/OpenSL state, guest AudioFlinger routing, Windows Volume Mixer, Windows
+  audio hardware) and found every layer structurally healthy. Independently confirmed Android's
+  own native audio pipeline works correctly on this emulator, unrelated to SoundHop — generated
+  and played a standalone test tone (zero SoundHop involvement), confirmed audible through the
+  host's real speakers. Root-caused the actual gap to a known, currently-unresolved Godot
+  limitation: 4.5.1's only Android audio driver (OpenSL ES — AAudio/Oboe support doesn't exist
+  yet, still an unmerged draft PR, `godotengine/godot#109120`) is explicitly documented by that
+  PR's own author as "broken on emulated environments," with the exact failure mode matching what
+  was observed: silent failure, not a crash — audio simply doesn't function.
+- Researched practical workarounds for the audio limitation across every available angle
+  (emulator launch flags, Godot project settings, a custom engine build) and found none that are
+  both practical and non-invasive. Decision: stop pursuing a workaround; document the gap
+  instead.
+
+### Decisions
+- Android Emulator audio silence is a known, accepted gap, not something to route around. No
+  emulator launch flag or Godot project setting fixes it in 4.5.1 — the real fix (Oboe/AAudio)
+  only exists as an unmerged draft PR. A custom Godot engine build could theoretically pull that
+  in, but would mean stepping off the stable, official 4.5.1 toolchain this whole project has
+  deliberately stayed on, for an unfinished, unreviewed upstream patch — not worth the risk given
+  physical hardware already covers this completely.
+- Testing responsibility is now explicitly split: **Android Emulator = visual/UI/layout/
+  navigation verification. Physical Galaxy device = final audio verification.** Neither device
+  replaces the other going forward.
+- SoundHop's own audio code/assets/configuration are not implicated at all — confirmed via the
+  independent test-tone check. Do not modify SoundHop audio code, Godot audio settings, or use a
+  custom Godot build to work around this.
+- The dedicated `Android Emulator (Dev)` export preset (frame-pacing fix) is a genuinely
+  permanent, reusable pattern — committed, not a one-off local hack — and the same
+  feature-tag-override technique should be the default approach for any future Godot-Emulator-
+  only compatibility gap discovered on Game 2/3.
+
+### Risks / Gotchas
+- `avdmanager create avd` in this cmdline-tools version fatally errors on a missing (but
+  optional) `devices.xml` inside a freshly-downloaded system image's own folder instead of
+  skipping it gracefully. Fix: drop a minimal valid stub XML at
+  `<sdk>/system-images/<api>/<tag>/<abi>/devices.xml` (`<d:devices
+  xmlns:d="http://schemas.android.com/sdk/devices/7"></d:devices>`) before creating the AVD.
+- Windows' per-app Volume Mixer for the emulator process was inconsistent across launches for
+  reasons not fully understood — absent for one launch, present and at full volume on the very
+  next, with no configuration change in between. Worth a quick Volume Mixer glance whenever
+  emulator audio testing seems to silently fail, before assuming a deeper problem.
+- Godot 4.5.1's Android audio silence on the emulator produces **zero errors anywhere** — not in
+  Godot's own logcat output, not in Android's system-level audio monitoring (`dumpsys audio`
+  shows the player as fully healthy: `started`, `mutedState:none`, correctly routed). This is a
+  genuinely silent failure mode; the diagnostic signature is "everything downstream of Godot
+  looks perfect, but nothing plays" — don't expect logs to reveal it if it resurfaces.
+
+### Next Session
+- If/when Godot upstream merges the Oboe/AAudio driver replacement
+  (`godotengine/godot#109120` or its successor) into a stable release, re-evaluate whether an
+  eventual engine upgrade would restore emulator audio — not urgent, physical-device testing
+  fully covers this today.
+- Pending, separate from this entry: Android Subscription-screen visual verification
+  (wording/Privacy Policy/Terms of Use changes in `choose_plan.gd`) — still uncommitted, was
+  interrupted by this emulator/audio detour, resuming next.
+
+---
+
 ## 2026-08-28
 
 ### Completed

@@ -4,8 +4,6 @@ extends Node2D
 const BG_COLOR    : Color  = Color("#7A8C2E")
 const IMG_SIZE    : float  = 220.0
 const IMG_Y       : float  =  60.0
-const EVAL_W      : float  = 150.0
-const EVAL_H      : float  =  75.0
 const VOWEL_Y     : float  = 520.0
 const VOWEL_BTN_W : float  = 90.0
 const VOWEL_GAP   : float  = 22.0
@@ -158,10 +156,10 @@ func _setup_eval_button() -> void:
 	_eval_btn.texture_normal      = load("res://UI_assets/playbutton.png") as Texture2D
 	_eval_btn.ignore_texture_size = true
 	_eval_btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	_eval_btn.custom_minimum_size = Vector2(EVAL_W, EVAL_H)
-	_eval_btn.size                = Vector2(EVAL_W, EVAL_H)
-	_eval_btn.position            = Vector2(1050.0 + _center_offset, 440.0)
-	_eval_btn.pivot_offset        = Vector2(EVAL_W / 2.0, EVAL_H / 2.0)
+	_eval_btn.custom_minimum_size = SceneBackground.EVAL_BTN_VISUAL_SIZE
+	_eval_btn.size                = SceneBackground.EVAL_BTN_VISUAL_SIZE
+	_eval_btn.position            = SceneBackground.eval_button_position(SceneBackground.EVAL_BTN_VISUAL_SIZE)
+	_eval_btn.pivot_offset        = Vector2(SceneBackground.EVAL_BTN_VISUAL_SIZE.x / 2.0, SceneBackground.EVAL_BTN_VISUAL_SIZE.y / 2.0)
 	_eval_btn.z_index             = 5
 	_eval_btn.visible             = false
 	_eval_btn.pressed.connect(_on_eval_pressed)
@@ -231,7 +229,7 @@ func _stop_eval_pulse() -> void:
 		_eval_btn_tween.kill()
 		_eval_btn_tween  = null
 	_eval_btn.scale      = Vector2(1.0, 1.0)
-	_eval_btn.position.y = 440.0
+	_eval_btn.position.y = SceneBackground.eval_button_position(SceneBackground.EVAL_BTN_VISUAL_SIZE).y
 
 # ─── Round loading ────────────────────────────────────────────────────────────
 func _load_rounds() -> void:
@@ -511,15 +509,16 @@ func _on_back_pressed() -> void:
 
 
 func _create_gnb_flag() -> void:
-	const BTN_W  : float = 72.0
-	const BTN_H  : float = 56.0
+	var BTN_W : float = SceneBackground.GNB_BTN_SIZE.x
+	var BTN_H : float = SceneBackground.GNB_BTN_SIZE.y
 
 	_gnb_btn              = Button.new()
 	_gnb_btn.text         = ""
 	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
-	_gnb_btn.position     = Vector2(SceneBackground.viewport_size().x - BTN_W - 20.0, 20.0)
+	_gnb_btn.position     = SceneBackground.gnb_button_position()
 	_gnb_btn.z_index      = 10
 	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+	_gnb_btn.scale        = Vector2.ONE * SceneBackground.GNB_BTN_SCALE
 
 	var blank := StyleBoxEmpty.new()
 	for s in ["normal", "hover", "pressed", "focus"]:

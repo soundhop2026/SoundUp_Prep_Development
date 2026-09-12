@@ -40,19 +40,20 @@ var _round_gen          : int              = 0      # bumped every _start_round(
 													  # instead of resolving/advancing a round the
 													  # player has already come back to replay
 
-const LISTEN_BAR_BASE_POS : Vector2 = Vector2(100, 60)   # must match $ListenButton's _ready()-time position
+var LISTEN_BAR_BASE_POS : Vector2 = Vector2(100, 60)   # must match $ListenButton's _ready()-time
+														 # position — .x set from the shared
+														 # SceneBackground.GAMEPLAY_LEFT_X in
+														 # _ready() (was a const)
 
-# EvalPlayButton's X, derived (not guessed) to center-align with game2.gd's
-# ("Where Am I") own eval button. Both buttons' rects have their top-left
-# corner as position/pivot, but different unscaled sizes/scale, so equal
-# base-X does NOT mean equal rendered center — this accounts for that:
-#   Where Am I center X   = 1050 (game2.gd _eval_btn base X) + 150/2 (EVAL_W/2, game2.gd:7)
-#   EvalPlayButton here is offset_left=1050..offset_right=1957 (907 wide,
-#   game.tscn) scaled 0.15 (game.tscn) => rendered half-width = 907*0.15/2
-const EVAL_PLAY_BUTTON_X : float = (1050.0 + 150.0 / 2.0) - (907.0 * 0.15) / 2.0   # = 1056.975, target center matches Where Am I's
+# EvalPlayButton position is now the shared Game 1 standard — see
+# SceneBackground.eval_button_position(). Previously this was hand-derived to
+# center-align with game2.gd's own eval button specifically; now every scene
+# aligns to the same one reference (Prep's), so this file no longer needs its
+# own derivation.
 
 func _ready() -> void:
 	_center_offset = SceneBackground.center_offset()
+	LISTEN_BAR_BASE_POS.x = SceneBackground.GAMEPLAY_LEFT_X
 	SceneBackground.set_color(Color(0.431, 0.710, 1.0, 1.0))
 	$background.size         = get_viewport_rect().size
 	$background.position     = Vector2(0, 0)
@@ -66,6 +67,7 @@ func _ready() -> void:
 	$PointedHand.visible   = false
 	$PointedHand.scale     = Vector2(0.08, 0.08)
 	$PointedHand.z_index   = 5
+	$EvalPlayButton.scale   = Vector2.ONE * SceneBackground.eval_button_scale($EvalPlayButton.texture_normal.get_size())
 	$EvalPlayButton.visible = false
 	_setup_back_button()
 	_create_gnb_flag()
@@ -102,15 +104,16 @@ func _on_back_pressed() -> void:
 
 
 func _create_gnb_flag() -> void:
-	const BTN_W  : float = 72.0
-	const BTN_H  : float = 56.0
+	var BTN_W : float = SceneBackground.GNB_BTN_SIZE.x
+	var BTN_H : float = SceneBackground.GNB_BTN_SIZE.y
 
 	_gnb_btn              = Button.new()
 	_gnb_btn.text         = ""
 	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
-	_gnb_btn.position     = Vector2(SceneBackground.viewport_size().x - BTN_W - 20.0, 20.0)
+	_gnb_btn.position     = SceneBackground.gnb_button_position()
 	_gnb_btn.z_index      = 10
 	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+	_gnb_btn.scale        = Vector2.ONE * SceneBackground.GNB_BTN_SCALE
 
 	var blank := StyleBoxEmpty.new()
 	for s in ["normal", "hover", "pressed", "focus"]:
@@ -291,7 +294,8 @@ func _create_round_cubes() -> void:
 	var max_w   : float = 1100.0
 	var gap     : float = 4.0
 	var sz      : float = min(36.0, (max_w - gap * (total - 1)) / total)
-	var start_x : float = 90.0
+	var start_x : float = LISTEN_BAR_BASE_POS.x   # aligned to the Listen bar's own
+												   # left edge, not a separate literal
 	var cube_y  : float = 630.0
 	for i in range(total):
 		var rect := ColorRect.new()
@@ -426,7 +430,8 @@ func _run_ending_sequence() -> void:
 	await get_tree().create_timer(0.35).timeout
 	if gen != _round_gen: return
 
-	$EvalPlayButton.position = Vector2(EVAL_PLAY_BUTTON_X + _center_offset, 280)
+	$EvalPlayButton.position = SceneBackground.eval_button_position(
+		$EvalPlayButton.texture_normal.get_size() * $EvalPlayButton.scale)
 	$EvalPlayButton.visible  = true
 	_start_eval_pulse()
 
@@ -481,7 +486,8 @@ func _stop_eval_pulse() -> void:
 	if _eval_tween:
 		_eval_tween.kill()
 		_eval_tween = null
-	$EvalPlayButton.position = Vector2(EVAL_PLAY_BUTTON_X + _center_offset, 280)
+	$EvalPlayButton.position = SceneBackground.eval_button_position(
+		$EvalPlayButton.texture_normal.get_size() * $EvalPlayButton.scale)
 
 # ─── Set G word-structure cubes ──────────────────────────────────────────────
 

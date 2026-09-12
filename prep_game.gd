@@ -23,7 +23,7 @@ var _waiting_for_choice   : bool           = false  # true during the 3-second c
 var _listen_bar_base_pos  : Vector2        = Vector2(100, 60)
 var _seq_gen              : int            = 0      # bumped on every _start_round() — lets an
 													  # in-flight _run_prep_sequence() detect it's
-                                                      # been superseded (e.g. by Back) and bail out
+													  # been superseded (e.g. by Back) and bail out
 													  # instead of racing the new round's sequence
 var _resolving            : bool           = false  # true only while _do_correct()/_do_wrong()
 													  # are playing their result sound effects —
@@ -52,18 +52,23 @@ var _audio_dead         : bool             = false  # set true once Where Am I i
 
 func _ready() -> void:
 	_center_offset = SceneBackground.center_offset()
+	_listen_bar_base_pos.x = SceneBackground.GAMEPLAY_LEFT_X
 	SceneBackground.set_color(Color("#A8E063"))
 	$background.color    = Color("#A8E063")
 	$background.size         = get_viewport_rect().size
 	$background.position     = Vector2(0, 0)
 	$background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	# Hidden until the word-sound step of the auto-play sequence
+	# Hidden until the word-sound step of the auto-play sequence — size and
+	# position both come from the shared Game 1 EvalPlayButton standard (see
+	# SceneBackground.eval_button_scale / eval_button_position).
 	$EvalPlayButton.visible  = false
-	$EvalPlayButton.position = Vector2(1130 + _center_offset, 244)
+	$EvalPlayButton.scale    = Vector2.ONE * SceneBackground.eval_button_scale($EvalPlayButton.texture_normal.get_size())
+	$EvalPlayButton.position = SceneBackground.eval_button_position(
+		$EvalPlayButton.texture_normal.get_size() * $EvalPlayButton.scale)
 
 	# Listen bar is visual only in Prep — child does not press it
-	$ListenButton.position = Vector2(100, 60)
+	$ListenButton.position = _listen_bar_base_pos
 	$ListenButton.size     = Vector2(980, 80)
 	$ListenButton.text     = ""
 	_add_ear_icon()
@@ -87,16 +92,16 @@ func _on_listen_ignored() -> void:
 	pass   # visual only
 
 func _create_gnb_flag() -> void:
-	const BTN_W  : float = 72.0
-	const BTN_H  : float = 56.0
+	var BTN_W : float = SceneBackground.GNB_BTN_SIZE.x
+	var BTN_H : float = SceneBackground.GNB_BTN_SIZE.y
 
 	_gnb_btn              = Button.new()
 	_gnb_btn.text         = ""
 	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
-	_gnb_btn.position     = Vector2(SceneBackground.viewport_size().x - BTN_W - 50.0, 35.0)
+	_gnb_btn.position     = SceneBackground.gnb_button_position()
 	_gnb_btn.z_index      = 10
 	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
-	_gnb_btn.scale        = Vector2(1.3, 1.3)   # 30% larger, uniform, scales around pivot_offset (its own center) — position unchanged
+	_gnb_btn.scale        = Vector2.ONE * SceneBackground.GNB_BTN_SCALE
 
 	var blank := StyleBoxEmpty.new()
 	for s in ["normal", "hover", "pressed", "focus"]:
@@ -415,7 +420,8 @@ func _create_round_cubes() -> void:
 	var max_w   : float = 1100.0
 	var gap     : float = 4.0
 	var sz      : float = min(36.0, (max_w - gap * (total - 1)) / total)
-	var start_x : float = 90.0
+	var start_x : float = _listen_bar_base_pos.x   # aligned to the Listen bar's own
+													# left edge, not a separate literal
 	var cube_y  : float = 630.0
 	for i in range(total):
 		var rect := ColorRect.new()

@@ -282,9 +282,9 @@ func _setup_eval_button() -> void:
 	_eval_btn.texture_normal      = load(EVAL_BTN_TEX) as Texture2D
 	_eval_btn.ignore_texture_size = true
 	_eval_btn.stretch_mode        = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	_eval_btn.custom_minimum_size = Vector2(195.0, 98.0)
-	_eval_btn.size                = Vector2(195.0, 98.0)
-	_eval_btn.pivot_offset        = Vector2(97.5, 49.0)   # centre for scale animation
+	_eval_btn.custom_minimum_size = SceneBackground.EVAL_BTN_VISUAL_SIZE
+	_eval_btn.size                = SceneBackground.EVAL_BTN_VISUAL_SIZE
+	_eval_btn.pivot_offset        = SceneBackground.EVAL_BTN_VISUAL_SIZE / 2.0   # centre for scale animation
 	_eval_btn.z_index             = 10
 	_eval_btn.visible             = false
 	_eval_btn.pressed.connect(_on_eval_play_pressed)
@@ -623,7 +623,7 @@ func _start_round() -> void:
 			_eval_btn_tween.kill()
 			_eval_btn_tween  = null
 		_eval_btn.scale      = Vector2(1.0, 1.0)
-		_eval_btn.position.y = 355.0
+		_eval_btn.position.y = SceneBackground.eval_button_position(SceneBackground.EVAL_BTN_VISUAL_SIZE).y
 		_eval_btn.visible    = false
 
 	_clear_dynamic_nodes()
@@ -690,7 +690,7 @@ func _setup_identification() -> void:
 
 	_create_choices(rd["choices"])
 
-	_eval_btn.position = Vector2(1050.0 + (CANVAS_W / 2.0 - 640.0), 355.0)
+	_eval_btn.position = SceneBackground.eval_button_position(SceneBackground.EVAL_BTN_VISUAL_SIZE)
 	_eval_btn.visible  = false
 
 	_id_image_listen_walk(words, _id_gen)
@@ -779,7 +779,7 @@ func _setup_isolation() -> void:
 	_create_iso_cubes(position)
 	_create_choices(rd["choices"])
 
-	_eval_btn.position = Vector2(1050.0 + (CANVAS_W / 2.0 - 640.0), 355.0)
+	_eval_btn.position = SceneBackground.eval_button_position(SceneBackground.EVAL_BTN_VISUAL_SIZE)
 	_eval_btn.visible  = false
 
 	_iso_word_listen(word_key, _id_gen)
@@ -822,7 +822,7 @@ func _setup_build_word() -> void:
 	_create_cubes(n_cubes, [0])
 	_create_choices(rd["choices"])
 
-	_eval_btn.position = Vector2(1050.0 + (CANVAS_W / 2.0 - 640.0), 355.0)
+	_eval_btn.position = SceneBackground.eval_button_position(SceneBackground.EVAL_BTN_VISUAL_SIZE)
 	_eval_btn.visible  = false
 
 	# PointedHand → word image, tilted 30° counterclockwise toward image
@@ -1357,15 +1357,16 @@ func _bw_cancel_drag() -> void:
 
 
 func _create_gnb_flag() -> void:
-	const BTN_W  : float = 72.0
-	const BTN_H  : float = 56.0
+	var BTN_W : float = SceneBackground.GNB_BTN_SIZE.x
+	var BTN_H : float = SceneBackground.GNB_BTN_SIZE.y
 
 	_gnb_btn              = Button.new()
 	_gnb_btn.text         = ""
 	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
-	_gnb_btn.position     = Vector2(CANVAS_W - BTN_W - 20.0, 20.0)
+	_gnb_btn.position     = SceneBackground.gnb_button_position()
 	_gnb_btn.z_index      = 10
 	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+	_gnb_btn.scale        = Vector2.ONE * SceneBackground.GNB_BTN_SCALE
 
 	var blank := StyleBoxEmpty.new()
 	for s in ["normal", "hover", "pressed", "focus"]:

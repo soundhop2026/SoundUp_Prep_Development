@@ -37,10 +37,10 @@ func _ready() -> void:
 
 	_build_header()
 	_build_back_button()
-	_build_scene_shortcuts()
-	_build_utilities()
-	_build_premium_gate_demo()
-	_build_status_label()
+	var y : float = _build_scene_shortcuts(116.0)
+	y = _build_utilities(y)
+	y = _build_premium_gate_demo(y)
+	_build_status_label(y)
 
 
 # ─── Header ───────────────────────────────────────────────────────────────────
@@ -81,13 +81,22 @@ func _on_back_pressed() -> void:
 
 
 # ─── Scene shortcuts (2-column grid) ───────────────────────────────────────────
-func _build_scene_shortcuts() -> void:
-	_make_label("Scene Shortcuts", Vector2(70, 116), Vector2(600, 24),
+# Each _build_* layout function returns the Y just below its own content, and
+# the next section starts from there -- sections used to sit at hand-picked
+# absolute Y coordinates with no relation to how tall the grid above them
+# actually was, which silently overlapped once an 11th shortcut made the grid
+# taller than whoever picked those constants had in mind.
+const SECTION_GAP : float = 14.0
+
+func _build_scene_shortcuts(start_y: float) -> float:
+	_make_label("Scene Shortcuts", Vector2(70, start_y), Vector2(600, 24),
 		18, AMBER)
+	var grid_y : float = start_y + 30.0
 
 	var targets : Array[Dictionary] = [
 		{ "label": "Title",         "fn": Callable(self, "_jump_title") },
 		{ "label": "Prep",          "fn": Callable(self, "_jump_prep") },
+		{ "label": "Prep Intro",    "fn": Callable(self, "_jump_prep_intro") },
 		{ "label": "Level 1",       "fn": Callable(self, "_jump_level1") },
 		{ "label": "Level 1.5",     "fn": Callable(self, "_jump_level15") },
 		{ "label": "Level 2",       "fn": Callable(self, "_jump_level2") },
@@ -100,23 +109,27 @@ func _build_scene_shortcuts() -> void:
 
 	const COL_W  : float = 560.0
 	const COL_GAP: float =  20.0
-	const ROW_H  : float =  60.0
-	const ROW_GAP: float =  20.0
+	const ROW_H  : float =  46.0
+	const ROW_GAP: float =  12.0
 	const START_X: float =  70.0
-	const START_Y: float = 146.0
 
 	for i in range(targets.size()):
 		var row : int = i / 2
 		var col : int = i % 2
 		var x   : float = START_X + col * (COL_W + COL_GAP)
-		var y   : float = START_Y + row * (ROW_H + ROW_GAP)
+		var y   : float = grid_y + row * (ROW_H + ROW_GAP)
 		_make_action_button(targets[i]["label"], Vector2(x, y), Vector2(COL_W, ROW_H),
 			targets[i]["fn"])
 
+	var row_count : int = ceili(targets.size() / 2.0)
+	return grid_y + row_count * ROW_H + (row_count - 1) * ROW_GAP + SECTION_GAP
+
 
 # ─── Utilities (single row) ────────────────────────────────────────────────────
-func _build_utilities() -> void:
-	_make_label("Utilities", Vector2(70, 470), Vector2(600, 24), 18, AMBER)
+func _build_utilities(start_y: float) -> float:
+	_make_label("Utilities", Vector2(70, start_y), Vector2(600, 24), 18, AMBER)
+	var row_y : float = start_y + 30.0
+	const BTN_H : float = 50.0
 
 	var utils : Array[Dictionary] = [
 		{ "label": "Reset Progress",     "fn": Callable(self, "_on_reset_progress_pressed") },
@@ -126,33 +139,38 @@ func _build_utilities() -> void:
 
 	const BTN_W : float = 380.0
 	const GAP   : float =  20.0
-	const Y     : float = 500.0
 	var start_x : float = (1280.0 - BTN_W * 3.0 - GAP * 2.0) / 2.0
 
 	for i in range(utils.size()):
 		var x : float = start_x + i * (BTN_W + GAP)
-		_make_action_button(utils[i]["label"], Vector2(x, Y), Vector2(BTN_W, 70.0),
+		_make_action_button(utils[i]["label"], Vector2(x, row_y), Vector2(BTN_W, BTN_H),
 			utils[i]["fn"], WARN_RED)
+
+	return row_y + BTN_H + SECTION_GAP
 
 
 # ─── Demo shortcuts — jump straight into a specific flow, skipping the setup
 # needed to reach it through normal play. Permanent QA tools. ────────────────
-func _build_premium_gate_demo() -> void:
-	_make_label("Demo Shortcuts", Vector2(70, 610), Vector2(600, 24), 18, AMBER)
+func _build_premium_gate_demo(start_y: float) -> float:
+	_make_label("Demo Shortcuts", Vector2(70, start_y), Vector2(600, 24), 18, AMBER)
+	var row_y : float = start_y + 30.0
+	const BTN_H : float = 50.0
 
 	const BTN_W : float = 244.0
 	const GAP   : float =  15.0
 	var start_x : float = (1280.0 - BTN_W * 5.0 - GAP * 4.0) / 2.0
-	_make_action_button("Test Premium Intro → Choose Plan", Vector2(start_x, 640),
-		Vector2(BTN_W, 60.0), Callable(self, "_on_test_premium_flow_pressed"))
-	_make_action_button("Test Sound Quest (Group A)", Vector2(start_x + (BTN_W + GAP), 640),
-		Vector2(BTN_W, 60.0), Callable(self, "_on_test_sound_quest_pressed"))
-	_make_action_button("Test Quest Transition", Vector2(start_x + (BTN_W + GAP) * 2.0, 640),
-		Vector2(BTN_W, 60.0), Callable(self, "_on_test_quest_transition_pressed"))
-	_make_action_button("Test L1 Sound Quest (Group A)", Vector2(start_x + (BTN_W + GAP) * 3.0, 640),
-		Vector2(BTN_W, 60.0), Callable(self, "_on_test_level1_sound_quest_pressed"))
-	_make_action_button("Test L1 Quest Transition", Vector2(start_x + (BTN_W + GAP) * 4.0, 640),
-		Vector2(BTN_W, 60.0), Callable(self, "_on_test_level1_quest_transition_pressed"))
+	_make_action_button("Test Premium Intro → Choose Plan", Vector2(start_x, row_y),
+		Vector2(BTN_W, BTN_H), Callable(self, "_on_test_premium_flow_pressed"))
+	_make_action_button("Test Sound Quest (Group A)", Vector2(start_x + (BTN_W + GAP), row_y),
+		Vector2(BTN_W, BTN_H), Callable(self, "_on_test_sound_quest_pressed"))
+	_make_action_button("Test Quest Transition", Vector2(start_x + (BTN_W + GAP) * 2.0, row_y),
+		Vector2(BTN_W, BTN_H), Callable(self, "_on_test_quest_transition_pressed"))
+	_make_action_button("Test L1 Sound Quest (Group A)", Vector2(start_x + (BTN_W + GAP) * 3.0, row_y),
+		Vector2(BTN_W, BTN_H), Callable(self, "_on_test_level1_sound_quest_pressed"))
+	_make_action_button("Test L1 Quest Transition", Vector2(start_x + (BTN_W + GAP) * 4.0, row_y),
+		Vector2(BTN_W, BTN_H), Callable(self, "_on_test_level1_quest_transition_pressed"))
+
+	return row_y + BTN_H + SECTION_GAP
 
 
 func _on_test_premium_flow_pressed() -> void:
@@ -203,11 +221,11 @@ func _on_test_level1_quest_transition_pressed() -> void:
 	get_tree().change_scene_to_file("res://level1_sound_quest.tscn")
 
 
-func _build_status_label() -> void:
+func _build_status_label(start_y: float) -> void:
 	_status                      = Label.new()
 	_status.text                 = ""
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_status.position             = Vector2(0, 590)
+	_status.position             = Vector2(0, start_y)
 	_status.size                 = Vector2(1280, 30)
 	_status.add_theme_font_size_override("font_size", 16)
 	_status.add_theme_color_override("font_color", WHITE)
@@ -276,6 +294,13 @@ func _jump_prep() -> void:
 	PrepLevelProgress.retry_rounds.clear()
 	DebugConfig.debug_launch = true
 	get_tree().change_scene_to_file("res://prep_game.tscn")
+
+# Previews the Prep Intro screen directly -- normally only reachable via a
+# save's genuine first-ever Play press (title.gd), which every other Prep
+# shortcut here intentionally skips past.
+func _jump_prep_intro() -> void:
+	LevelIntroState.level_id = "prep"
+	get_tree().change_scene_to_file("res://level_intro.tscn")
 
 # Lands on Set A2 (index 1) — the last free set. Completing it triggers the
 # free/premium boundary: Transition -> Keep Hopping! -> Premium Intro -> Gate.

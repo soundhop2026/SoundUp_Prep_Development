@@ -66,6 +66,12 @@ var _for_l2  : bool = false
 var _center_offset  : float         = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
 var _star_positions : Array[Vector2] = []   # STAR_POSITIONS recentered by _center_offset
 
+var _gnb_btn    : Button = null
+var _seq_gen    : int    = 0      # bumped when Where Am I is pressed — every
+								   # pending await in _play_transition() checks
+								   # this and bails out instead of auto-routing
+var _audio_dead : bool   = false  # set true once Where Am I is pressed
+
 # ─── Setup ────────────────────────────────────────────────────────────────────
 
 func _ready() -> void:
@@ -91,6 +97,7 @@ func _ready() -> void:
 	_create_info_label()
 	_create_stars()
 	_create_cubes()
+	_create_gnb_flag()
 	_start_music()
 	_play_transition()
 
@@ -170,10 +177,10 @@ func _show_cubes(earned: int) -> void:
 		_cubes[i].visible  = true
 		_cubes[i].modulate = CUBE_FILLED if i < earned else CUBE_EMPTY
 
-# Each earned cube bounces independently — runs until scene changes
-func _dance_cube(idx: int) -> void:
+# Each earned cube bounces independently — runs until Where Am I cancels it
+func _dance_cube(idx: int, gen: int) -> void:
 	var base_pos := _cubes[idx].position
-	while true:
+	while gen == _seq_gen:
 		var rot := randf_range(-5.0,   5.0)
 		var dx  := randf_range(-4.0,   4.0)
 		var dy  := randf_range(-8.0,   8.0)
@@ -187,6 +194,7 @@ func _dance_cube(idx: int) -> void:
 		await t.finished
 
 func _start_music() -> void:
+	if _audio_dead: return
 	_music_player           = AudioStreamPlayer.new()
 	_music_player.stream    = load("res://BGM&effect/transition_fanfare.wav")
 	_music_player.volume_db = 0.0
@@ -196,12 +204,96 @@ func _start_music() -> void:
 	_music_player.play()
 
 func _play_track_2() -> void:
+	if _audio_dead: return
 	var player2 := AudioStreamPlayer.new()
 	player2.stream    = load("res://BGM&effect/transition_fanfare_2.wav")
 	player2.volume_db = 0.0
 	add_child(player2)
 	player2.play()
 	_music_player = player2   # routing code now awaits track 2
+
+func _kill_transition_audio() -> void:
+	_audio_dead = true
+	if _music_player != null:
+		_music_player.stop()
+
+
+# ─── Where Am I ───────────────────────────────────────────────────────────────
+func _create_gnb_flag() -> void:
+	var BTN_W : float = SceneBackground.GNB_BTN_SIZE.x
+	var BTN_H : float = SceneBackground.GNB_BTN_SIZE.y
+
+	_gnb_btn              = Button.new()
+	_gnb_btn.text         = ""
+	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
+	_gnb_btn.position     = SceneBackground.gnb_button_position()
+	_gnb_btn.z_index      = 10
+	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+	_gnb_btn.scale        = Vector2.ONE * SceneBackground.GNB_BTN_SCALE
+
+	var blank := StyleBoxEmpty.new()
+	for s in ["normal", "hover", "pressed", "focus"]:
+		_gnb_btn.add_theme_stylebox_override(s, blank)
+
+	var pill := Panel.new()
+	pill.size         = Vector2(50.0, 52.0)
+	pill.position     = (Vector2(BTN_W, BTN_H) - pill.size) / 2.0
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ps := StyleBoxFlat.new()
+	var pill_color := Color("#4B0082")
+	pill_color.a                  = 0.4
+	ps.bg_color                   = pill_color
+	ps.corner_radius_top_left     = 14
+	ps.corner_radius_top_right    = 14
+	ps.corner_radius_bottom_left  = 14
+	ps.corner_radius_bottom_right = 14
+	pill.add_theme_stylebox_override("panel", ps)
+	_gnb_btn.add_child(pill)
+
+	var flag_icon := TextureRect.new()
+	flag_icon.texture      = load("res://UI_assets/flag.png") as Texture2D
+	flag_icon.expand_mode  = TextureRect.EXPAND_IGNORE_SIZE
+	flag_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	flag_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flag_icon.size         = Vector2(42, 47)
+	flag_icon.position     = (Vector2(BTN_W, BTN_H) - flag_icon.size) / 2.0
+	_gnb_btn.add_child(flag_icon)
+
+	_gnb_btn.pressed.connect(_on_gnb_flag_pressed)
+	add_child(_gnb_btn)
+
+func _on_gnb_flag_pressed() -> void:
+	if get_node_or_null("GNBOverlay") != null:
+		return
+	_seq_gen += 1                 # cancels _play_transition() — every pending
+								   # await checks this and bails instead of
+								   # reaching the auto-routing at the end
+	_stop_star_dance()
+	_kill_transition_audio()
+	var overlay := CanvasLayer.new()
+	overlay.layer = 100
+	overlay.name  = "GNBOverlay"
+	var wai : Node = load("res://gnb_where_am_i.tscn").instantiate()
+	wai.set("is_overlay", true)
+	wai.connect("close_requested", func():
+		overlay.queue_free()
+		# One-shot celebration, not a resumable round — a full reload replays
+		# it cleanly from 0.0s with the same already-computed score/stars,
+		# same as Coronation's own Where Am I handling.
+		get_tree().reload_current_scene()
+	)
+	overlay.add_child(wai)
+	add_child(overlay)
+
+# Cancellation-aware waits — return true if the sequence is still current and
+# should continue, false if Where Am I has since bumped _seq_gen.
+func _wait(seconds: float, gen: int) -> bool:
+	await get_tree().create_timer(seconds).timeout
+	return gen == _seq_gen and is_inside_tree()
+
+func _await_tween(t: Tween, gen: int) -> bool:
+	await t.finished
+	return gen == _seq_gen and is_inside_tree()
 
 # ─── Impact helpers (fire-and-forget) ─────────────────────────────────────────
 
@@ -265,7 +357,8 @@ func _dance_star(idx: int) -> void:
 # ─── Main animation sequence ──────────────────────────────────────────────────
 
 func _play_transition() -> void:
-	await get_tree().create_timer(0.4).timeout
+	var gen : int = _seq_gen
+	if not await _wait(0.4, gen): return
 
 	var base_y : float = 290.0
 
@@ -277,32 +370,32 @@ func _play_transition() -> void:
 		var t1 := create_tween()
 		t1.tween_property($PlayButtonImage, "scale",
 				Vector2(PULSE_SCALE, PULSE_SCALE), 0.10).set_ease(Tween.EASE_OUT)
-		await t1.finished
+		if not await _await_tween(t1, gen): return
 		var t2 := create_tween()
 		t2.tween_property($PlayButtonImage, "scale",
 				Vector2(BASE_SCALE, BASE_SCALE), 0.08).set_ease(Tween.EASE_IN)
-		await t2.finished
-		await get_tree().create_timer(0.06).timeout
+		if not await _await_tween(t2, gen): return
+		if not await _wait(0.06, gen): return
 
 	# --- Rubber-ball bounce ×10, 180 px, flash + shake on every landing ---
 	for _i in range(10):
 		var ts := create_tween()
 		ts.tween_property($PlayButtonImage, "scale", Vector2(SQUASH_X, SQUASH_Y), 0.08)
-		await ts.finished
+		if not await _await_tween(ts, gen): return
 
 		var tr := create_tween()
 		tr.set_parallel(true)
 		tr.tween_property($PlayButtonImage, "position:y",
 				base_y + BOUNCE_UP, 0.22).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 		tr.tween_property($PlayButtonImage, "scale", Vector2(BASE_SCALE, BASE_SCALE), 0.22)
-		await tr.finished
+		if not await _await_tween(tr, gen): return
 
 		var tl := create_tween()
 		tl.set_parallel(true)
 		tl.tween_property($PlayButtonImage, "position:y",
 				base_y + BOUNCE_LAND, 0.14).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 		tl.tween_property($PlayButtonImage, "scale", Vector2(LAND_X, LAND_Y), 0.14)
-		await tl.finished
+		if not await _await_tween(tl, gen): return
 
 		_flash(0.35, 0.12)
 		_shake(10.0)
@@ -311,7 +404,7 @@ func _play_transition() -> void:
 		tse.set_parallel(true)
 		tse.tween_property($PlayButtonImage, "position:y", base_y, 0.08)
 		tse.tween_property($PlayButtonImage, "scale", Vector2(BASE_SCALE, BASE_SCALE), 0.08)
-		await tse.finished
+		if not await _await_tween(tse, gen): return
 
 	# Stop dance — wait 0.40 s so each star's reset tween (0.15 s) fully completes
 	_stop_star_dance()
@@ -321,20 +414,20 @@ func _play_transition() -> void:
 		lf.set_parallel(true)
 		lf.tween_property(_info_label,  "modulate:a", 1.0, 0.5)
 		lf.tween_property(_info_label2, "modulate:a", 1.0, 0.5)
-	await get_tree().create_timer(0.40).timeout
+	if not await _wait(0.40, gen): return
 
 	# PlayButtonImage is now still — does NOT move for the rest of the scene
 
 	# --- Slot machine: all three star positions blink ---
 	for idx in range(LOTTERY_STATES.size()):
 		_show_stars_mask(LOTTERY_STATES[idx])
-		await get_tree().create_timer(LOTTERY_TIMES[idx]).timeout
+		if not await _wait(LOTTERY_TIMES[idx], gen): return
 
 	# Sudden stop — big flash, hide all stars
 	_flash(0.60, 0.15)
 	for i in range(3):
 		_stars[i].visible = false
-	await get_tree().create_timer(0.35).timeout
+	if not await _wait(0.35, gen): return
 
 	# --- Final reveal: earned stars only, centred, drop in from above ---
 	var pct   : float = Level2Progress.last_score_pct if _for_l2 else (Level15Progress.last_score_pct if _for_l15 else LevelProgress.last_score_pct)
@@ -363,7 +456,7 @@ func _play_transition() -> void:
 				final_y + 20.0, 0.16).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
 		td.tween_property(_stars[i], "scale",
 				Vector2(_star_scale * 1.3, _star_scale * 1.3), 0.16)
-	await td.finished
+	if not await _await_tween(td, gen): return
 
 	_flash(0.65, 0.16)
 	_shake(16.0)
@@ -374,9 +467,9 @@ func _play_transition() -> void:
 	for i in range(stars):
 		tr2.tween_property(_stars[i], "position:y", final_y, 0.14).set_ease(Tween.EASE_OUT)
 		tr2.tween_property(_stars[i], "scale", Vector2(_star_scale, _star_scale), 0.14)
-	await tr2.finished
+	if not await _await_tween(tr2, gen): return
 
-	await get_tree().create_timer(0.10).timeout
+	if not await _wait(0.10, gen): return
 
 	# --- POP ×10: 1.0 → 1.8 → 1.0 ---
 	# First 5: fast (0.10 s) — POP POP POP POP POP
@@ -390,15 +483,15 @@ func _play_transition() -> void:
 		tp1.set_parallel(true)
 		for i in range(stars):
 			tp1.tween_property(_stars[i], "scale", Vector2(pop_big, pop_big), grow_t)
-		await tp1.finished
+		if not await _await_tween(tp1, gen): return
 
 		var tp2 := create_tween()
 		tp2.set_parallel(true)
 		for i in range(stars):
 			tp2.tween_property(_stars[i], "scale", Vector2(_star_scale, _star_scale), shrink_t)
-		await tp2.finished
+		if not await _await_tween(tp2, gen): return
 
-		await get_tree().create_timer(0.04).timeout
+		if not await _wait(0.04, gen): return
 
 	# --- Cube board: one cube per set, index is the truth ---
 	# Level 1: 3★ only (≥95%). Level 1.5 and Level 2: ≥2★ (Gain and Move).
@@ -407,24 +500,24 @@ func _play_transition() -> void:
 		if _for_l2:
 			var earned : int = Level2Progress.current_index + 1
 			_show_cubes(earned)
-			_dance_cube(earned - 1)
+			_dance_cube(earned - 1, gen)
 		elif _for_l15:
 			var earned : int = Level15Progress.current_index + 1
 			_show_cubes(earned)
-			_dance_cube(earned - 1)
+			_dance_cube(earned - 1, gen)
 		else:
 			var earned : int = LevelProgress.current_index + 1
 			_show_cubes(earned)
-			_dance_cube(earned - 1)
+			_dance_cube(earned - 1, gen)
 
 	# 2.0s to see the stars (+ cubes dancing), then fade music and route
-	await get_tree().create_timer(2.0).timeout
+	if not await _wait(2.0, gen): return
 
 	if _music_player != null and _music_player.playing:
 		var fade := create_tween()
 		fade.tween_property(_music_player, "volume_db", -80.0, 5.0)
 
-	await get_tree().create_timer(2.0).timeout
+	if not await _wait(2.0, gen): return
 
 	# --- Progression routing ---
 	if _for_l2:

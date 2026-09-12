@@ -10,7 +10,6 @@ const GRAY_H     : Color = Color("#AAAAAA")   # locked level tile
 const BROWN      : Color = Color("#7A5A2A")   # phoneme / secondary text
 
 const FONT_PATH  : String = "res://UI_assets/210 연필스케치R.ttf"
-const LOUIS_PATH : String = "res://louisfaces/happylouis3-Photoroom.png"
 
 # ─── Layout ───────────────────────────────────────────────────────────────────
 # Three screens (Levels -> Set Groups -> Set detail), each a full-content swap
@@ -54,7 +53,6 @@ const CELL_ROW_STEP_MAX : float = 108.0
 
 # ─── State ────────────────────────────────────────────────────────────────────
 var _font      : Font      = null
-var _louis_tex : Texture2D = null
 var _levels    : Array     = []
 
 var _page      : String = "levels"   # "levels" | "groups" | "chunks" | "sets"
@@ -74,8 +72,6 @@ func _ready() -> void:
 	SceneBackground.set_color(CREAM)
 	if ResourceLoader.exists(FONT_PATH):
 		_font = load(FONT_PATH)
-	if ResourceLoader.exists(LOUIS_PATH):
-		_louis_tex = load(LOUIS_PATH)
 
 	_build_level_meta()
 
@@ -809,24 +805,15 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 	# Phoneme label
 	_panel_label(panel, sd["phonemes"], Vector2(100, 31 * k), Vector2(320, 34 * k), max(12, int(round(19 * k))), BROWN)
 
-	# Happy Louis icon
-	if _louis_tex != null:
-		var img := TextureRect.new()
-		img.texture        = _louis_tex
-		img.expand_mode    = TextureRect.EXPAND_IGNORE_SIZE
-		img.stretch_mode   = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		img.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-		img.size           = Vector2(52, 52) * k
-		img.position       = Vector2(CELL_W - 138, 20 * k)
-		img.mouse_filter   = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(img)
-
 	# Replay count "×N" — completed Main Sets, or any Sound Quest card (Sound
 	# Quest is never checkmarked/"completed" — it's optional bonus content —
 	# but still shows its own play count using the same existing label style).
+	# Text only, no Louis icon -- font size doubled from the original (was
+	# max(11, 16*k)) now that it has the whole space Louis used to share.
 	if is_completed or is_sound_quest:
 		var count : int = SaveManager.get_review_count(sd["key"])
-		_panel_label(panel, "×%d" % count, Vector2(CELL_W - 92, 33 * k), Vector2(46, 26 * k), max(11, int(round(16 * k))), PURPLE)
+		_panel_label(panel, "×%d" % count, Vector2(CELL_W - 136, 18 * k), Vector2(66, 56 * k),
+			max(22, int(round(32 * k))), PURPLE, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER)
 
 	# Replay button ▶
 	var rp := Button.new()
@@ -855,12 +842,14 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 
 
 func _panel_label(parent: Control, text: String, pos: Vector2, sz: Vector2,
-		fsize: int, col: Color, halign: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> void:
+		fsize: int, col: Color, halign: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT,
+		valign: VerticalAlignment = VERTICAL_ALIGNMENT_TOP) -> void:
 	var lbl := Label.new()
 	lbl.text                 = text
 	lbl.position             = pos
 	lbl.size                 = sz
 	lbl.horizontal_alignment = halign
+	lbl.vertical_alignment   = valign
 	lbl.mouse_filter         = Control.MOUSE_FILTER_IGNORE
 	lbl.add_theme_font_size_override("font_size", fsize)
 	lbl.add_theme_color_override("font_color", col)

@@ -369,6 +369,7 @@ void fragment() {
 6. **DEBUG_FAST constant** in `level_transition.gd` — set `false` before any release build.
 7. **Back is unlimited review, never scoring.** See [Back Button Philosophy](#back-button-philosophy-locked) — applies to every round-based level, current and future, unless there's a specific gameplay reason not to.
 8. **Distractors must be phonemically different from the target.** See [Phoneme-Based Distractor Rule](#phoneme-based-distractor-rule-locked) — never pair a target and a distractor that share the same actual sound, even if their spelling differs.
+9. **Never auto-advance past the highest publicly released Level.** After any Level's Coronation, the game continues into the next Level only if it's within the current build's release scope — otherwise the player returns to Title instead. See [Release Scope Gate](#release-scope-gate-locked) — this is a generic framework rule, not a one-off patch for any specific Level.
 
 ---
 
@@ -445,6 +446,34 @@ unless there's a very specific gameplay reason not to:
   sound/cube-blend/round-advance as normal, but never touch score state again.
 - New round-based levels should follow this same `_scored_rounds`-guarded pattern rather than
   inventing a new one.
+
+---
+
+## Release Scope Gate (locked)
+
+Product-wide framework rule — applies to every Level's Coronation, current and future:
+
+- **Never auto-advance past the highest publicly released Level.** After any Level's
+  Coronation finishes, the game continues into the next Level only if that next Level is
+  within the current build's public release scope. Otherwise the player returns to the
+  Title Scene instead of entering unreleased content.
+- **Completion is still recorded** even when advancement is blocked — `SaveManager`'s
+  `set_*_completed()` call always happens before the gate check, so the moment a later
+  build raises the release scope, players who already finished the gated Level unlock the
+  next one immediately. No save migration is ever needed.
+- **Where Am I respects the same scope** — a Level beyond the release scope stays locked
+  there regardless of actual progression state (shown with the existing padlock treatment,
+  not hidden), so there's no second, inconsistent path to reach unreleased content.
+- **Generic, not a one-off patch.** Advancing the release scope for a newly-shipped Level
+  is a one-line constant change with no other code touched anywhere in the framework.
+
+### Implementation
+- `release_scope.gd` (`class_name ReleaseScope`) — `PROGRESSION_ORDER` is the full Level
+  sequence in curriculum order, matching `LevelTransition.next_level_id`'s real values
+  exactly. `HIGHEST_RELEASED_LEVEL_ID` is the single constant to change when a new Level
+  ships publicly. `is_level_released(level_id)` is the one function everything else calls.
+- Coronation exit (`level_transition.gd`): `if not ReleaseScope.is_level_released(next_level_id): route to title.tscn; return` — checked right before the existing auto-advance-to-Level-Intro line, so it's the only thing gated; the Coronation choreography itself is untouched.
+- Where Am I's lock cascade (`gnb_where_am_i.gd`, `_build_level_meta()`): each of `l15_lock`/`l2_lock`/`l25_lock` independently ORs in `not ReleaseScope.is_level_released(<that level's id>)` alongside its existing progression-based term. Prep and Level 1 are never gated this way — Prep is never locked at all, and Level 1's own lock (`l1_lock`) is purely progression-based, since Level 1 is always in scope for this framework's earliest possible release.
 
 ---
 

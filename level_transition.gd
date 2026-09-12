@@ -355,6 +355,17 @@ func _play_sequence() -> void:
 	if _music_player != null:
 		_music_player.stop()
 
+	# Release-scope gate (framework rule, see release_scope.gd): only
+	# auto-advance into next_level_id if it's within this build's public
+	# release scope. Completion of the current Level is already recorded
+	# (SaveManager.set_*_completed(), called before this scene ever loads)
+	# — only this auto-advance is blocked, so the next Level unlocks
+	# immediately once ReleaseScope.HIGHEST_RELEASED_LEVEL_ID advances to
+	# include it, no migration needed.
+	if not ReleaseScope.is_level_released(next_level_id):
+		get_tree().change_scene_to_file("res://title.tscn")
+		return
+
 	# Auto-advance to Level Intro
 	LevelIntroState.level_id = next_level_id
 	get_tree().change_scene_to_file("res://level_intro.tscn")

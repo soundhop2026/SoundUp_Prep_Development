@@ -105,9 +105,9 @@ func _build_level_meta() -> void:
 	# while an earlier one is still locked.
 	var l1_lock  : bool = not (SaveManager.is_prep_completed() or
 		SaveManager.is_chose_level1_path() or SaveManager.get_level1_set_index() > 0)
-	var l15_lock : bool = l1_lock  or not (SaveManager.is_level1_completed()  or SaveManager.get_level15_set_index() > 0)
-	var l2_lock  : bool = l15_lock or not (SaveManager.is_level15_completed() or SaveManager.get_level2_set_index()  > 0)
-	var l25_lock : bool = l2_lock  or not SaveManager.is_level2_completed()
+	var l15_lock : bool = not ReleaseScope.is_level_released("level15") or l1_lock  or not (SaveManager.is_level1_completed()  or SaveManager.get_level15_set_index() > 0)
+	var l2_lock  : bool = not ReleaseScope.is_level_released("level2")  or l15_lock or not (SaveManager.is_level15_completed() or SaveManager.get_level2_set_index()  > 0)
+	var l25_lock : bool = not ReleaseScope.is_level_released("level25") or l2_lock  or not SaveManager.is_level2_completed()
 
 	_levels = [
 		{ "id": "prep",    "label": "Prep Level","tagline": "Consonant Sounds", "done": prep_done, "total": 26,

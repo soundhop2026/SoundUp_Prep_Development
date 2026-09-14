@@ -371,10 +371,10 @@ func _animate_out_then_route() -> void:
 
 	if SaveManager.is_level2_completed():
 		pass  # TODO: route to next level when built
-	elif SaveManager.is_level15_completed():
+	elif SaveManager.is_level15_completed() and ReleaseScope.is_level_released("level2"):
 		Level2Progress.current_index  = SaveManager.get_level2_set_index()
 		get_tree().change_scene_to_file("res://game2.tscn")
-	elif SaveManager.is_level1_completed():
+	elif SaveManager.is_level1_completed() and ReleaseScope.is_level_released("level15"):
 		Level15Progress.current_index = SaveManager.get_level15_set_index()
 		get_tree().change_scene_to_file("res://game15.tscn")
 	elif SaveManager.is_prep_completed():

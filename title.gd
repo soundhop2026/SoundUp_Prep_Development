@@ -325,6 +325,61 @@ func _on_play_pressed() -> void:
 func _on_bgm_finished() -> void:
 	$BGMPlayer.play()
 
+# ─── Forward progression routing ──────────────────────────────────────────────
+# Single source of truth for "what's next": walk ReleaseScope.PROGRESSION_ORDER
+# and enter the first released Level that isn't complete yet. If every
+# released Level is complete, the walk naturally lands on "prep" — its
+# existing entry behavior (see _enter_level) already resumes at set 1 there,
+# since PrepLevelProgress.reset() persists prep_set_index back to 0 the
+# moment Prep completes (prep_transition.gd). No state is reset from here.
+func _is_level_completed(level_id: String) -> bool:
+	match level_id:
+		"prep":    return SaveManager.is_prep_completed()
+		"level1":  return SaveManager.is_level1_completed()
+		"level15": return SaveManager.is_level15_completed()
+		"level2":  return SaveManager.is_level2_completed()
+	return false
+
+func _progression_start_index() -> int:
+	# Legacy pre-choice-button saves that explicitly chose the Level 1 path
+	# and never touched Prep: exclude Prep from the forward walk, exactly as
+	# the old chose_level1_path branch did.
+	if SaveManager.is_chose_level1_path() \
+			and not SaveManager.is_prep_completed() \
+			and SaveManager.get_prep_set_index() == 0:
+		return ReleaseScope.PROGRESSION_ORDER.find("level1")
+	return 0
+
+func _forward_target_level_id() -> String:
+	var order : Array[String] = ReleaseScope.PROGRESSION_ORDER
+	for i in range(_progression_start_index(), order.size()):
+		var lid : String = order[i]
+		if not ReleaseScope.is_level_released(lid):
+			break
+		if not _is_level_completed(lid):
+			return lid
+	return "prep"  # everything currently released is complete — new Prep cycle
+
+func _enter_level(level_id: String) -> void:
+	match level_id:
+		"prep":
+			if SaveManager.is_path_chosen():
+				PrepLevelProgress.load_from_save()
+				get_tree().change_scene_to_file("res://prep_game.tscn")
+			else:
+				SaveManager.set_path_chosen()
+				LevelIntroState.level_id = "prep"
+				get_tree().change_scene_to_file("res://level_intro.tscn")
+		"level1":
+			LevelProgress.current_index   = SaveManager.get_level1_set_index()
+			get_tree().change_scene_to_file("res://game.tscn")
+		"level15":
+			Level15Progress.current_index = SaveManager.get_level15_set_index()
+			get_tree().change_scene_to_file("res://game15.tscn")
+		"level2":
+			Level2Progress.current_index  = SaveManager.get_level2_set_index()
+			get_tree().change_scene_to_file("res://game2.tscn")
+
 # ─── Exit animation + routing ─────────────────────────────────────────────────
 func _animate_out_then_route() -> void:
 	_stop_sway()
@@ -369,40 +424,4 @@ func _animate_out_then_route() -> void:
 	await bt.finished
 	await get_tree().create_timer(1.0).timeout
 
-	if SaveManager.is_level2_completed():
-		pass  # TODO: route to next level when built
-	elif SaveManager.is_level15_completed() and ReleaseScope.is_level_released("level2"):
-		Level2Progress.current_index  = SaveManager.get_level2_set_index()
-		get_tree().change_scene_to_file("res://game2.tscn")
-	elif SaveManager.is_level1_completed() and ReleaseScope.is_level_released("level15"):
-		Level15Progress.current_index = SaveManager.get_level15_set_index()
-		get_tree().change_scene_to_file("res://game15.tscn")
-	elif SaveManager.is_prep_completed():
-		LevelProgress.current_index   = SaveManager.get_level1_set_index()
-		get_tree().change_scene_to_file("res://game.tscn")
-	elif SaveManager.get_level1_set_index() > 0:
-		# Mid-progress in Level 1 (past set 1) — clearly on Level 1 path
-		LevelProgress.current_index   = SaveManager.get_level1_set_index()
-		get_tree().change_scene_to_file("res://game.tscn")
-	elif SaveManager.get_prep_set_index() > 0:
-		# Mid-progress in Prep — on Prep path (direct or redirected)
-		PrepLevelProgress.load_from_save()
-		get_tree().change_scene_to_file("res://prep_game.tscn")
-	elif SaveManager.is_chose_level1_path():
-		# Both indices 0 — a legacy save from before the title-screen choice
-		# buttons were removed; a returning player who chose Level 1 back
-		# then but hasn't finished set 1 yet
-		LevelProgress.current_index = 0
-		get_tree().change_scene_to_file("res://game.tscn")
-	elif SaveManager.is_path_chosen():
-		# Already been shown the Prep intro before (see the branch below) —
-		# skip straight back in, same as any other return-to-title press.
-		PrepLevelProgress.load_from_save()
-		get_tree().change_scene_to_file("res://prep_game.tscn")
-	else:
-		# Genuinely first-ever Play press on this device — same intro copy
-		# screen the old "Prep Level" choice button used to route through,
-		# shown exactly once.
-		SaveManager.set_path_chosen()
-		LevelIntroState.level_id = "prep"
-		get_tree().change_scene_to_file("res://level_intro.tscn")
+	_enter_level(_forward_target_level_id())

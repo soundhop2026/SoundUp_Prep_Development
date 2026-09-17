@@ -16,3 +16,6 @@
 /build/
 *.jks
 *.keystore
+
+# macOS Finder metadata
+.DS_Store

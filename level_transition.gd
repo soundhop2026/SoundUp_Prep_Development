@@ -173,16 +173,21 @@ func _make_label_line(text: String, y: float, h: float, font_size: int) -> Label
 
 # ─── Where Am I — fixed navigation UI, present from the start, takes no part
 # in the Coronation animation itself ─────────────────────────────────────────
+# Standard GNB flag — size, corner margin and scale come from SceneBackground
+# so this can never drift from the gameplay / Set Transition scenes again
+# (aligned 2026-09-17; was the older hardcoded (20, 20) corner with no
+# scale-up). Overlay behaviour below is unchanged.
 func _create_gnb_flag() -> void:
-	const BTN_W  : float = 72.0
-	const BTN_H  : float = 56.0
+	var BTN_W : float = SceneBackground.GNB_BTN_SIZE.x
+	var BTN_H : float = SceneBackground.GNB_BTN_SIZE.y
 
 	_gnb_btn              = Button.new()
 	_gnb_btn.text         = ""
 	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
-	_gnb_btn.position     = Vector2(SceneBackground.viewport_size().x - BTN_W - 20.0, 20.0)
+	_gnb_btn.position     = SceneBackground.gnb_button_position()
 	_gnb_btn.z_index      = 10
 	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+	_gnb_btn.scale        = Vector2.ONE * SceneBackground.GNB_BTN_SCALE
 
 	var blank := StyleBoxEmpty.new()
 	for s in ["normal", "hover", "pressed", "focus"]:

@@ -97,6 +97,38 @@ locked design rules; this file is for session-by-session history and handoff not
   per Quest *scene*: A/B `#6EB5FF`, C/D `#8BD0E1`, E `#FEEABA`, F `#D3EDD3` (Sets A1-A4, B1-B5,
   C1-C4, D1-D4, E1-E10, F1-F10 all share their scene's color). Prep and Level 1 Sound Quest
   transitions are in-scene and inherit, already compliant.
+- **Level 1.5 GNB / Where Am I aligned with the global framework** (second commit of the day),
+  after a full audit of Level 1.5 against `title.gd` / `ReleaseScope` / `SaveManager` /
+  `transition.gd` / `level_transition.gd` / `level_intro.gd` / `gnb_where_am_i.gd` — Title entry,
+  persisted progression, Set/Level completion routing, resume, Coronation, next-Level gating and
+  the Sound Quest handoff structure all already matched; only Where Am I didn't:
+  - `game15.gd` now mirrors `game.gd` exactly: `_kill_gameplay_audio()` on open (`_audio_dead`
+    guard in every play helper, autoplay cancelled), `_start_round()` on close (same round, no
+    score change). Added a `_round_gen` guard to `_autoplay_word()` so a stale autoplay loop
+    can't double-play after a restart (the same hazard existed with the Back button).
+  - All four Sound Quest scenes replaced their old full-scene-exit flag with the standard
+    resumable overlay, positioned/scaled via `SceneBackground`. Resume is by tree pause (not round
+    restart) so mid-round Quest state survives exactly — see the new "GNB / Where Am I" section in
+    `SoundUp_Level1.5_SoundQuest_Design.md` for the model and the two supporting details
+    (`create_timer(..., false)` everywhere incl. the Long Transition's fade timer; drag cancelled
+    on open).
+  - Fixed the `ReviewState.active` leak: Quest completion now clears it. Before, Where Am I →
+    Quest → flag → ... → Title → Play → a real `game15.gd` set completion was routed back into
+    Where Am I instead of `transition.tscn` (no stars, no advance, no save).
+  - Verified with a throwaway runner per target: `game15` (11 checks), A/B, C/D, E, F (15 checks
+    each: flag geometry, overlay, pause, audio `stream_paused`, zero movement while paused,
+    input ignored, resume, node count unchanged, ReviewState cleared) and a Long Transition paused
+    mid-crossing (Play Button frozen, BGM paused, fade held, 10.45 s total = 8.5 + 2.0). All pass.
+- **Level 1.5 Main Set Transition + Coronation Where Am I audited**: `transition.tscn`
+  (`_for_l15` branch) was already fully standard. `level_transition.tscn` (Coronation — shared by
+  every Level) had standard overlay behaviour but the old pre-standard flag geometry (hardcoded
+  72x56 at (20, 20), no scale) — aligned to `SceneBackground.gnb_button_position()` /
+  `GNB_BTN_SCALE` / `GNB_BTN_SIZE`, nothing else touched. Verified both: flag geometry, overlay
+  created, `_seq_gen` cancel, audio killed, `next_level_id` / `Level15Progress.active` preserved
+  for the reload-on-close path.
+- **Where Am I ×N display rule**: the replay/play count label is drawn only when the count is
+  > 0 — never "×0" — for Main Sets and Sound Quest cards alike. Display only; storage/increment
+  unchanged.
 - **Throwaway test harness committed**: `level15_long_transition_test.tscn` / `.gd` — instantiates
   `Level15SoundQuestTransitions` alone, loops `play_long()` at production defaults (Esc quits),
   Quest A/B background. `LT_SHOT_DIR` env var makes it save a PNG frame every 0.35s for one run
@@ -136,13 +168,26 @@ locked design rules; this file is for session-by-session history and handoff not
 - Long Transition still only seen on the Mac window, never on a device.
 
 ### Next Session
-- Quest-to-Quest / Group-to-Group handoff architecture (B->C, D->E, F->back into
-  `game15.gd`/`Level15Progress`) — still stubbed prints, unchanged since 2026-08-06, still the
-  main blocker before Level 1.5 Sound Quest can ship.
-- GNB coverage on the 7 Sound Quest scenes (flagged 2026-09-11, deferred to the Level 1.5
-  update).
-- Decide whether Quest A/B's `#6EB5FF` should differ from Level 1's main color.
-- Device playthrough of the Short and Long Transitions.
+- **Stale item retired**: the "B->C, D->E, F->game15 handoffs are stubbed prints" line carried
+  since 2026-08-06 was already resolved on 2026-08-08 by adopting Level 1's model — Sound Quest is
+  Where-Am-I-only bonus content, every final Quest completion returns to Where Am I, no
+  `MAIN_SET_BOUNDARIES` needed. Confirmed in code today; nothing left to design there.
+- GNB on the Level 1.5 Sound Quest scenes and the Coronation is done (this entry). Still on
+  the old hardcoded `(20, 20)` flag variant: `sound_quest.gd`, `level1_sound_quest.gd`
+  (Prep/Level 1 — out of today's scope by instruction).
+- Edge case left as-is (practically unreachable): leaving `transition.tscn` via its GNB overlay
+  and picking a replay skips the routing block that clears `Level15Progress.active` /
+  `Level2Progress.active`. Only matters if the player then reaches `transition.tscn` from a
+  *different* Level's main path without passing through a scene that sets its own flag — Title's
+  forward walk never does that today.
+- `game2.gd` / `game25.gd` inherited `game15.gd`'s old bare overlay handler (no audio kill, no
+  round restart) — same alignment as today's `game15.gd` change, when Level 2 is next touched.
+- Design-intent confirmations, not bugs: Level 1.5 advances on 2 stars and retries wrong rounds
+  on 1 star (per `SoundUp_Level1.5_Design.md`'s 85% gate; Level 1 requires 3); Quest A/B's
+  `#6EB5FF` equals Level 1's main color.
+- Framework-wide, not Level 1.5: a Level entered via a later release-scope bump skips its Level
+  Intro (Title walks straight into the game scene); `*_cubes_earned` save keys are never written.
+- Device playthrough of the Short and Long Transitions and of the new pause/resume overlay.
 
 ---
 

@@ -291,6 +291,38 @@ Run: `/Applications/Godot.app/Contents/MacOS/Godot --path . res://level15_long_t
 
 ---
 
+## GNB / Where Am I on Sound Quest scenes
+
+Aligned with the global framework 2026-09-17. All four Quest scenes now use the **same flag button
+and resumable `GNBOverlay`** as `game.gd` / `game15.gd` (`SceneBackground.gnb_button_position()`,
+`GNB_BTN_SCALE`, `GNB_BTN_SIZE`; overlay `CanvasLayer` at layer 100, `is_overlay = true`,
+`close_requested` returns to the scene). The old Sound-Quest-only variant — hardcoded `(20, 20)`
+corner, no scale, a full `change_scene_to_file("gnb_where_am_i.tscn")` that abandoned the Quest —
+is gone.
+
+**Resume model — pause, not restart.** `game.gd`/`game15.gd` kill audio on open and restart the
+current round on close, which is right for a round that fully re-narrates itself. A Sound Quest
+round carries real mid-round state (revealed patches, collected bubbles, filled rungs, eaten words,
+bob tweens, an in-flight Set Transition), so the Quest scenes instead set `get_tree().paused =
+true` while the overlay is up and give the overlay `PROCESS_MODE_ALWAYS`. Tweens, timers,
+coroutines, `AudioStreamPlayer`s (`stream_paused`) and `_input()` all freeze exactly where they are
+and pick up on close — verified per scene (A/B, C/D, E, F) and for a Long Transition paused
+mid-crossing (fade timer held, total = 8.5 s + pause). Two supporting details:
+- Every `get_tree().create_timer()` in the Quest scenes and in `level15_sound_quest_transitions.gd`
+  passes `process_always = false` (Godot's default is `true`), so timers freeze with the tweens
+  they're synchronised to. No timing change when nothing is paused.
+- An in-progress drag is the one thing not preserved: the pointer-release would be swallowed by
+  the overlay, so `_cancel_drag()` drops the held item in place via each scene's own empty-space
+  path before pausing. `_exit_tree()` unpauses, covering a replay pick made inside the overlay.
+
+**`ReviewState.active` leak fixed.** Every Quest's final `_on_quest_complete()` now clears
+`ReviewState.active` before returning to Where Am I (as `level1_sound_quest.gd` always did).
+Previously it stayed `true`, and a later Title → Play → `game15.gd` set completion would be
+misrouted into Where Am I instead of the Set Transition. Review-count behaviour
+(`increment_review_count("level15_soundquest_X")`, `DebugConfig.debug_launch` guard) is unchanged.
+
+---
+
 ## Reused idioms (for consistency in future Quest-type work)
 
 - **Word/target images**: `res://SoundUp_level1.5_word_images/{word}.png`,

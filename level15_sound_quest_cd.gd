@@ -77,7 +77,7 @@ func _ready() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	_create_where_am_i_button()
+	_create_gnb_flag()
 	_transitions = Level15SoundQuestTransitions.new()
 	add_child(_transitions)
 
@@ -425,7 +425,7 @@ const ROUNDS_PER_SET : int = 14
 func _on_round_complete() -> void:
 	_busy = true
 
-	await get_tree().create_timer(ROUND_COMPLETE_HOLD).timeout
+	await get_tree().create_timer(ROUND_COMPLETE_HOLD, false).timeout
 	await _breathe_both(CELEBRATE_BREATHE_COUNT)
 	await _playbutton_jump_onto_target()
 	await _target_squash_bounce()
@@ -567,24 +567,46 @@ func _on_quest_complete() -> void:
 	# Sound Quest is optional bonus content — Quest D's completion has no
 	# effect on any progression. Returns to Where Am I; the player picks
 	# another Sound Quest from there rather than auto-chaining into Quest E.
+	ReviewState.active = false   # Where Am I sets it again on the next replay pick
 	get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
 
 
-# ─── Where Am I exit — Sound Quest must never trap the player ─────────────
-func _create_where_am_i_button() -> void:
-	const BTN_W : float = 72.0
-	const BTN_H : float = 56.0
+# ─── GNB / Where Am I — standard resumable overlay ─────────────────────────
+# Same flag button and overlay as game.gd / game15.gd (position, scale and
+# margin from SceneBackground so it can never drift from the other scenes).
+# Aligned 2026-09-17 — replaced the old Sound-Quest-only variant (hardcoded
+# (20, 20) corner, no scale, full change_scene_to_file() that abandoned the
+# Quest and, worse, never cleared ReviewState.active — which then misrouted
+# the next real Level 1.5 set completion into Where Am I instead of the Set
+# Transition).
+#
+# Resume model: a Sound Quest round carries real mid-round state (revealed
+# patches / collected bubbles / filled rungs / eaten words, bob tweens, an
+# in-flight Set Transition), so unlike game15.gd this does NOT restart the
+# round on close. Instead the whole scene tree is paused while the overlay
+# (PROCESS_MODE_ALWAYS) is up — tweens, timers, coroutines, audio and
+# _input() all freeze exactly where they are and pick up on close. The one
+# thing not preserved is an in-progress drag: the pointer-release would be
+# swallowed by the overlay, so the held item is dropped in place (the
+# empty-space path) before pausing. Any exit that leaves this scene while
+# paused (Where Am I's replay picks) is covered by _exit_tree() unpausing.
+var _gnb_btn : Button = null
 
-	var btn := Button.new()
-	btn.text         = ""
-	btn.size         = Vector2(BTN_W, BTN_H)
-	btn.position     = Vector2(SceneBackground.viewport_size().x - BTN_W - 20.0, 20.0)
-	btn.z_index      = 10
-	btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+func _create_gnb_flag() -> void:
+	var BTN_W : float = SceneBackground.GNB_BTN_SIZE.x
+	var BTN_H : float = SceneBackground.GNB_BTN_SIZE.y
+
+	_gnb_btn              = Button.new()
+	_gnb_btn.text         = ""
+	_gnb_btn.size         = Vector2(BTN_W, BTN_H)
+	_gnb_btn.position     = SceneBackground.gnb_button_position()
+	_gnb_btn.z_index      = 10
+	_gnb_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
+	_gnb_btn.scale        = Vector2.ONE * SceneBackground.GNB_BTN_SCALE
 
 	var blank := StyleBoxEmpty.new()
 	for s in ["normal", "hover", "pressed", "focus"]:
-		btn.add_theme_stylebox_override(s, blank)
+		_gnb_btn.add_theme_stylebox_override(s, blank)
 
 	var pill := Panel.new()
 	pill.size         = Vector2(50.0, 52.0)
@@ -599,7 +621,7 @@ func _create_where_am_i_button() -> void:
 	ps.corner_radius_bottom_left  = 14
 	ps.corner_radius_bottom_right = 14
 	pill.add_theme_stylebox_override("panel", ps)
-	btn.add_child(pill)
+	_gnb_btn.add_child(pill)
 
 	var flag_icon := TextureRect.new()
 	flag_icon.texture      = load("res://UI_assets/flag.png") as Texture2D
@@ -608,10 +630,42 @@ func _create_where_am_i_button() -> void:
 	flag_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	flag_icon.size         = Vector2(42, 47)
 	flag_icon.position     = (Vector2(BTN_W, BTN_H) - flag_icon.size) / 2.0
-	btn.add_child(flag_icon)
+	_gnb_btn.add_child(flag_icon)
 
-	btn.pressed.connect(func(): get_tree().change_scene_to_file("res://gnb_where_am_i.tscn"))
-	add_child(btn)
+	_gnb_btn.pressed.connect(_on_gnb_flag_pressed)
+	add_child(_gnb_btn)
+
+
+func _cancel_drag() -> void:
+	# Bubbles need no glide-back — _process() resumes the rise from wherever
+	# the bubble is the moment _dragging is false (same as an empty-space drop).
+	_dragging    = false
+	_drag_bubble = null
+
+
+func _on_gnb_flag_pressed() -> void:
+	if get_node_or_null("GNBOverlay") != null:
+		return
+	_cancel_drag()
+	var overlay := CanvasLayer.new()
+	overlay.layer        = 100
+	overlay.name         = "GNBOverlay"
+	overlay.process_mode = Node.PROCESS_MODE_ALWAYS   # keeps working while the tree is paused
+	var wai : Node = load("res://gnb_where_am_i.tscn").instantiate()
+	wai.set("is_overlay", true)
+	wai.connect("close_requested", func():
+		overlay.queue_free()
+		get_tree().paused = false   # everything resumes exactly where it froze
+	)
+	overlay.add_child(wai)
+	add_child(overlay)
+	get_tree().paused = true
+
+
+func _exit_tree() -> void:
+	# Leaving while paused (a replay pick inside the overlay) must never hand
+	# a paused tree to the next scene.
+	get_tree().paused = false
 
 
 func _play_target_audio() -> void:

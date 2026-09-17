@@ -171,7 +171,11 @@ func play_long() -> void:
 	# Start the fade long_bgm_fade_lead seconds before exit (0 = on the
 	# exit downbeat), wait for the Play Button to finish leaving, then wait
 	# out whatever tail of the fade is still running before stopping.
-	await get_tree().create_timer(maxf(long_dur - long_bgm_fade_lead, 0.0)).timeout
+	# process_always=false: the calling Quest scene pauses the tree while its
+	# Where Am I overlay is open, and this timer must freeze with the travel
+	# tween it's synchronised to — otherwise the fade would fire "early" on
+	# resume. No effect on timing when nothing is paused.
+	await get_tree().create_timer(maxf(long_dur - long_bgm_fade_lead, 0.0), false).timeout
 	var fade : Tween = _long_fade_music()
 	# With lead == 0 the timer and the travel tween end on the same frame —
 	# if the tween got there first, awaiting its `finished` would hang

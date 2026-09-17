@@ -141,6 +141,13 @@ var _cube_nodes   : Array         = []
 var _choice_nodes : Array         = []
 var _back_btn     : TextureButton = null
 var _gnb_btn      : Button        = null
+var _audio_dead   : bool          = false  # set true once Where Am I is pressed — every
+										   # play helper checks it so a coroutine that was
+										   # mid-await when the overlay opened can't start
+										   # audio underneath it; revived by _start_round()
+var _round_gen    : int           = 0      # bumped by every _start_round(); _autoplay_word()
+										   # checks it after each await so a stale autoplay
+										   # loop from before a restart can't double-play
 
 # ── Idle hint ────────────────────────────────────────────────────────────────
 var _idle_time   : float = 0.0
@@ -602,6 +609,9 @@ func _start_round() -> void:
 		else:
 			SaveManager.increment_review_count("level15_" + Level15Progress.current_set_label())
 
+	_audio_dead      = false   # revive audio — starting/restarting a round always
+							   # means this scene is active and playable again
+	_round_gen      += 1
 	_current_round   = _rounds[_round_index]
 	_result_locked   = false
 	_round_hint_used = false
@@ -1063,7 +1073,7 @@ func _handle_sc_drop(count: int, cluster: Panel) -> void:
 			settle.tween_interval(0.2)
 			settle.tween_callback(func(): _set_panel_color(_sc_drop_target, CUBE_EMPTY))
 		_tally_round()
-		_correct_snd.play()
+		_safe_play(_correct_snd)
 		_blend_round_cube()
 		await _correct_snd.finished
 		await get_tree().create_timer(0.4).timeout
@@ -1078,10 +1088,10 @@ func _handle_sc_drop(count: int, cluster: Panel) -> void:
 		shake.tween_property(cluster, "position:x", orig_x +  8.0, 0.04)
 		shake.tween_property(cluster, "position:x", orig_x -  8.0, 0.04)
 		shake.tween_property(cluster, "position:x", orig_x,        0.03)
-		_oops_snd.play()
+		_safe_play(_oops_snd)
 		await shake.finished
 		await _oops_snd.finished
-		_wrong_snd.play()
+		_safe_play(_wrong_snd)
 		await _wrong_snd.finished
 		await get_tree().create_timer(0.8).timeout
 		_clear_dynamic_nodes()
@@ -1400,15 +1410,33 @@ func _create_gnb_flag() -> void:
 	add_child(_gnb_btn)
 
 
+# Same behaviour as game.gd's Where Am I: kill every gameplay sound the
+# moment the overlay opens (and refuse to start any new one while it's up),
+# then restart the current round when it closes — same _round_index, no
+# score/progress change, so the child comes back to a clean, fully-narrated
+# round rather than one frozen mid-autoplay. Aligned 2026-09-17; before
+# this the overlay just sat on top while word/phoneme audio kept playing.
+func _kill_gameplay_audio() -> void:
+	_audio_dead      = true
+	_autoplay_active = false
+	for p in [_word_player, _phoneme_player, _correct_snd, _oops_snd, _wrong_snd]:
+		p.stop()
+
+
 func _on_gnb_flag_pressed() -> void:
 	if get_node_or_null("GNBOverlay") != null:
 		return
+	_kill_gameplay_audio()
 	var overlay := CanvasLayer.new()
 	overlay.layer = 100
 	overlay.name  = "GNBOverlay"
 	var wai : Node = load("res://gnb_where_am_i.tscn").instantiate()
 	wai.set("is_overlay", true)
-	wai.connect("close_requested", func(): overlay.queue_free())
+	wai.connect("close_requested", func():
+		overlay.queue_free()
+		_start_round()   # revives audio and restarts the current round — same
+						  # round_index, no score/progress change (see _start_round)
+	)
 	overlay.add_child(wai)
 	add_child(overlay)
 
@@ -1417,7 +1445,15 @@ func _on_gnb_flag_pressed() -> void:
 # AUDIO
 # ════════════════════════════════════════════════════════════════════════════
 
+func _safe_play(player: AudioStreamPlayer) -> void:
+	if _audio_dead:
+		return
+	player.play()
+
+
 func _play_word(word_key: String) -> void:
+	if _audio_dead:
+		return
 	var path : String = _all_words[word_key]["audio"]
 	_word_player.stream = load(path)
 	_word_player.play()
@@ -1429,21 +1465,27 @@ func _play_phoneme(phoneme_id: String) -> void:
 	var ph : Dictionary = _phoneme_data[phoneme_id]
 	if ph.get("missing", false):
 		return   # ng.wav not yet recorded — silent fail
+	if _audio_dead:
+		return
 	_phoneme_player.stream = load(ph["audio"])
 	_phoneme_player.play()
 
 
 func _autoplay_word(word_key: String) -> void:
 	_autoplay_active = true
+	var gen : int = _round_gen
 	var count : int = _set_def.get("autoplay_count", 3)
 	for i in range(count):
-		if not _autoplay_active:
+		if not _autoplay_active or _round_gen != gen:
 			return
 		_play_word(word_key)
 		await _word_player.finished
+		if _round_gen != gen:
+			return
 		if i < count - 1:
 			await get_tree().create_timer(0.35).timeout
-	_autoplay_active = false
+	if _round_gen == gen:
+		_autoplay_active = false
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1499,7 +1541,7 @@ func _handle_single_answer(phoneme_id: String, idx: int) -> void:
 		var cube_idx  : int    = 0 if "initial" in mode else _cube_nodes.size() - 1
 		_fill_cube(cube_idx)
 
-		_correct_snd.play()
+		_safe_play(_correct_snd)
 		_celebrate_iso_square()
 		_blend_round_cube()
 		await _correct_snd.finished
@@ -1510,9 +1552,9 @@ func _handle_single_answer(phoneme_id: String, idx: int) -> void:
 		_round_hint_used = true
 		_animate_shake(idx)
 		await _phoneme_player.finished   # let the tapped phoneme finish before oops
-		_oops_snd.play()
+		_safe_play(_oops_snd)
 		await _oops_snd.finished
-		_wrong_snd.play()
+		_safe_play(_wrong_snd)
 		await _wrong_snd.finished
 		_result_locked = false
 		_force_hint    = true
@@ -1538,7 +1580,7 @@ func _handle_build_tap(ph_id: String, choice_idx: int) -> void:
 	if ph_id == expected:
 		_fill_cube(_build_index)
 		_build_index += 1
-		_correct_snd.play()
+		_safe_play(_correct_snd)
 		if choice_idx >= 0 and choice_idx < _choice_nodes.size():
 			var used_btn : TextureButton = _choice_nodes[choice_idx]
 			used_btn.disabled   = true
@@ -1556,9 +1598,9 @@ func _handle_build_tap(ph_id: String, choice_idx: int) -> void:
 	else:
 		_result_locked   = true
 		_round_hint_used = true
-		_oops_snd.play()
+		_safe_play(_oops_snd)
 		await _oops_snd.finished
-		_wrong_snd.play()
+		_safe_play(_wrong_snd)
 		await _wrong_snd.finished
 		_result_locked = false
 		_force_hint    = true
@@ -1612,16 +1654,16 @@ func _on_count_pressed(count: int) -> void:
 	if count == _current_round["answer_count"]:
 		_result_locked = true
 		_tally_round()
-		_correct_snd.play()
+		_safe_play(_correct_snd)
 		_blend_round_cube()
 		await _correct_snd.finished
 		await get_tree().create_timer(0.4).timeout
 		_advance_round()
 	else:
 		_round_hint_used = true
-		_oops_snd.play()
+		_safe_play(_oops_snd)
 		await _oops_snd.finished
-		_wrong_snd.play()
+		_safe_play(_wrong_snd)
 		await _wrong_snd.finished
 		_clear_dynamic_nodes()
 		_hint_stage = 0

@@ -810,10 +810,14 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 	# but still shows its own play count using the same existing label style).
 	# Text only, no Louis icon -- font size doubled from the original (was
 	# max(11, 16*k)) now that it has the whole space Louis used to share.
+	# Display rule (2026-09-17): only shown when the count is > 0 — a "×0"
+	# is never drawn, for Main Sets and Sound Quest cards alike. Display
+	# only; how the count is stored/incremented is unchanged.
 	if is_completed or is_sound_quest:
 		var count : int = SaveManager.get_review_count(sd["key"])
-		_panel_label(panel, "×%d" % count, Vector2(CELL_W - 136, 18 * k), Vector2(66, 56 * k),
-			max(22, int(round(32 * k))), PURPLE, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER)
+		if count > 0:
+			_panel_label(panel, "×%d" % count, Vector2(CELL_W - 136, 18 * k), Vector2(66, 56 * k),
+				max(22, int(round(32 * k))), PURPLE, HORIZONTAL_ALIGNMENT_CENTER, VERTICAL_ALIGNMENT_CENTER)
 
 	# Replay button ▶
 	var rp := Button.new()

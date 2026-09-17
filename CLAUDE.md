@@ -370,6 +370,46 @@ void fragment() {
 7. **Back is unlimited review, never scoring.** See [Back Button Philosophy](#back-button-philosophy-locked) — applies to every round-based level, current and future, unless there's a specific gameplay reason not to.
 8. **Distractors must be phonemically different from the target.** See [Phoneme-Based Distractor Rule](#phoneme-based-distractor-rule-locked) — never pair a target and a distractor that share the same actual sound, even if their spelling differs.
 9. **Never auto-advance past the highest publicly released Level.** After any Level's Coronation, the game continues into the next Level only if it's within the current build's release scope — otherwise the player returns to Title instead. See [Release Scope Gate](#release-scope-gate-locked) — this is a generic framework rule, not a one-off patch for any specific Level.
+10. **A Set Transition always matches the background color of the gameplay it belongs to.** See [Background Color Rule](#background-color-rule-locked) — main gameplay and Sound Quest are two separate palettes, and a Sound Quest Set Transition follows its Sound Quest Set's color, never the parent Level's main color.
+
+---
+
+## Background Color Rule (locked)
+
+Locked 2026-09-17. Two separate palettes; never cross them.
+
+### Main gameplay path
+The Game scene and its Set Transition scene must use the same Level background color:
+
+| Level | Color | Game scene | Set Transition |
+|---|---|---|---|
+| Prep | `#A8E063` baby green | `prep_game.gd` | `prep_transition.gd` (hardcoded) |
+| Level 1 | `#6EB5FF` sky blue | `game.gd` | `transition.gd` `else` branch |
+| Level 1.5 | `#A83A22` deep red-brown | `game15.gd` `BG_COLOR` | `transition.gd` `elif _for_l15` (via `Level15Progress.active`) |
+| Level 2 | `#7A8C2E` olive green | `game2.gd` `BG_COLOR` | `transition.gd` `if _for_l2` (via `Level2Progress.active`) |
+
+`transition.tscn`'s editor-default background (`#A8E063`) is dead data — `transition.gd._ready()`
+always overwrites it from the `active` flags. Level 1's sky blue is written as
+`Color(0.431, 0.710, 1.0)` in several files with no shared constant; keep the literal identical.
+
+### Sound Quest path — separate palette
+Sound Quest never has to use its parent Level's main gameplay color. Each Sound Quest scene owns
+its `BG_COLOR`, and **every Sound Quest Set Transition uses the same background color as the Sound
+Quest Set it belongs to** — the transition never paints its own background.
+
+| Level | Sound Quest scene | Color | Set/Quest Transition |
+|---|---|---|---|
+| Prep | `sound_quest.gd` | `#A8E063` | in-scene, inherits |
+| Level 1 | `level1_sound_quest.gd` | `#6EB5FF` | in-scene, inherits |
+| Level 1.5 Quest A/B | `level15_sound_quest_ab.gd` | `#6EB5FF` | `Level15SoundQuestTransitions` child node, inherits |
+| Level 1.5 Quest C/D | `level15_sound_quest_cd.gd` | `#8BD0E1` | same, inherits |
+| Level 1.5 Quest E | `level15_sound_quest_e.gd` | `#FEEABA` | same, inherits |
+| Level 1.5 Quest F | `level15_sound_quest_f.gd` | `#D3EDD3` | same, inherits |
+
+Level 1.5's color is fixed per Quest *scene* — every Set within a Quest type shares it. The
+2026-08-08 change that covered Level 1.5's Short/Long Transitions with main-gameplay `#A83A22`
+was wrong under this rule and has been removed; do not reintroduce a cover in
+`level15_sound_quest_transitions.gd`. Full Sound Quest detail: `SoundUp_Level1.5_SoundQuest_Design.md`.
 
 ---
 

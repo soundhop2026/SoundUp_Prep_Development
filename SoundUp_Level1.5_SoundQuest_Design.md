@@ -224,10 +224,13 @@ as a child by every Quest scene, called via `play_short()` / `play_long()`. **Bo
 - **Long**: a Quest type's FINAL Set boundary only (e.g. A4's completion) — Short does NOT also
   play there, mutually exclusive per boundary. Plays once per Quest type (A–F), 6 times total
   across all of Sound Quest.
-- Both now **override the background to Level 1.5's own color** (`game15.gd`'s exact `#A83A22`)
-  for their duration, covering whatever pastel color the calling Quest scene set, then release it
-  (fade the cover away) when the transition ends. Per direct request 2026-08-08; the other five
-  Quest scenes' own colors are explicitly still undecided.
+- **Background rule (locked 2026-09-17): every Set Transition — Short and Long — uses the same
+  background color as the Sound Quest Set it belongs to.** The component never paints its own
+  background; the calling Quest scene's `BG_COLOR` shows through (A/B `#6EB5FF`, C/D `#8BD0E1`,
+  E `#FEEABA`, F `#D3EDD3` — one color per Quest *scene*, no per-Set variation). This supersedes
+  the 2026-08-08 request to cover both transitions with `game15.gd`'s main-gameplay `#A83A22`;
+  that cover has been removed. Sound Quest has its own palette, separate from the parent Level's
+  main gameplay color — see the "Main Game vs Sound Quest color" rule in `CLAUDE.md`.
 
 ### Short Transition
 Play Button (`SHORT_SIZE 288x288` — 6x-then-shrunk-70% from an original `160x160`, net 1.8x)
@@ -236,46 +239,55 @@ hops across the screen left to right in 8 bounces (`SHORT_HOP_COUNT`) over 5 sec
 content shown, just the hop.
 
 ### Long Transition
-An emotional beat — gaining confidence, joining friends — not just a between-Set animation,
-since it marks a full Group completion. **Locked story** (settled 2026-08-08 after several
-drifts — an interim version wrongly used `louisfaces/` for the waiting group, another wrongly
-dropped the group entirely, another added a bridge that turned out to need an asset that didn't
-really exist; a bridge was built with real arc-following motion before the asset problem was
-fully reckoned with, then removed entirely once confirmed unfixable in code — see `Worklog.md`
-2026-08-08 for the full sequence):
+**Rebuilt 2026-09-17 — the earlier "courage story" is deprecated and deleted.** (Large Play Button
+hesitating toward a waiting crowd of smaller Play Buttons, talk / breathe / group dance / group
+hop-off exit, `quest_level15_bgm.mp3` — all gone. That version had itself drifted through several
+wrong turns on 2026-08-08: an interim Louis-face crowd, a dropped group, a bridge whose asset was
+a placeholder line. See `Worklog.md` 2026-08-08 for that history; none of it is current.)
 
-1. One large Play Button (`LT_PLAYBUTTON_SIZE 213x102`) stands alone on the left (`LT_START_X
-   160`, `LT_GROUND_Y 400` — flat open ground, no bridge).
-2. A group of 13 smaller Play Buttons (`LT_CROWD_COUNT`, `LT_CROWD_SIZE_MULT 0.9` — tied to
-   `LT_PLAYBUTTON_SIZE` so the ratio stays locked if that size ever changes) waits on the right
-   (`LT_CROWD_CENTER (1060, 400)`), clustered close together in a natural "wagle wagle" cloud
-   (`LT_CROWD_HALF_EXTENTS 150x110`, `LT_CROWD_MIN_SPACING 55` — deliberately loose/allowed to
-   overlap slightly, same idiom as Level 1's Word Cloud, not a strict non-overlap grid),
-   bouncing + breathing (`LT_ENCOURAGE_BREATHE_SCALE 1.08`) the whole time, encouragingly.
-3. The large Play Button takes a few steps toward the group (`LT_HESITATE_APPROACH_X 320`), gets
-   nervous, walks back — repeats `LT_HESITATE_COUNT` (4) times.
-4. Finally walks the full distance (`LT_CROSS_DUR 1.6` at normal pace, speeding up
-   `LT_SPEEDUP_MULT 1.5x` for the final 30% — `LT_SPEEDUP_FRACTION 0.7` — "with excitement"), and
-   settles at the group's **near edge** (`LT_JOIN_X = crowd_center.x − crowd_half_extent.x − 40`)
-   — deliberately not a fixed point that could land anywhere inside the cluster; reads as
-   "arrives and stands with the group," not "teleports into the middle."
-5. The whole group "talks" — 5 gentle bob/breathe cycles together (`LT_TALK_COUNT`,
-   `LT_TALK_BEAT_DUR 0.45`).
-6. Then dances — hop (`LT_CELEBRATE_HOP_HEIGHT 28`) + swirl (`LT_CELEBRATE_SWIRL_ANGLE 50°`) +
-   breathe (`LT_CELEBRATE_BREATHE_SCALE 1.18`) combined, fast (`LT_CELEBRATE_BEAT_DUR 0.11`) —
-   for as long as the BGM keeps playing, specifically holding back the final
-   `LT_MUSIC_OUTRO_RESERVE` (10) seconds of the track so beats 7–8 below still have music under
-   them instead of finishing in silence.
-7. Breathes together 4 more times, calmer (`LT_BREATHE_SCALE 1.12`, no hop/swirl).
-8. Exits together, **hopping** (`LT_EXIT_HOP_COUNT 6`, not a plain slide) all the way off screen
-   (`LT_EXIT_DX 500` past the join point).
+Current choreography is deliberately minimal — **ENTER LEFT → HOP ACROSS → EXIT RIGHT**:
 
-**Music**: `quest_level15_bgm.mp3`, ~30.8s, `loop=false`. The "wait for the music" logic is
-**duration-based** (`stream.get_length()` minus elapsed time via `Time.get_ticks_msec()`), not
-`await _lt_music_player.finished` — the signal resolved near-instantly in testing despite
-`playing` reporting true, almost certainly an audio-session quirk specific to background-launched
-test processes rather than a real game bug, but duration math sidesteps the question entirely and
-is more robust regardless of the root cause.
+1. One Play Button (`LONG_SIZE 360x173`, true aspect of `playbutton.png`'s 907x437) starts fully
+   off-screen left (`x = -LONG_SIZE.x`), centred vertically on `LONG_GROUND_Y 400`.
+2. Travels continuously left → right in a single linear `position:x` tween over `long_dur 8.0s`
+   (4 bars of the BGM — see below), ending at the real viewport width
+   (`SceneBackground.viewport_size().x`, not a hardcoded 1280 — so it fully exits on
+   wider-than-16:9 phones too).
+3. While travelling, a looping `position:y` tween hops it up and down the whole way
+   (`LONG_HOP_HEIGHT 70`, `LONG_HOP_PERIOD 0.5s`, sine ease out/in). The hop and travel tweens
+   act on different sub-properties, so they never fight.
+4. Once the travel tween finishes the hop tween is killed and the node freed.
+
+**BGM**: `soundquest/assets/quest_level15_bgm.mp3` starts with the crossing. Timing is
+music-derived, not arbitrary — librosa analysis 2026-09-17: 30.77s, 120.2 BPM dead steady, 4/4 →
+beat 0.499s, bar 1.997s, downbeats at 1.93 / 3.91 / 5.92 / **7.92** / 9.91 …; key G major, opening
+harmony V | I | I | IV | **I** …; entry accent and brightness jump at 3.9s, main body 8–21s, V→I
+cadence and wind-down at 21.9s, quiet outro from 23.9s.
+- `long_dur 8.0` — 4 bars. Play Button exits on the bar-5 downbeat, the IV→I plagal return to G
+  that closes the opening phrase. (The first-pass 6.0s exited on bar 4 = the C/IV chord at near-peak
+  loudness — the most unresolved bar line in the opening, which is why it felt cut short.)
+- `long_bgm_fade_lead 0.0` / `long_bgm_fade_len 0.5` — the fade **starts on** the exit downbeat
+  and lasts one beat, so the arrival chord is heard at full volume and tails off after the button
+  is gone; `play_long()` returns after the tail (8.5s total). Fading *through* the cadence instead
+  would have muted the very chord that resolves it.
+- `LONG_HOP_PERIOD 0.5` = exactly one beat, so the hops are beat-locked; keep any future
+  `long_dur` a whole number of bars (multiple of 2.0s).
+- Other valid endpoints if this is ever revisited: 10.0s (5 bars, tonic, no event) or 22.0s
+  (11 bars, the track's own cadence). 16.0s is *not* — it's a half cadence on D.
+- Implementation note: with `lead == 0` the fade timer and travel tween end on the same frame;
+  `play_long()` guards `await travel.finished` with `is_running()` so it can't hang if the tween
+  got there first.
+
+The three timing values are per-instance `var`s (not `const`) so the throwaway harness can A/B an
+endpoint through the exact code path the Quest scenes use; Quest scenes never set them.
+
+No crowd, no hesitation, no background cover — nothing else, by design. Further beats are added
+only on explicit request.
+
+**Throwaway test harness**: `level15_long_transition_test.tscn` / `.gd` — instantiates the
+component alone and loops `play_long()` forever at the production defaults (Esc quits). Background is Quest A/B's `#6EB5FF`,
+i.e. it represents the Long as triggered from Quest A/B; not part of the game, safe to delete.
+Run: `/Applications/Godot.app/Contents/MacOS/Godot --path . res://level15_long_transition_test.tscn`
 
 ---
 
@@ -287,16 +299,19 @@ is more robust regardless of the root cause.
 - **Pop/consume feedback**: quick scale-up + fade (Quest C/D's bubble pop, `POP_SCALE`/`POP_DUR`)
   reads better than a fade-only removal for something being "consumed."
 - **Hop-while-advancing**: alternate up/down `Vector2` position tweens per discrete step (used in
-  Quest E's ladder climb history, Quest F's exit hop tier, the Short Transition, and the Long
-  Transition's exit) — simpler and more reliable than trying to sync a continuous hop curve to a
-  continuous horizontal tween.
+  Quest E's ladder climb history, Quest F's exit hop tier, and the Short Transition) — simpler and
+  more reliable than trying to sync a continuous hop curve to a continuous horizontal tween.
+  The one exception is the rebuilt Long Transition (2026-09-17), which *does* run a continuous
+  linear `position:x` tween with a separate looping `position:y` hop tween — that works cleanly
+  there because the two tweens touch different sub-properties and the travel is a single
+  uninterrupted line, no per-step targets to keep in sync.
 - **Breathing**: `scale` tween to ~1.08–1.18x and back, `TRANS_SINE`/`EASE_IN_OUT`. Intensity
   scales with the moment — gentle (1.08) for patient waiting, energetic (1.18) for active
   celebration.
 - **`get_meta()` gotcha**: `node.get_meta("key", default)` still logs an error to the console if
   the key was genuinely never set on that node — always guard with `node.has_meta("key")` first
-  when a node might legitimately never have had the meta set (e.g. a newly-joined Play Button
-  that never went through the "waiting crowd" spawn path that sets `bob_tween`).
+  when a node might legitimately never have had the meta set (first hit in `level15_sound_quest_ab.gd`,
+  re-hit in the since-deleted 2026-08-08 Long Transition crowd code).
 - **Per-texture pixel measurement over guessed coordinates**: when a layout depends on an asset's
   actual visible content (not just its bounding box — Quest C/D's per-image tip detection,
   `playbutton.png`'s content-padding fraction, the Long Transition bridge's now-removed arc

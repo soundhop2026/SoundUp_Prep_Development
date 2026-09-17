@@ -61,6 +61,91 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-09-17
+
+### Completed
+- **Level 1.5 Sound Quest Long Set Transition rebuilt from scratch** — the 2026-08-08 "courage
+  story" (large Play Button hesitating toward a 13-strong crowd, talk / breathe / group dance /
+  group hop-off exit) is deprecated and deleted, not commented out. New choreography is
+  deliberately minimal: ONE Play Button enters fully off-screen left, travels continuously left ->
+  right in a single linear `position:x` tween, hops the whole way via a separate looping
+  `position:y` tween, and exits at the real viewport width (`SceneBackground.viewport_size().x`,
+  so it clears the edge on wider-than-16:9 phones). ENTER LEFT -> HOP ACROSS -> EXIT RIGHT.
+  Approved live by the user ("visually good").
+- **BGM added to the Long, with music-derived timing** — `quest_level15_bgm.mp3` starts with the
+  crossing. The first-pass 6.0s exit was rejected live ("music still too strong, ends before it
+  resolves"), so the track was analysed with librosa 0.11 before touching any timing: 30.77s,
+  120.2 BPM dead steady, 4/4 (beat 0.499s, bar 1.997s), downbeats 1.93 / 3.91 / 5.92 / 7.92 ...,
+  key G major, opening harmony V | I | I | IV | I, entry accent + brightness jump at 3.9s, body
+  8-21s, V->I cadence + wind-down at 21.9s, quiet outro from 23.9s. 6.0s had landed on bar 4 —
+  the C/IV chord at near-peak loudness, the most unresolved bar line in the opening. Chosen and
+  approved live: `long_dur 8.0` (4 bars — exit on the bar-5 downbeat, the IV->I plagal return
+  to G), with the fade **starting on** that downbeat (`long_bgm_fade_lead 0.0`) and lasting one
+  beat (`long_bgm_fade_len 0.5`) so the arrival chord is heard in full and tails off after the
+  button is gone. `LONG_HOP_PERIOD 0.5` is exactly one beat, so hops are beat-locked.
+- **Background color rule locked and enforced** (CLAUDE.md design rule #10 + new "Background
+  Color Rule (locked)" section; design doc updated). Two separate palettes: main gameplay
+  (Prep `#A8E063`, L1 `#6EB5FF`, L1.5 `#A83A22`, L2 `#7A8C2E` — Game = Set Transition, audited
+  and all four already correct at runtime via `transition.gd`'s `active`-flag branches) and Sound
+  Quest (each Sound Quest scene owns its `BG_COLOR`; every Sound Quest Set Transition uses the
+  color of the Set it belongs to). Under that rule the Short Transition's 2026-08-08 `#A83A22`
+  cover was wrong — removed (`L15_BG_COLOR` / `_lt_cover_background()` deleted); Short's hop
+  choreography itself untouched. Long already inherited correctly. Verified live: mid-Short the
+  component has one child (the face, no cover) and the background pixel reads the calling
+  Quest's color.
+- **Audited Level 1.5 Sound Quest colors per Set** — no per-Set variation exists; color is fixed
+  per Quest *scene*: A/B `#6EB5FF`, C/D `#8BD0E1`, E `#FEEABA`, F `#D3EDD3` (Sets A1-A4, B1-B5,
+  C1-C4, D1-D4, E1-E10, F1-F10 all share their scene's color). Prep and Level 1 Sound Quest
+  transitions are in-scene and inherit, already compliant.
+- **Throwaway test harness committed**: `level15_long_transition_test.tscn` / `.gd` — instantiates
+  `Level15SoundQuestTransitions` alone, loops `play_long()` at production defaults (Esc quits),
+  Quest A/B background. `LT_SHOT_DIR` env var makes it save a PNG frame every 0.35s for one run
+  then quit (used for contact-sheet inspection from the CLI). Run:
+  `/Applications/Godot.app/Contents/MacOS/Godot --path . res://level15_long_transition_test.tscn`
+
+### Decisions
+- Long Transition is minimal by explicit request — no crowd, no hesitation, no cover. Further
+  beats are added only on request; BGM was one such request.
+- The three Long timing values are per-instance `var`s (not `const`) so the harness can A/B an
+  endpoint through the exact code path the Quest scenes use — no code fork, and promoting an
+  approved value is a defaults change only. Quest scenes never set them.
+- Timing was chosen from the music, not extended arbitrarily. Other valid endpoints recorded in
+  the component header if revisited: 10.0s (5 bars, tonic, no event), 22.0s (11 bars, the
+  track's own cadence). 16.0s is *not* one — half cadence on D, the same "unresolved" feel.
+- Quest A/B's `#6EB5FF` is byte-identical to Level 1's main color. Flagged, not changed — under
+  the locked rule Sound Quest owns its palette, so this is a conscious-choice item, not a bug.
+- The harness background stays Quest A/B blue — under the rule there is no single "Level 1.5
+  Sound Quest transition color", so `#A83A22` would have been wrong for it.
+
+### Risks / Gotchas
+- **Same-frame `await` hang**: with `long_bgm_fade_lead == 0` the fade timer and the travel
+  tween end on the same frame; if the tween finished first, `await travel.finished` hung forever
+  (caught when the first probe run stalled). Guarded with `travel.is_running()` before the
+  await. General pattern to remember: never `await tween.finished` after a timer that may
+  outlast the tween.
+- `transition.tscn`'s editor-default background is Prep green `#A8E063` — dead data, always
+  overwritten in `transition.gd._ready()`. Misleading in the editor only; not fixed.
+- Level 1 sky blue is written as `Color(0.431, 0.710, 1.0)` in five files with no shared
+  constant (game.gd, transition.gd, level1_sound_quest.gd, level15_sound_quest_ab.gd,
+  scene_background.gd). Keep the literal identical.
+- The `--headless` `push_input()` finding from 2026-08-06 still stands; today's checks used
+  windowed launches with direct `play_long()`/`play_short()` calls.
+- Desktop-app "Run" button on fenced bash blocks did nothing for the user this session; the
+  scene had to be launched from Claude's shell (`nohup ... &`). Worth remembering when handing
+  the user something to run.
+- Long Transition still only seen on the Mac window, never on a device.
+
+### Next Session
+- Quest-to-Quest / Group-to-Group handoff architecture (B->C, D->E, F->back into
+  `game15.gd`/`Level15Progress`) — still stubbed prints, unchanged since 2026-08-06, still the
+  main blocker before Level 1.5 Sound Quest can ship.
+- GNB coverage on the 7 Sound Quest scenes (flagged 2026-09-11, deferred to the Level 1.5
+  update).
+- Decide whether Quest A/B's `#6EB5FF` should differ from Level 1's main color.
+- Device playthrough of the Short and Long Transitions.
+
+---
+
 ## 2026-09-11
 
 ### Completed

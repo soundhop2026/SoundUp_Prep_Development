@@ -69,7 +69,8 @@ const YEARLY_BASE_PLAN_ID  : String = "yearly"
 const IOS_MONTHLY_PRODUCT_ID : String = "com.acron.learningsounds.monthly"
 const IOS_YEARLY_PRODUCT_ID  : String = "com.acron.learningsounds.yearly"
 const PRIVACY_POLICY_URL : String = "https://www.getsoundhop.com/privacy-policy"
-const TERMS_OF_USE_URL   : String = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+const IOS_TERMS_OF_USE_URL     : String = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+const ANDROID_TERMS_OF_USE_URL : String = "https://www.getsoundhop.com/terms-of-service"
 
 var _font : Font = null
 var _billing : BillingClient = null
@@ -243,8 +244,8 @@ func _build_platform_note() -> void:
 	# Platform-specific wording: the iOS build must not mention Android
 	# (Apple Guideline 2.3.10) — Android's own build keeps its original text.
 	var note_text : String = "Subscriptions are available on iPhone and iPad."
-	if OS.get_name() == "Android":
-		note_text = "Subscriptions are available on Android phones, tablets, and iPhone/iPad."
+	if EditorPlatformPreview.presentation_platform() == "Android":
+		note_text = "Subscriptions are available on Android phones and tablets."
 	_make_label(note_text,
 		Vector2(0, 534), Vector2(1280, 24), 14, GRAY_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 
@@ -274,8 +275,8 @@ func _on_privacy_policy_pressed() -> void:
 
 
 # Same idiom as the Privacy Policy link above, stacked directly below it —
-# opens Apple's Standard EULA (required by App Review for the subscription
-# screen; https://www.apple.com/legal/internet-services/itunes/dev/stdeula/).
+# destination is platform-specific: iOS opens Apple's Standard EULA
+# (required by App Review), Android opens SoundHop's own Terms of Service.
 func _build_terms_of_use_link() -> void:
 	var link := LinkButton.new()
 	link.text     = "Terms of Use"
@@ -292,7 +293,10 @@ func _build_terms_of_use_link() -> void:
 
 
 func _on_terms_of_use_pressed() -> void:
-	OS.shell_open(TERMS_OF_USE_URL)
+	var url : String = IOS_TERMS_OF_USE_URL
+	if EditorPlatformPreview.presentation_platform() == "Android":
+		url = ANDROID_TERMS_OF_USE_URL
+	OS.shell_open(url)
 
 
 # ─── Billing ─────────────────────────────────────────────────────────────────
@@ -575,8 +579,8 @@ func _show_message_dialog(title: String, body: String) -> void:
 func _show_unsupported_platform_dialog() -> void:
 	# Same platform-specific wording as _build_platform_note() — see there.
 	var msg : String = "Subscriptions are available on iPhone and iPad."
-	if OS.get_name() == "Android":
-		msg = "Subscriptions are available on Android phones,\ntablets, and iPhone/iPad."
+	if EditorPlatformPreview.presentation_platform() == "Android":
+		msg = "Subscriptions are available on Android phones and tablets."
 	_show_message_dialog("Subscriptions Not Available", msg)
 
 

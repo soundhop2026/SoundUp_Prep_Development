@@ -65,3 +65,66 @@ This file is maintained separately from Collie's `Worklog.md`.
 - **COMPLETED — QA tooling:** Separate commit `ca2b391c2658e22d2b3b664125539b72de3d0dba` (`DEVELOPMENT: add Prep final-set Coronation QA shortcut`) adds `Prep Last Set (Coronation Check)` for playing the actual final Prep Set F2 (index 25). Its purpose is to verify real F2 completion -> Coronation -> Level 1 Intro, not merely jump into Coronation. `DebugConfig.DEBUG_MODE = false` is confirmed in the committed source. The available conversation does not establish completion of that final manual end-to-end check; no test pass is claimed here.
 - **CONFIRMED — Completed push milestone:** GitHub `refs/heads/main` was checked directly at `ca2b391c2658e22d2b3b664125539b72de3d0dba` before this worklog update. This includes gameplay commit `eb6a46658d4b8414e9af7d5477397d93f98e9a6e` (`GAMEPLAY: make Sound Quest optional and fix play counts`) and the separate QA shortcut commit. Earlier Android Emulator commits `edfc703` and `6547d3a` remain separate in history. This records a source-control milestone, not a new store build, submission, or device-test result.
 - **SCOPE — Arthur worklog only:** This documentation update is separate from Collie's pending work and `Worklog.md`. No gameplay, subscription/review, editor-preview, or project-instruction changes belong in this commit.
+
+## 2026-09-28 — Game 1 Level 1.5 Progression, Where Am I & Font System
+
+The QA results below record the results confirmed in the 2026-09-28 conversation; this documentation update does not rerun gameplay QA.
+
+### 1. Generic Incremental Release Progression Framework
+
+- **COMPLETED / VERIFIED:** Game 1 now uses a generic progression framework for incremental releases, reusable for Level 1.5 and future Levels 2, 2.5, and beyond.
+- **LOCKED — Entry sequence:** Previous Level completion -> new Level release -> Title -> Level Intro -> Ready -> actual gameplay entry. Release alone does not grant immediate access.
+- **LOCKED — Entered state:** Record a Level as `entered` on its first actual gameplay entry. Previously entered Levels resume from saved Set progress without repeating Intro.
+- **VERIFIED — Old-save compatibility:** The framework handles an existing 1.0.1 save with Level 1 already completed when updating to 1.0.2. Legacy saves infer prior entry from existing progress evidence so established access is preserved.
+
+### 2. Where Am I Unlock Rule and Old-save QA
+
+- **LOCKED:** Previous-Level completion does not grant direct access to the next Level through Where Am I. The new Level must be released and entered through normal progression, including Intro and actual gameplay entry.
+- **CONFIRMED:** Title routing and Where Am I use the same `has_entered_level()` source of truth.
+- **MANUAL QA — PASS:** Start with a 1.0.1-style Level 1 completion save -> simulate Level 1.5 release -> confirm Level 1.5 is LOCKED in Where Am I before Intro -> Title opens Level 1.5 Intro -> Ready enters Level 1.5 gameplay -> confirm Level 1.5 is UNLOCKED in Where Am I.
+
+### 3. Persisted Reset Index Safety
+
+- **RESOLVED:** Generic Intro routing exposed stale persisted Set indexes: Level 1 and Level 2 reset their runtime position without saving index 0. Both resets now persist index 0.
+- **RESOLVED:** Restoring an invalid/out-of-range saved Set index safely clamps it to 0.
+- **VERIFIED:** Regression tests passed, as recorded in the conversation.
+
+### 4. Level 1.5 Sound Quest — Where Am I Structure
+
+- **RESOLVED:** Manual QA found all six Sound Quest A-F cards under Group A. Review of the learning structure confirmed that each Quest corresponds to its matching Main Game Group. This finalizes the placement left open in the 2026-09-11 entry.
+
+| Group | Main Sets | Bonus card |
+| --- | --- | --- |
+| A | A1, A2 | Sound Quest A |
+| B | B1, B2 | Sound Quest B |
+| C | C1, C2 | Sound Quest C |
+| D | D1, D2 | Sound Quest D |
+| E | E1-E4 | Sound Quest E |
+| F | F | Sound Quest F |
+
+- **SCOPE:** Card redistribution only; Sound Quest gameplay, completion logic, review counts, unlocking, and routing retain their existing behavior.
+- **MANUAL QA — PASS:** All six Group screens were checked and confirmed working correctly.
+
+### 5. Level 1.5 Learning Information — Follow-up
+
+- **PENDING — Phoneme-list audit:** Consider showing actual learning phonemes in Where Am I Group headers alongside/in place of functional descriptions such as `initial phoneme ID`. Audit the actual Level 1.5 dataset to establish the exact A-F target phonemes before deciding the header content. Do not infer or invent phoneme lists.
+
+### 6. SOUNDHOP Shared Font System v1.0
+
+- **FINALIZED:** Game 1 SOUNDHOP and Game 2 LetterHopHop share the same font roles, assigned by text function.
+
+| Font | Role | Scope |
+| --- | --- | --- |
+| Schoolbell | Character / Brand Accent | Letters on the PlayButton head only |
+| Andika | Learning / Information / Navigation | Intro text; all GNB and Where Am I text; Level/Set/Quest titles; learning descriptions; phoneme/letter information; progress information |
+| JetBrains Mono | Action / Transaction | Ready to Play button and all Subscription UI |
+
+- **LOCKED:** Schoolbell's thin strokes limit its use to the PlayButton character accent. Ready to Play uses JetBrains Mono within the otherwise Andika Intro. Apply these roles consistently in both games without arbitrary font mixing.
+- **PENDING — Implementation QA:** Replace legacy 210 Pencil under the shared system and visually check size, weight, and spacing during implementation. This entry records the decision; it does not apply font changes.
+
+### 7. Release Discipline
+
+- **LOCKED:** Level 1.5 release simulation was for QA only. Temporary QA release-scope changes must not ship.
+- **LOCKED:** Change the production release gate, public version, Android `versionCode`, and iOS build number only during final 1.0.2 release preparation after remaining QA is complete.
+- **SOURCE CONTROL:** Before this documentation update, Mac Collie's work was committed as `0172420` (generic entry progression), `435da08` (persisted reset indexes), and `fd0e53b` (per-Group Sound Quest cards), with a clean working tree. The production release gate remained `level1`.
+- **SCOPE — Arthur worklog only:** Keep this entry in a separate commit containing only `ARTHUR_WORKLOG.md`. Production release scope, version/build numbers, gameplay files, font files, and Collie's `Worklog.md` are outside this update. No push is requested.

@@ -103,11 +103,21 @@ func _build_level_meta() -> void:
 
 	# Curriculum order: each lock cascades — a later level can never be unlocked
 	# while an earlier one is still locked.
-	var l1_lock  : bool = not (SaveManager.is_prep_completed() or
-		SaveManager.is_chose_level1_path() or SaveManager.get_level1_set_index() > 0)
-	var l15_lock : bool = not ReleaseScope.is_level_released("level15") or l1_lock  or not (SaveManager.is_level1_completed()  or SaveManager.get_level15_set_index() > 0)
-	var l2_lock  : bool = not ReleaseScope.is_level_released("level2")  or l15_lock or not (SaveManager.is_level15_completed() or SaveManager.get_level2_set_index()  > 0)
-	var l25_lock : bool = not ReleaseScope.is_level_released("level25") or l2_lock  or not SaveManager.is_level2_completed()
+	#
+	# Locked rule: Where Am I is never the mechanism that creates first entry
+	# into a level. Normal progression does that (Coronation or Title -> Intro
+	# -> Ready), which records the entered flag, and only then does this unlock.
+	# So each term is has_entered_level(), NOT "previous level completed".
+	# Those two used to be conflated, which was invisible while completing a
+	# level auto-advanced straight into the next one — but the release-scope
+	# gate creates a real, persistent "previous level completed, next level
+	# never entered" state, and under the old test that state unlocked the new
+	# level (and its Sound Quests) in Where Am I before the player had ever
+	# seen its Intro.
+	var l1_lock  : bool = not SaveManager.has_entered_level("level1")
+	var l15_lock : bool = not ReleaseScope.is_level_released("level15") or l1_lock  or not SaveManager.has_entered_level("level15")
+	var l2_lock  : bool = not ReleaseScope.is_level_released("level2")  or l15_lock or not SaveManager.has_entered_level("level2")
+	var l25_lock : bool = not ReleaseScope.is_level_released("level25") or l2_lock  or not SaveManager.has_entered_level("level25")
 
 	_levels = [
 		{ "id": "prep",    "label": "Prep Level","tagline": "Consonant Sounds", "done": prep_done, "total": 26,

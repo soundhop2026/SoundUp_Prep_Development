@@ -85,7 +85,17 @@ func _ready() -> void:
 		_font = load(FONT_PATH)
 
 	var lid : String = LevelIntroState.level_id
+	# A level that is enterable but has no Intro copy must not silently render
+	# Prep's copy (the old fallback did exactly that, and level25 is in
+	# PROGRESSION_ORDER with no LEVEL_DATA entry). Enter it directly instead —
+	# recording entry first, so the rule "entry is recorded at gameplay entry"
+	# still holds and Where Am I unlocks correctly.
 	if not LEVEL_DATA.has(lid):
+		if ReleaseScope.is_level_enterable(lid):
+			push_error("LevelIntro: no copy for '%s' — entering it directly." % lid)
+			_enter_level_now(lid)
+			return
+		push_error("LevelIntro: unknown level '%s' — falling back to Prep." % lid)
 		lid = "prep"
 	var d : Dictionary = LEVEL_DATA[lid]
 
@@ -218,20 +228,22 @@ func _build_ready_btn(txt_col: Color, bg_col: Color, lid: String) -> void:
 		.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
 
 
+# The single point where a level becomes "entered". Pressing Ready is the
+# actual gameplay entry, so the flag is written here and nowhere else —
+# abandoning this screen (GNB, Where Am I) leaves the level not-entered, still
+# locked in Where Am I, and its Intro still pending on the next Title launch.
 func _on_ready_pressed(lid: String) -> void:
 	if _pulse:
 		_pulse.kill()
 	_ready_btn.disabled = true
-	match lid:
-		"prep":
-			PrepLevelProgress.load_from_save()
-			get_tree().change_scene_to_file("res://prep_game.tscn")
-		"level1":
-			LevelProgress.current_index = 0
-			get_tree().change_scene_to_file("res://game.tscn")
-		"level15":
-			Level15Progress.current_index = 0
-			get_tree().change_scene_to_file("res://game15.tscn")
-		"level2":
-			Level2Progress.current_index = 0
-			get_tree().change_scene_to_file("res://game2.tscn")
+	_enter_level_now(lid)
+
+
+func _enter_level_now(lid: String) -> void:
+	SaveManager.mark_level_entered(lid)
+	# Restore the saved index rather than forcing 0: on the normal first-entry
+	# paths (Coronation hand-off, Title's Case B) the saved index is already 0,
+	# and on any other route this no longer discards the player's position —
+	# which the old per-level `current_index = 0` arms silently did.
+	ReleaseScope.restore_index(lid)
+	get_tree().change_scene_to_file(ReleaseScope.scene_for(lid))

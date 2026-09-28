@@ -333,12 +333,7 @@ func _on_bgm_finished() -> void:
 # since PrepLevelProgress.reset() persists prep_set_index back to 0 the
 # moment Prep completes (prep_transition.gd). No state is reset from here.
 func _is_level_completed(level_id: String) -> bool:
-	match level_id:
-		"prep":    return SaveManager.is_prep_completed()
-		"level1":  return SaveManager.is_level1_completed()
-		"level15": return SaveManager.is_level15_completed()
-		"level2":  return SaveManager.is_level2_completed()
-	return false
+	return ReleaseScope.is_level_completed(level_id)
 
 func _progression_start_index() -> int:
 	# Legacy pre-choice-button saves that explicitly chose the Level 1 path
@@ -356,29 +351,39 @@ func _forward_target_level_id() -> String:
 		var lid : String = order[i]
 		if not ReleaseScope.is_level_released(lid):
 			break
+		if not ReleaseScope.is_level_enterable(lid):
+			# Released but with no scene in this build — a configuration error,
+			# not a player state. Skip it rather than selecting a level Title
+			# cannot enter (that used to fall through _enter_level()'s match and
+			# leave the Title frozen after its exit animation).
+			push_error("ReleaseScope: '%s' is released but has no scene." % lid)
+			continue
 		if not _is_level_completed(lid):
 			return lid
 	return "prep"  # everything currently released is complete — new Prep cycle
 
+# Generic for every level in PROGRESSION_ORDER — no per-level arms.
+#   never entered  -> that level's Intro (Case B: a level newly released in an
+#                     app update is met by its Intro, never by raw gameplay).
+#                     Entry is recorded by the Intro's Ready button, not here,
+#                     so abandoning the Intro leaves the level not-entered.
+#   already entered -> resume at the saved set index (Case A / Case C).
+# Prep keeps its historical behaviour through the same path: its pre-existing
+# path_chosen flag is what _infer_entered_levels() derives "prep entered" from,
+# and set_path_chosen() still fires on that first Intro so Where Am I's
+# show_all and the legacy _progression_start_index() branch are unaffected.
 func _enter_level(level_id: String) -> void:
-	match level_id:
-		"prep":
-			if SaveManager.is_path_chosen():
-				PrepLevelProgress.load_from_save()
-				get_tree().change_scene_to_file("res://prep_game.tscn")
-			else:
-				SaveManager.set_path_chosen()
-				LevelIntroState.level_id = "prep"
-				get_tree().change_scene_to_file("res://level_intro.tscn")
-		"level1":
-			LevelProgress.current_index   = SaveManager.get_level1_set_index()
-			get_tree().change_scene_to_file("res://game.tscn")
-		"level15":
-			Level15Progress.current_index = SaveManager.get_level15_set_index()
-			get_tree().change_scene_to_file("res://game15.tscn")
-		"level2":
-			Level2Progress.current_index  = SaveManager.get_level2_set_index()
-			get_tree().change_scene_to_file("res://game2.tscn")
+	if not ReleaseScope.is_level_enterable(level_id):
+		push_error("Title: '%s' has no scene to enter." % level_id)
+		return
+	if not SaveManager.has_entered_level(level_id):
+		if level_id == "prep":
+			SaveManager.set_path_chosen()
+		LevelIntroState.level_id = level_id
+		get_tree().change_scene_to_file("res://level_intro.tscn")
+		return
+	ReleaseScope.restore_index(level_id)
+	get_tree().change_scene_to_file(ReleaseScope.scene_for(level_id))
 
 # ─── Exit animation + routing ─────────────────────────────────────────────────
 func _animate_out_then_route() -> void:

@@ -62,10 +62,19 @@ static func is_level_completed(level_id: String) -> bool:
 # current_index = 0 for every level but Prep.
 static func restore_index(level_id: String) -> void:
 	match level_id:
-		"prep":    PrepLevelProgress.load_from_save()
-		"level1":  LevelProgress.current_index   = SaveManager.get_level1_set_index()
-		"level15": Level15Progress.current_index = SaveManager.get_level15_set_index()
-		"level2":  Level2Progress.current_index  = SaveManager.get_level2_set_index()
+		"prep":
+			PrepLevelProgress.load_from_save()
+			PrepLevelProgress.current_index = _safe_index(PrepLevelProgress.current_index, PrepLevelProgress.sets.size())
+		"level1":  LevelProgress.current_index   = _safe_index(SaveManager.get_level1_set_index(),   LevelProgress.sets.size())
+		"level15": Level15Progress.current_index = _safe_index(SaveManager.get_level15_set_index(), Level15Progress.sets.size())
+		"level2":  Level2Progress.current_index  = _safe_index(SaveManager.get_level2_set_index(),  Level2Progress.sets.size())
+
+# A saved index outside the level's own set list means the save predates a
+# reset() that now rewinds it, or is otherwise stale — treat it as "start this
+# level from the beginning" rather than indexing past the end of sets[], which
+# would hard-crash the game scene's own _load_rounds().
+static func _safe_index(idx: int, set_count: int) -> int:
+	return idx if idx >= 0 and idx < set_count else 0
 
 
 # True if level_id is within this build's public release scope — i.e. safe

@@ -48,3 +48,7 @@ static func reset() -> void:
 	is_retry      = false
 	active        = false
 	cubes_earned  = 0
+	# Persist the rewind — same reason as LevelProgress.reset(); see the note
+	# there. Prep and Level 1.5 have always done this; Level 1 and Level 2
+	# were the two that did not.
+	SaveManager.set_level2_set_index(0)

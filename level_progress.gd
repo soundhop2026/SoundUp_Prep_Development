@@ -82,3 +82,10 @@ static func reset() -> void:
 	cubes_earned  = 0
 	retry_rounds.clear()
 	is_retry = false
+	# Persist the rewind, exactly as PrepLevelProgress.reset() and
+	# Level15Progress.reset() already do. Without this the saved index stayed
+	# at the last set forever after Level 1 was completed, so any later entry
+	# that restores from the save (Title resume, or the Level Intro's Ready
+	# button since the entry framework made it generic) started the player at
+	# Level 1's final set instead of Set 1.
+	SaveManager.set_level1_set_index(0)

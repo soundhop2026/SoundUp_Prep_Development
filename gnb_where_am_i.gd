@@ -294,52 +294,56 @@ func _sound_quest_entries_for(level_id: String, letter: String, group_index: int
 					Level1SoundQuestState.group_end_index   = r.y,
 			}]
 		"level15":
-			# Level 1.5 Sound Quest (Quests A-F) draws from a fixed word/
-			# phoneme pool spanning the whole level, not a per-Group word
-			# range like Prep/Level 1's — so it isn't really "this Group's"
-			# content. Shown once, under Group A only, rather than repeating
-			# the same 6 cards on every Level 1.5 group screen.
-			if group_index != 0:
-				return []
-			var entry_a : Dictionary = {
-				"label": "★ A", "phonemes": "Sound Quest — bonus mini-game",
-				"key": "level15_soundquest_A", "scene": "res://level15_sound_quest_ab.tscn",
+			# One Quest per Group, matching its own Group's skill — the same
+			# shape Prep and Level 1 use above (a single-element array), and the
+			# same pairing the curriculum already has: Group A's sets teach
+			# initial identification and Quest A drills it, B/final ID, C/initial
+			# isolation, D/final isolation, E/build-the-word, F/sound-count.
+			# Until 2026-09-28 all six cards were emitted under Group A and none
+			# under B-F. That was deliberate — Level 1.5's Quests draw from a
+			# level-wide word pool rather than a per-Group word range like
+			# Prep/Level 1's, so they were judged not to be "this Group's"
+			# content, and the alternative considered was repeating all six on
+			# every Group screen. The 1:1 letter pairing is the option that was
+			# missed: Level 1.5 has exactly 6 Groups and exactly 6 Quests whose
+			# letters already denote the same skills.
+			# Placement only — each card keeps the exact scene and state setup it
+			# had, so gameplay, unlocking, completion routing and the
+			# level15_soundquest_<letter> review-count keys are untouched.
+			var l15_entry : Dictionary = {
+				"label": "★ " + letter, "phonemes": "Sound Quest — bonus mini-game",
+				"key":   "level15_soundquest_" + letter,
 			}
-			entry_a["pfn"] = func():
-				Level15SoundQuestABState.position     = "initial"
-				Level15SoundQuestABState.total_rounds = 32
-			var entry_b : Dictionary = {
-				"label": "★ B", "phonemes": "Sound Quest — bonus mini-game",
-				"key": "level15_soundquest_B", "scene": "res://level15_sound_quest_ab.tscn",
-			}
-			entry_b["pfn"] = func():
-				Level15SoundQuestABState.position     = "final"
-				Level15SoundQuestABState.total_rounds = 40
-			var entry_c : Dictionary = {
-				"label": "★ C", "phonemes": "Sound Quest — bonus mini-game",
-				"key": "level15_soundquest_C", "scene": "res://level15_sound_quest_cd.tscn",
-			}
-			entry_c["pfn"] = func():
-				Level15SoundQuestCDState.position     = "initial"
-				Level15SoundQuestCDState.total_rounds = 56
-			var entry_d : Dictionary = {
-				"label": "★ D", "phonemes": "Sound Quest — bonus mini-game",
-				"key": "level15_soundquest_D", "scene": "res://level15_sound_quest_cd.tscn",
-			}
-			entry_d["pfn"] = func():
-				Level15SoundQuestCDState.position     = "final"
-				Level15SoundQuestCDState.total_rounds = 56
-			var entry_e : Dictionary = {
-				"label": "★ E", "phonemes": "Sound Quest — bonus mini-game",
-				"key": "level15_soundquest_E", "scene": "res://level15_sound_quest_e.tscn",
-			}
-			entry_e["pfn"] = func(): pass
-			var entry_f : Dictionary = {
-				"label": "★ F", "phonemes": "Sound Quest — bonus mini-game",
-				"key": "level15_soundquest_F", "scene": "res://level15_sound_quest_f.tscn",
-			}
-			entry_f["pfn"] = func(): pass
-			return [entry_a, entry_b, entry_c, entry_d, entry_e, entry_f]
+			match letter:
+				"A":
+					l15_entry["scene"] = "res://level15_sound_quest_ab.tscn"
+					l15_entry["pfn"]   = func():
+						Level15SoundQuestABState.position     = "initial"
+						Level15SoundQuestABState.total_rounds = 32
+				"B":
+					l15_entry["scene"] = "res://level15_sound_quest_ab.tscn"
+					l15_entry["pfn"]   = func():
+						Level15SoundQuestABState.position     = "final"
+						Level15SoundQuestABState.total_rounds = 40
+				"C":
+					l15_entry["scene"] = "res://level15_sound_quest_cd.tscn"
+					l15_entry["pfn"]   = func():
+						Level15SoundQuestCDState.position     = "initial"
+						Level15SoundQuestCDState.total_rounds = 56
+				"D":
+					l15_entry["scene"] = "res://level15_sound_quest_cd.tscn"
+					l15_entry["pfn"]   = func():
+						Level15SoundQuestCDState.position     = "final"
+						Level15SoundQuestCDState.total_rounds = 56
+				"E":
+					l15_entry["scene"] = "res://level15_sound_quest_e.tscn"
+					l15_entry["pfn"]   = func(): pass
+				"F":
+					l15_entry["scene"] = "res://level15_sound_quest_f.tscn"
+					l15_entry["pfn"]   = func(): pass
+				_:
+					return []
+			return [l15_entry]
 		_:
 			return []
 

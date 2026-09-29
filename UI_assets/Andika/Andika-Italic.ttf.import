@@ -2,13 +2,13 @@
 
 importer="font_data_dynamic"
 type="FontFile"
-uid="uid://cswg0fjn1yjds"
-path="res://.godot/imported/JetBrainsMono-Regular.ttf-d817b299740fadb2ebd49a6469a5923a.fontdata"
+uid="uid://x68vgnnmnrdo"
+path="res://.godot/imported/Andika-Italic.ttf-89020bcf8fe76c53f5995e2e5edbf9e6.fontdata"
 
 [deps]
 
-source_file="res://UI_assets/JetBrainsMono-Regular.ttf"
-dest_files=["res://.godot/imported/JetBrainsMono-Regular.ttf-d817b299740fadb2ebd49a6469a5923a.fontdata"]
+source_file="res://UI_assets/Andika/Andika-Italic.ttf"
+dest_files=["res://.godot/imported/Andika-Italic.ttf-89020bcf8fe76c53f5995e2e5edbf9e6.fontdata"]
 
 [params]
 

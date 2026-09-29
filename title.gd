@@ -6,22 +6,44 @@ const FACE_COLOR : Color = Color("#F5E6CC")  # PlayButton face — cream beige
 const LOGO_COLOR : Color = Color("#FFB703")  # SOUNDUP + subtitle — amber
 
 const LETTERS       : Array[String] = ["S","O","U","N","D","H","O","P"]
-const LETTER_SIZE   : int           = 86
+const LETTER_SIZE   : int           = 112   # 86 x 1.3 — Schoolbell pass, 2026-09-29
 const SUBTITLE_SIZE : int           = 25
 const LETTER_W      : float         = 64.0
 const LETTER_H      : float         = 88.0
 
-const ARC_CENTER  : Vector2 = Vector2(618.0, 450.0)
+# y 450 -> 410 lifted the arc above the larger Schoolbell letters; 410 -> 435
+# then moved it back down in step with FACE_CENTER_Y (300 -> 325) so the
+# approved gap between the settled arc and the top of the head is preserved
+# exactly while both gain 25px of air above them. Radius and angle span are
+# untouched, so the arc's shape is unchanged — only its vertical origin moves.
+const ARC_CENTER  : Vector2 = Vector2(618.0, 435.0)
 const ARC_RADIUS  : float   = 300.0
-const ARC_MIN_DEG : float   = -36.0
-const ARC_MAX_DEG : float   =  36.0
+# Span widened 72deg -> 84deg (2026-09-29) purely to open up the gaps between
+# letters after the Schoolbell size increase — letters sit further apart along
+# the SAME circle, so ARC_CENTER and ARC_RADIUS are untouched and the curve's
+# shape and apex position are unchanged. Letter spacing +16.7%.
+const ARC_MIN_DEG : float   = -42.0
+const ARC_MAX_DEG : float   =  42.0
 
-const FACE_CENTER_Y : float = 300.0
+const FACE_CENTER_Y : float = 325.0   # 300 -> 325: more air above the head for the idle letters
 const BTN_SCALE     : float = 0.90
+const PB_TEX_SIZE   : Vector2 = Vector2(907.0, 437.0)   # playbutton.png, unscaled
 
 const WORD_TEXTS    : Array[String] = ["Learning", "Sounds"]
 const WORD_W        : Array[float]  = [128.0, 96.0]
-const WORD_X_OFFSET : Array[float]  = [-142.0, -2.0]  # offsets from viewport centre; centred on x=618 (the logo's true visual centre), not 640 — see ARC_CENTER
+# Offsets from viewport centre. The two words are separate Labels, so the gap
+# between them is whatever these offsets leave — it is not a real space
+# character. With Andika at 25pt ('Learning' 101px, 'Sounds' 84px, natural
+# space 6px) the original values left a 39px gap, 6.5x a space, which read as
+# two separate words rather than one phrase.
+# Recomputed again for Andika Bold ('Learning' 108px, 'Sounds' 88px, space
+# 7px): the numbers changed so that the RESULT does not — still exactly one
+# natural space between the words, still centred on x=618, the logo's true
+# visual centre, matching ARC_CENTER and the drawn face's own ink centre, which
+# is ~22px left of the 640 viewport centre. Bold is ~6% wider than Regular, so
+# keeping the old offsets would have narrowed the gap and pushed the phrase
+# right. Andika Bold is the same height as Regular, so nothing moves vertically.
+const WORD_X_OFFSET : Array[float]  = [-123.5, -8.5]
 const WORDS_Y       : float         = 450.0
 
 const FLY_OUT : Array[Vector2] = [
@@ -39,13 +61,17 @@ const FLY_OUT : Array[Vector2] = [
 var _letters : Array[Label] = []
 var _words   : Array[Label] = []
 var _word_x  : Array[float] = []
-var _font    : Font         = null
-var _mono_font : Font       = null
+var _font      : Font       = null   # UIFonts.learning_bold() — the "Learning Sounds" tagline
+var _head_font : Font       = null   # UIFonts.character() — head text only
+var _mono_font : Font       = null   # UIFonts.action()
 var _pressed        : bool         = false
 var _can_press      : bool         = false
-var _letter_landing : Array[bool]  = []
-var _drift_tweens   : Array        = []
-var _sway_tween     : Tween        = null
+var _breathe_tweens : Array        = []   # face only — the letters drift instead
+var _drift_active   : bool         = false  # true while the letters ride the breeze
+var _drift_t        : float        = 0.0    # seconds of idle drift elapsed
+var _drift_damp     : float        = 1.0    # 1 = full breeze, 0 = settled; tweened on tap
+var _final_top_y    : float        = 0.0    # highest point of the settled arc, cached
+var _pb_home        : Vector2      = Vector2.ZERO   # the face's resting position
 var _debug_btn      : Button       = null
 var _gnb_btn        : Button       = null
 var _vp_cx          : float        = 640.0   # true horizontal centre of the viewport
@@ -67,29 +93,44 @@ func _ready() -> void:
 
 	_create_gnb_entry()
 
-	$PlayButton.scale    = Vector2(BTN_SCALE, BTN_SCALE)
-	$PlayButton.position = Vector2(
-		_vp_cx - 907.0 * BTN_SCALE * 0.5,
-		FACE_CENTER_Y - 437.0 * BTN_SCALE * 0.5
-	)
+	# Scale the face about its own centre, not its top-left corner, so the idle
+	# breathing below is position-neutral. A Control renders its local origin at
+	# position + pivot_offset * (1 - scale), so moving the pivot while scale is
+	# already BTN_SCALE would shift the face down-right by pivot * 0.1 — the
+	# subtraction below cancels exactly that, leaving the face where it has
+	# always been.
+	$PlayButton.texture_click_mask = _build_face_click_mask()
+	$PlayButton.pivot_offset = PB_TEX_SIZE * 0.5
+	$PlayButton.scale        = Vector2(BTN_SCALE, BTN_SCALE)
+	_pb_home = Vector2(
+		_vp_cx - PB_TEX_SIZE.x * BTN_SCALE * 0.5,
+		FACE_CENTER_Y - PB_TEX_SIZE.y * BTN_SCALE * 0.5
+	) - PB_TEX_SIZE * 0.5 * (1.0 - BTN_SCALE)
+	$PlayButton.position = _pb_home
 	_apply_shader($PlayButton, FACE_COLOR)
 	$PlayButton.pressed.connect(_on_play_pressed)
 
 	$BGMPlayer.finished.connect(_on_bgm_finished)
 
-	var font_path : String = "res://UI_assets/210 연필스케치R.ttf"
-	if ResourceLoader.exists(font_path):
-		_font = load(font_path)
+	# Schoolbell is the character / brand accent face and is used for the
+	# head text ONLY — the letter arc sitting on the PlayButton's head. The
+	# "Learning Sounds" subtitle below the face is deliberately left on the
+	# original face pending a decision; it is not head text.
+	_head_font = UIFonts.character()
 
-	var mono_font_path : String = "res://UI_assets/JetBrainsMono-Regular.ttf"
-	if ResourceLoader.exists(mono_font_path):
-		_mono_font = load(mono_font_path)
+	# The tagline is learning/navigation copy, so it takes Andika — the last
+	# thing on this screen still carrying the legacy face.
+	_font = UIFonts.learning_bold()
 
-	for _i in range(LETTERS.size()):
-		_letter_landing.append(false)
-		_drift_tweens.append(null)
+	# Was a hardcoded root-level JetBrains Mono path, which the font
+	# reorganisation moved into its own family folder — the old path silently
+	# resolved to null and this label fell back to the engine default.
+	_mono_font = UIFonts.action()
 
 	_create_letters()
+	_final_top_y = _letter_final_pos(0).y
+	for i in range(LETTERS.size()):
+		_final_top_y = minf(_final_top_y, _letter_final_pos(i).y)
 	_create_words()
 	_create_copyright_label()
 	_create_debug_menu_button()
@@ -135,6 +176,42 @@ func _create_debug_menu_button() -> void:
 func _on_debug_menu_pressed() -> void:
 	get_tree().change_scene_to_file("res://debug_menu.tscn")
 
+# playbutton.png is 907x437, but the drawn face only occupies x 27%-68% and
+# y 20%-80% of that rect — so by default a TextureButton treats a wide band of
+# empty purple either side of the face as clickable, and Play fires on taps
+# that never touched the character. That was the false positive.
+#
+# An alpha mask is NOT the fix: the art is line work, only 3.9% of its pixels
+# are opaque, and the face's interior is fully transparent (the purple is the
+# background showing through). create_from_image_alpha() would leave only the
+# pencil strokes tappable, which is far worse for a child.
+#
+# Instead: a filled ellipse inscribed in the drawn face's own ink bounding box,
+# so the whole visible face is tappable and nothing outside it is. Built once,
+# row by row via set_bit_rect (263 calls, not 396k per-pixel writes).
+const FACE_INK_MIN : Vector2 = Vector2(245.0,  88.0)   # measured from the texture's alpha
+const FACE_INK_MAX : Vector2 = Vector2(615.0, 350.0)
+const FACE_HIT_PAD : float   = 8.0    # slightly forgiving at the very edge
+
+func _build_face_click_mask() -> BitMap:
+	var bm := BitMap.new()
+	bm.create(Vector2i(int(PB_TEX_SIZE.x), int(PB_TEX_SIZE.y)))
+	var c  : Vector2 = (FACE_INK_MIN + FACE_INK_MAX) * 0.5
+	var r  : Vector2 = (FACE_INK_MAX - FACE_INK_MIN) * 0.5 + Vector2.ONE * FACE_HIT_PAD
+	var y0 : int = int(maxf(c.y - r.y, 0.0))
+	var y1 : int = int(minf(c.y + r.y, PB_TEX_SIZE.y - 1.0))
+	for y in range(y0, y1 + 1):
+		var dy : float = (float(y) - c.y) / r.y
+		if absf(dy) > 1.0:
+			continue
+		var dx : float = r.x * sqrt(1.0 - dy * dy)
+		var x0 : int = int(maxf(c.x - dx, 0.0))
+		var w  : int = int(minf(dx * 2.0, PB_TEX_SIZE.x - float(x0)))
+		if w > 0:
+			bm.set_bit_rect(Rect2i(x0, y, w, 1), true)
+	return bm
+
+
 func _apply_shader(node: CanvasItem, color: Color) -> void:
 	var shader := Shader.new()
 	shader.code = """
@@ -176,8 +253,8 @@ func _create_letters() -> void:
 		lbl.rotation_degrees     = _letter_final_rot(i)
 		lbl.modulate.a           = 0.0
 		lbl.z_index              = 3
-		if _font:
-			lbl.add_theme_font_override("font", _font)
+		if _head_font:
+			lbl.add_theme_font_override("font", _head_font)
 		lbl.add_theme_font_size_override("font_size", LETTER_SIZE)
 		lbl.add_theme_color_override("font_color", LOGO_COLOR)
 		add_child(lbl)
@@ -201,83 +278,179 @@ func _create_words() -> void:
 		_words.append(lbl)
 
 # ─── Birds-flocking drift ─────────────────────────────────────────────────────
-func _drift_loop(i: int) -> void:
-	while not _letter_landing[i]:
-		var target_pos := Vector2(randf_range(60.0, 1220.0), randf_range(40.0, 360.0))
-		var target_rot : float = randf_range(-18.0, 18.0)
-		var duration   : float = randf_range(1.1, 2.0)
-		_drift_tweens[i] = create_tween()
-		_drift_tweens[i].set_parallel(true)
-		_drift_tweens[i].tween_property(_letters[i], "position", target_pos, duration) \
-			.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
-		_drift_tweens[i].tween_property(_letters[i], "rotation_degrees", target_rot, duration) \
-			.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
-		await get_tree().create_timer(duration).timeout
-
-func _land_letter(i: int) -> void:
-	_letter_landing[i] = true
-	if _drift_tweens[i] != null:
-		_drift_tweens[i].kill()
-	var t := create_tween()
-	t.set_parallel(true)
-	t.tween_property(_letters[i], "position", _letter_final_pos(i), 0.85) \
-		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
-	t.tween_property(_letters[i], "rotation_degrees", _letter_final_rot(i), 0.85) \
-		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
-
 # ─── Intro animation ──────────────────────────────────────────────────────────
+# The Title opens straight into its idle state: the letters fade in already
+# near their own arc anchors and immediately ride the breeze, and the face
+# begins breathing. No long automatic overture — the button is live at
+# ~0.8s so a child never waits to touch it. The flocking-and-settling moment
+# now belongs to the tap (see _settle_title), where the child causes it.
 func _animate_in() -> void:
-	for i in range(LETTERS.size()):
-		_letter_landing[i]           = false
-		_letters[i].position         = Vector2(randf_range(60.0, 1220.0), randf_range(40.0, 360.0))
-		_letters[i].rotation_degrees = randf_range(-20.0, 20.0)
+	for i in range(_letters.size()):
+		_letters[i].position         = _idle_anchor(i)
+		_letters[i].rotation_degrees = _letter_final_rot(i)
 		_letters[i].modulate.a       = 0.0
+	# "Learning Sounds" stays hidden (alpha 0 from _create_words) until the tap.
 
-	await get_tree().create_timer(0.3).timeout
+	_drift_t      = 0.0
+	_drift_damp   = 1.0
+	_drift_active = true
+	_start_sway()
 
-	for i in range(LETTERS.size()):
+	for i in range(_letters.size()):
 		var t := create_tween()
 		t.tween_property(_letters[i], "modulate:a", 1.0, 0.5)
 
-	await get_tree().create_timer(0.7).timeout
+	await get_tree().create_timer(0.8).timeout
+	_can_press = true
 
-	for i in range(LETTERS.size()):
-		_drift_loop(i)
+# ─── Idle motion: eight letters on a breeze, one face breathing ─────────────
+# Each letter traces a slow Lissajous loop around its own anchor: two sine
+# oscillations, X and Y, on DIFFERENT periods. That difference is what makes it
+# read as air rather than sway — a single sine per letter is a visible
+# left-right slide, and a shared period with staggered phase is the sequential
+# march we do not want. Every letter has its own X period, Y period, rotation
+# period and three phases, all spread by an irrational step, so no two letters
+# and no two axes ever share a cadence and nothing repeats on a visible cycle.
+#
+# Driven from _process() rather than tweens: a Lissajous curve is continuous,
+# and chaining tweens to approximate one produces audible corners at the joins.
+# It also gives a single amplitude multiplier (_drift_damp) that the tap can
+# ease to zero, which is what makes the letters glide to a stop instead of
+# snapping.
+const DRIFT_X_AMP   : float = 13.0   # each letter stays in a ~26x20 box around its
+const DRIFT_Y_AMP   : float = 10.0   # anchor; with ~94px idle gaps two neighbours can
+                                      # close to ~68px at worst, wider than any glyph
+const DRIFT_ROT_AMP : float = 4.0    # degrees
 
-	await get_tree().create_timer(3.0).timeout
+const DRIFT_X_PERIOD : Array[float] = [3.10, 4.09, 3.48, 4.47, 3.86, 3.24, 4.23, 3.62]
+const DRIFT_Y_PERIOD : Array[float] = [2.85, 3.78, 3.21, 2.64, 3.56, 2.99, 2.42, 3.34]
+const DRIFT_R_PERIOD : Array[float] = [3.89, 3.36, 4.22, 3.69, 3.15, 4.02, 3.49, 2.95]
+const DRIFT_X_PHASE  : Array[float] = [0.82, 4.70, 2.30, 6.18, 3.78, 1.38, 5.26, 2.87]
+const DRIFT_Y_PHASE  : Array[float] = [3.64, 1.24, 5.12, 2.73, 0.33, 4.21, 1.81, 5.69]
+const DRIFT_R_PHASE  : Array[float] = [1.82, 5.70, 3.30, 0.90, 4.79, 2.39, 6.27, 3.87]
 
-	for i in range(LETTERS.size()):
-		_land_letter(i)
-		await get_tree().create_timer(0.65).timeout
+# IDLE anchors are a deliberately DIFFERENT set of positions from the final
+# arc: the word floats wider and higher while adrift, then the tap draws it
+# inward and downward into the tighter approved arc. The first pass had this
+# backwards (idle sat 26px BELOW final), which is why the letters crowded the
+# head and each other.
+#   spread — each letter's horizontal distance from the logo centre, x1.5, so
+#            idle gaps are ~94px against the final arc's ~63px
+#   lift   — the whole idle word sits this far above where it lands
+#   flatten — the idle word also sits FLATTER than the final arc. Keeping the
+#             arc's full 75px curve made the idle band as tall as the entire
+#             space above the head, so the end letters grazed the head top
+#             while the middle ones touched the screen edge; there was no lift
+#             that satisfied both. At 0.45 the idle word occupies ~34px of
+#             vertical range instead of 75, clearing both. The tap then curves
+#             them back down into the approved arc, which reads as a gather.
+const IDLE_SPREAD  : float = 1.50
+const IDLE_LIFT    : float = 60.0
+const IDLE_FLATTEN : float = 0.45
 
-	await get_tree().create_timer(0.85).timeout
+# The face keeps the approved idle behaviour: stationary, breathing in place.
+const FACE_BREATHE_SCALE  : float = 1.012   # 1.2%
+const FACE_BREATHE_PERIOD : float = 3.18
+const FACE_BREATHE_PHASE  : float = 0.45
 
+# ─── Tap settle timing ──────────────────────────────────────────────────────
+const SETTLE_DAMP_DUR   : float = 0.25   # breeze eases to nothing
+const SETTLE_RISE_DUR   : float = 0.90   # each letter into its arc slot
+const SETTLE_STAGGER    : float = 0.07   # S -> P
+const SETTLE_STILL_DUR  : float = 0.20   # beat of stillness once the arc is formed
+const SUBTITLE_RISE_DUR : float = 0.50
+const TITLE_HOLD_DUR    : float = 0.60   # whole logo seen complete before it leaves
+
+
+func _idle_anchor(i: int) -> Vector2:
+	# Spread about the same x the arc is built around, so the idle word stays
+	# centred on the face while opening up; lift and flatten it vertically.
+	var pivot_x : float = (_vp_cx - 22.0) - LETTER_W * 0.5
+	var f : Vector2 = _letter_final_pos(i)
+	return Vector2(
+		pivot_x + (f.x - pivot_x) * IDLE_SPREAD,
+		(_final_top_y - IDLE_LIFT) + (f.y - _final_top_y) * IDLE_FLATTEN)
+
+
+func _process(delta: float) -> void:
+	if not _drift_active:
+		return
+	_drift_t += delta
+	for i in range(_letters.size()):
+		var a : Vector2 = _idle_anchor(i)
+		var dx : float = sin(TAU * _drift_t / DRIFT_X_PERIOD[i] + DRIFT_X_PHASE[i]) * DRIFT_X_AMP
+		var dy : float = sin(TAU * _drift_t / DRIFT_Y_PERIOD[i] + DRIFT_Y_PHASE[i]) * DRIFT_Y_AMP
+		var dr : float = sin(TAU * _drift_t / DRIFT_R_PERIOD[i] + DRIFT_R_PHASE[i]) * DRIFT_ROT_AMP
+		_letters[i].position         = a + Vector2(dx, dy) * _drift_damp
+		_letters[i].rotation_degrees = _letter_final_rot(i) + dr * _drift_damp
+
+
+func _start_sway() -> void:
+	# Idle-motion on switch. Letters ride _process(); only the face breathes.
+	for old_t in _breathe_tweens:
+		if old_t != null and old_t.is_valid():
+			old_t.kill()
+	_breathe_tweens.clear()
+	var base : Vector2 = Vector2.ONE * BTN_SCALE
+	$PlayButton.scale = base
+	var half : float = FACE_BREATHE_PERIOD * 0.5
+	var t := create_tween().set_loops()
+	t.tween_interval(FACE_BREATHE_PHASE)
+	t.tween_property($PlayButton, "scale", base * FACE_BREATHE_SCALE, half) \
+		.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	t.tween_property($PlayButton, "scale", base, half) \
+		.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	_breathe_tweens.append(t)
+
+
+func _stop_idle_motion() -> void:
+	_drift_active = false
+	for t in _breathe_tweens:
+		if t != null and t.is_valid():
+			t.kill()
+	_breathe_tweens.clear()
+	for lbl in _letters:
+		lbl.scale = Vector2.ONE
+	$PlayButton.scale    = Vector2(BTN_SCALE, BTN_SCALE)
+	$PlayButton.position = _pb_home
+
+
+# Tap response: the breeze dies, the letters rise into the arc, the subtitle
+# arrives, the finished logo is held. Then the existing exit/route runs.
+func _settle_title() -> void:
+	# 1. Ease the breeze to nothing — letters glide to their anchors rather than
+	#    stopping dead wherever the sine happened to be.
+	var damp := create_tween()
+	damp.tween_property(self, "_drift_damp", 0.0, SETTLE_DAMP_DUR) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
+	await damp.finished
+	_drift_active = false
+
+	# 2. Rise into the approved arc, S -> P.
+	for i in range(_letters.size()):
+		var t := create_tween()
+		t.set_parallel(true)
+		t.tween_property(_letters[i], "position", _letter_final_pos(i), SETTLE_RISE_DUR) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+		t.tween_property(_letters[i], "rotation_degrees", _letter_final_rot(i), SETTLE_RISE_DUR) \
+			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+		await get_tree().create_timer(SETTLE_STAGGER).timeout
+	await get_tree().create_timer(SETTLE_RISE_DUR - SETTLE_STAGGER).timeout
+
+	# 3. A beat of stillness so the arc registers as arrived.
+	await get_tree().create_timer(SETTLE_STILL_DUR).timeout
+
+	# 4. "Learning Sounds" — hidden for the whole idle state until now.
 	for i in range(WORD_TEXTS.size()):
 		_words[i].position   = Vector2(_word_x[i], 830.0)
 		_words[i].modulate.a = 1.0
 		var t := create_tween()
-		t.tween_property(_words[i], "position:y", WORDS_Y, 0.50) \
+		t.tween_property(_words[i], "position:y", WORDS_Y, SUBTITLE_RISE_DUR) \
 			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
-		await get_tree().create_timer(1.0).timeout
+	await get_tree().create_timer(SUBTITLE_RISE_DUR).timeout
 
-	await get_tree().create_timer(3.0).timeout
-	_start_sway()
-	_can_press = true
-
-# ─── Idle sway ────────────────────────────────────────────────────────────────
-func _start_sway() -> void:
-	var base_x : float = $PlayButton.position.x
-	_sway_tween = create_tween().set_loops()
-	_sway_tween.tween_property($PlayButton, "position:x", base_x + 12.0, 0.8) \
-		.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
-	_sway_tween.tween_property($PlayButton, "position:x", base_x - 12.0, 0.8) \
-		.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
-
-func _stop_sway() -> void:
-	if _sway_tween != null:
-		_sway_tween.kill()
-		_sway_tween = null
-	$PlayButton.position.x = _vp_cx - 907.0 * BTN_SCALE * 0.5
+	# 5. Hold the completed title.
+	await get_tree().create_timer(TITLE_HOLD_DUR).timeout
 
 func _create_gnb_entry() -> void:
 	const BTN_W  : float = 72.0
@@ -318,7 +491,13 @@ func _on_play_pressed() -> void:
 	if _pressed or not _can_press:
 		return
 	_pressed = true
+	# Disconnected immediately, and _pressed guards re-entry, so the tap sway
+	# below can never be triggered twice.
 	$PlayButton.pressed.disconnect(_on_play_pressed)
+	# Idle -> settled title -> existing exit/route. _settle_title() only
+	# presents; it never touches progression. The line below it is the original
+	# call, unchanged, and everything downstream of it is untouched.
+	await _settle_title()
 	_animate_out_then_route()
 
 # ─── BGM looping ──────────────────────────────────────────────────────────────
@@ -387,7 +566,7 @@ func _enter_level(level_id: String) -> void:
 
 # ─── Exit animation + routing ─────────────────────────────────────────────────
 func _animate_out_then_route() -> void:
-	_stop_sway()
+	_stop_idle_motion()
 
 	var bgm_fade := create_tween()
 	bgm_fade.tween_property($BGMPlayer, "volume_db", -40.0, 1.0)

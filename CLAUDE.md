@@ -371,6 +371,7 @@ void fragment() {
 8. **Distractors must be phonemically different from the target.** See [Phoneme-Based Distractor Rule](#phoneme-based-distractor-rule-locked) — never pair a target and a distractor that share the same actual sound, even if their spelling differs.
 9. **Never auto-advance past the highest publicly released Level.** After any Level's Coronation, the game continues into the next Level only if it's within the current build's release scope — otherwise the player returns to Title instead. See [Release Scope Gate](#release-scope-gate-locked) — this is a generic framework rule, not a one-off patch for any specific Level.
 10. **A Set Transition always matches the background color of the gameplay it belongs to.** See [Background Color Rule](#background-color-rule-locked) — main gameplay and Sound Quest are two separate palettes, and a Sound Quest Set Transition follows its Sound Quest Set's color, never the parent Level's main color.
+11. **Typography is assigned by semantic role, never by screen.** Schoolbell = character/logo text · Andika Regular = information content · Andika Bold = information structure · JetBrains Mono Regular/Bold = action/transaction. The SOUNDHOP wordmark in the PlayButton logo system is Schoolbell text; existing lettering artwork is not automatically protected. Never synthesize bold; never do a repository-wide font replacement. Full rules: [`SOUNDHOP_UI_FONT_FRAMEWORK.md`](SOUNDHOP_UI_FONT_FRAMEWORK.md); implementation: `ui_fonts.gd`.
 
 ---
 

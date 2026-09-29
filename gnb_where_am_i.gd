@@ -9,7 +9,6 @@ const WHITE      : Color = Color("#FFFFFF")
 const GRAY_H     : Color = Color("#AAAAAA")   # locked level tile
 const BROWN      : Color = Color("#7A5A2A")   # phoneme / secondary text
 
-const FONT_PATH  : String = "res://UI_assets/210 연필스케치R.ttf"
 
 # ─── Layout ───────────────────────────────────────────────────────────────────
 # Three screens (Levels -> Set Groups -> Set detail), each a full-content swap
@@ -70,8 +69,7 @@ signal close_requested
 # ─────────────────────────────────────────────────────────────────────────────
 func _ready() -> void:
 	SceneBackground.set_color(CREAM)
-	if ResourceLoader.exists(FONT_PATH):
-		_font = load(FONT_PATH)
+	_font = UIFonts.learning()   # learning / navigation role — whole GNB system
 
 	_build_level_meta()
 

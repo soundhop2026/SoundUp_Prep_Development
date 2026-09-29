@@ -50,7 +50,6 @@ extends Node2D
 #   cancel  -> return to this same scene, no progress lost
 # ─────────────────────────────────────────────────────────────────────────────
 
-const FONT_PATH : String = "res://UI_assets/210 연필스케치R.ttf"
 
 const BG_COLOR    : Color = Color("#FDF0E4")
 const PURPLE      : Color = Color("#4B0082")
@@ -72,7 +71,14 @@ const PRIVACY_POLICY_URL : String = "https://www.getsoundhop.com/privacy-policy"
 const IOS_TERMS_OF_USE_URL     : String = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
 const ANDROID_TERMS_OF_USE_URL : String = "https://www.getsoundhop.com/terms-of-service"
 
-var _font : Font = null
+# Action / transaction role. The RichTextLabel below drives its own
+# normal/bold hierarchy from these two real files — never a synthesized bold.
+var _font      : Font = null   # UIFonts.action()
+var _font_bold : Font = null   # UIFonts.action_bold()
+# The product name is information, not a transaction control, so it carries the
+# learning face here — the one Andika element on an otherwise JetBrains Mono
+# screen, matching how "SoundHop" reads everywhere else in the UI.
+var _font_name : Font = null   # UIFonts.learning_bold()
 var _billing : BillingClient = null
 var _billing_ready : bool = false   # true once the current platform's product info is confirmed loaded
 
@@ -89,8 +95,9 @@ func _ios_product_id(plan_id: String) -> String:
 
 
 func _ready() -> void:
-	if ResourceLoader.exists(FONT_PATH):
-		_font = load(FONT_PATH)
+	_font      = UIFonts.action()
+	_font_bold = UIFonts.action_bold()
+	_font_name = UIFonts.learning_bold()
 	SceneBackground.set_color(BG_COLOR)
 	_init_billing()
 
@@ -101,8 +108,10 @@ func _ready() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	_make_label("SoundHop", Vector2(0, 16), Vector2(1280, 56),
+	var name_lbl : Label = _make_label("SoundHop", Vector2(0, 16), Vector2(1280, 56),
 		40, PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
+	if _font_name:
+		name_lbl.add_theme_font_override("font", _font_name)
 	_make_label("Choose Your Plan", Vector2(0, 76), Vector2(1280, 36),
 		26, PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
 
@@ -160,7 +169,8 @@ func _price_label(card: Panel, price: String, suffix: String, y: float) -> void:
 	rtl.mouse_filter    = Control.MOUSE_FILTER_IGNORE
 	if _font:
 		rtl.add_theme_font_override("normal_font", _font)
-		rtl.add_theme_font_override("bold_font", _font)
+	if _font_bold:
+		rtl.add_theme_font_override("bold_font", _font_bold)
 	rtl.add_theme_color_override("default_color", PURPLE)
 	rtl.text = "[center][font_size=30]%s[/font_size][font_size=15]%s[/font_size][/center]" % [price, suffix]
 	card.add_child(rtl)

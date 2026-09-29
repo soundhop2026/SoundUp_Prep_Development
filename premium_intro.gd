@@ -12,7 +12,6 @@ extends Node2D
 # Structure/UX pass — copy is still placeholder.
 # ─────────────────────────────────────────────────────────────────────────────
 
-const FONT_PATH  : String = "res://UI_assets/210 연필스케치R.ttf"
 const FACE_PATH  : String = "res://UI_assets/playbutton.png"
 const FILL_PATH  : String = "res://UI_assets/game 1_parent gate_playbutton.png"
 
@@ -42,7 +41,14 @@ const HOVER_SCALE_LO  : float = 0.96
 const HOVER_SCALE_HI  : float = 1.04
 const HOVER_HALF_DUR  : float = 0.9   # slightly stronger/quicker than idle breathing
 
-var _font       : Font   = null
+# Parent Gate carries both roles. Its headings and the sentence explaining
+# where the child has got to are learning/information copy (Andika); the two
+# things the parent can act on — the hold instruction and the Not Now button —
+# are action/transaction (JetBrains Mono), as is the copyright line.
+var _font       : Font   = null   # UIFonts.action()
+var _font_bold  : Font   = null   # UIFonts.action_bold()
+var _font_learn : Font   = null   # UIFonts.learning()
+var _font_learn_bold : Font = null   # UIFonts.learning_bold() — product name only
 var _face       : TextureButton = null
 var _fill       : TextureRect   = null
 var _fill_atlas : AtlasTexture  = null
@@ -54,8 +60,10 @@ var _idle_tween : Tween  = null   # breathing or hover — keeps running through
 
 
 func _ready() -> void:
-	if ResourceLoader.exists(FONT_PATH):
-		_font = load(FONT_PATH)
+	_font       = UIFonts.action()
+	_font_bold  = UIFonts.action_bold()
+	_font_learn = UIFonts.learning()
+	_font_learn_bold = UIFonts.learning_bold()
 	SceneBackground.set_color(BG_COLOR)
 
 	var bg := ColorRect.new()
@@ -66,7 +74,7 @@ func _ready() -> void:
 	add_child(bg)
 
 	_make_label("SoundHop", Vector2(0, 20), Vector2(1280, 64),
-		48, PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
+		48, PURPLE, HORIZONTAL_ALIGNMENT_CENTER, Face.LEARNING_BOLD)
 	_make_label("Let's Keep Hopping!", Vector2(0, 90), Vector2(1280, 50),
 		34, PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
 	_make_label("You've completed the free learning activities", Vector2(0, 150), Vector2(1280, 30),
@@ -75,7 +83,7 @@ func _ready() -> void:
 	_build_face()
 
 	_instruction = _make_label("Press and hold to continue", Vector2(0, 440), Vector2(1280, 32),
-		20, PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
+		20, PURPLE, HORIZONTAL_ALIGNMENT_CENTER, Face.ACTION_BOLD)
 
 	_build_not_now_btn()
 	_build_copyright_label()
@@ -284,8 +292,15 @@ func _build_copyright_label() -> void:
 	add_child(lbl)
 
 
+# Which role a line belongs to, rather than a bare bold flag — the screen
+# genuinely mixes two. LEARNING is the default because most of the copy here is
+# information; ACTION_BOLD is used once, on the instruction telling the parent
+# what to physically do.
+enum Face { LEARNING, LEARNING_BOLD, ACTION, ACTION_BOLD }
+
 func _make_label(text: String, pos: Vector2, sz: Vector2, fsize: int, col: Color,
-		halign: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+		halign: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT,
+		face_role: Face = Face.LEARNING) -> Label:
 	var lbl := Label.new()
 	lbl.text                 = text
 	lbl.position             = pos
@@ -295,7 +310,14 @@ func _make_label(text: String, pos: Vector2, sz: Vector2, fsize: int, col: Color
 	lbl.autowrap_mode        = TextServer.AUTOWRAP_WORD
 	lbl.add_theme_font_size_override("font_size", fsize)
 	lbl.add_theme_color_override("font_color", col)
-	if _font:
-		lbl.add_theme_font_override("font", _font)
+	var face : Font = _font_learn
+	if face_role == Face.LEARNING_BOLD:
+		face = _font_learn_bold
+	elif face_role == Face.ACTION:
+		face = _font
+	elif face_role == Face.ACTION_BOLD:
+		face = _font_bold
+	if face:
+		lbl.add_theme_font_override("font", face)
 	add_child(lbl)
 	return lbl

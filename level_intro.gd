@@ -1,13 +1,22 @@
 extends Node2D
 
-const FONT_PATH : String = "res://UI_assets/210 연필스케치R.ttf"
 
 # Layout
 var COL_L_X  : float = 50.0    # mobile-alignment fix — recentered in _ready(), was a const
 var COL_R_X  : float = 666.0   # mobile-alignment fix — recentered in _ready(), was a const
 const COL_W    : float = 564.0
 const TOP_Y    : float = 96.0
-const LINE_H   : float = 27.0
+const LINE_H   : float = 27.0    # header row height / header-to-body step
+
+# Andika sets its own line height (30px at BODY_SIZE 18), and Godot adds the
+# theme's default line_spacing of 3 on top — so multi-line body blocks actually
+# rendered at ~33px per line while the layout below only advanced 27, which is
+# what made the blocks read loose. A negative line_spacing tightens the rendered
+# lines; BODY_LINE_H is the matching layout advance so a block's box and its
+# text agree. Major section gaps (the explicit +12 / +14 / +20 / +30 below) are
+# deliberately untouched — the looseness was inside the blocks, not between them.
+const BODY_LINE_SPACING : int   = -6
+const BODY_LINE_H       : float = 24.0
 
 # Font sizes
 const TITLE_SIZE  : int = 36
@@ -73,7 +82,11 @@ const LEVEL_DATA : Dictionary = {
 	},
 }
 
-var _font      : Font   = null
+# Two faces on this screen, per the shared font rules: Andika carries the
+# learning/information copy, JetBrains Mono carries the Ready to Play action.
+var _font        : Font = null   # UIFonts.learning()      — body / explanatory copy
+var _font_bold   : Font = null   # UIFonts.learning_bold() — headings
+var _action_font : Font = null   # UIFonts.action()        — Ready to Play
 var _ready_btn : Button = null
 var _pulse     : Tween  = null
 
@@ -81,8 +94,9 @@ func _ready() -> void:
 	var _center_offset : float = SceneBackground.center_offset()
 	COL_L_X += _center_offset
 	COL_R_X += _center_offset
-	if ResourceLoader.exists(FONT_PATH):
-		_font = load(FONT_PATH)
+	_font        = UIFonts.learning()
+	_font_bold   = UIFonts.learning_bold()
+	_action_font = UIFonts.action()
 
 	var lid : String = LevelIntroState.level_id
 	# A level that is enterable but has no Intro copy must not silently render
@@ -112,7 +126,7 @@ func _ready() -> void:
 	add_child(bg)
 
 	# Title — centered
-	_make_label(d["title"], Vector2(0, 22), Vector2(SceneBackground.viewport_size().x, 52),
+	_make_label_bold_title(d["title"], Vector2(0, 22), Vector2(SceneBackground.viewport_size().x, 52),
 		TITLE_SIZE, txt_col, HORIZONTAL_ALIGNMENT_CENTER)
 
 	# Thin divider
@@ -130,7 +144,7 @@ func _ready() -> void:
 	y = _section("Why it matters",    d["matters"], COL_L_X, y, txt_col)
 	y += 12.0
 	_make_label(d["sets_hdr"], Vector2(COL_L_X, y), Vector2(COL_W, LINE_H),
-		HEADER_SIZE, txt_col)
+		HEADER_SIZE, txt_col, HORIZONTAL_ALIGNMENT_LEFT, true)
 	y += LINE_H
 	_make_label(d["sets"], Vector2(COL_L_X + 20, y), Vector2(COL_W, 220),
 		BODY_SIZE, txt_col)
@@ -138,18 +152,16 @@ func _ready() -> void:
 	# ── Right column ─────────────────────────────────────────
 	y = TOP_Y
 	_make_label(d["how_hdr"], Vector2(COL_R_X, y), Vector2(COL_W, LINE_H),
-		HEADER_SIZE, txt_col)
+		HEADER_SIZE, txt_col, HORIZONTAL_ALIGNMENT_LEFT, true)
 	y += LINE_H
 	var how_lines : int = d["how"].count("\n") + 1
 	_make_label(d["how"], Vector2(COL_R_X + 20, y), Vector2(COL_W, 140),
 		BODY_SIZE, txt_col)
-	y += how_lines * LINE_H + 30.0
+	y += how_lines * BODY_LINE_H + 30.0
 
-	_make_label(d["rc"], Vector2(COL_R_X, y), Vector2(COL_W, LINE_H + 6),
-		BODY_SIZE, txt_col)
+	_make_split_label(d["rc"], Vector2(COL_R_X, y), Vector2(COL_W, LINE_H + 6), txt_col)
 	y += LINE_H + 14.0
-	_make_label(d["sc"], Vector2(COL_R_X, y), Vector2(COL_W, LINE_H + 6),
-		BODY_SIZE, txt_col)
+	_make_split_label(d["sc"], Vector2(COL_R_X, y), Vector2(COL_W, LINE_H + 6), txt_col)
 	y += LINE_H + 14.0
 
 	if d.has("bonus_hdr"):
@@ -160,16 +172,45 @@ func _ready() -> void:
 	_build_ready_btn(txt_col, bg_col, lid)
 
 
-func _section(header: String, body: String, x: float, y: float, col: Color) -> float:
-	_make_label(header, Vector2(x, y), Vector2(COL_W, LINE_H), HEADER_SIZE, col)
-	var lines : int = body.count("\n") + 1
-	_make_label(body, Vector2(x + 20, y + LINE_H), Vector2(COL_W, lines * LINE_H + 8),
+# The main Level title is the top of the information hierarchy.
+func _make_label_bold_title(text: String, pos: Vector2, sz: Vector2, fsize: int,
+		col: Color, halign: HorizontalAlignment) -> void:
+	_make_label(text, pos, sz, fsize, col, halign, true)
+
+
+# "Round cubes  —  fade away one by one as you play." is one string carrying two
+# roles: a heading and its explanation. A Label has a single font, so this draws
+# it as two Labels laid end to end — the heading in Andika Bold, the remainder
+# in Andika Regular — measuring the bold part to place the second. Same font
+# size, same y, same colour: only the weight differs across the dash.
+const SPLIT_ON : String = "  —  "
+
+func _make_split_label(text: String, pos: Vector2, sz: Vector2, col: Color) -> void:
+	var cut : int = text.find(SPLIT_ON)
+	if cut == -1 or _font_bold == null:
+		_make_label(text, pos, sz, BODY_SIZE, col)   # no heading to split off
+		return
+	var head : String = text.substr(0, cut)
+	var rest : String = text.substr(cut)             # keeps the dash with the body
+	_make_label(head, pos, Vector2(sz.x, sz.y), BODY_SIZE, col,
+		HORIZONTAL_ALIGNMENT_LEFT, true)
+	var head_w : float = _font_bold.get_string_size(head, HORIZONTAL_ALIGNMENT_LEFT,
+		-1, BODY_SIZE).x
+	_make_label(rest, pos + Vector2(head_w, 0.0), Vector2(sz.x - head_w, sz.y),
 		BODY_SIZE, col)
-	return y + LINE_H + lines * LINE_H
+
+
+func _section(header: String, body: String, x: float, y: float, col: Color) -> float:
+	_make_label(header, Vector2(x, y), Vector2(COL_W, LINE_H), HEADER_SIZE, col,
+		HORIZONTAL_ALIGNMENT_LEFT, true)
+	var lines : int = body.count("\n") + 1
+	_make_label(body, Vector2(x + 20, y + LINE_H), Vector2(COL_W, lines * BODY_LINE_H + 8),
+		BODY_SIZE, col)
+	return y + LINE_H + lines * BODY_LINE_H
 
 
 func _make_label(text: String, pos: Vector2, sz: Vector2, fsize: int, col: Color,
-		halign: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> void:
+		halign: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT, bold: bool = false) -> void:
 	var lbl := Label.new()
 	lbl.text                 = text
 	lbl.position             = pos
@@ -177,9 +218,12 @@ func _make_label(text: String, pos: Vector2, sz: Vector2, fsize: int, col: Color
 	lbl.horizontal_alignment = halign
 	lbl.autowrap_mode        = TextServer.AUTOWRAP_WORD
 	lbl.add_theme_font_size_override("font_size", fsize)
+	if fsize == BODY_SIZE:
+		lbl.add_theme_constant_override("line_spacing", BODY_LINE_SPACING)
 	lbl.add_theme_color_override("font_color", col)
-	if _font:
-		lbl.add_theme_font_override("font", _font)
+	var face : Font = _font_bold if bold else _font
+	if face:
+		lbl.add_theme_font_override("font", face)
 	add_child(lbl)
 
 
@@ -195,8 +239,8 @@ func _build_ready_btn(txt_col: Color, bg_col: Color, lid: String) -> void:
 	_ready_btn.pivot_offset = Vector2(BTN_W * 0.5, BTN_H * 0.5)
 	_ready_btn.z_index      = 5
 
-	if _font:
-		_ready_btn.add_theme_font_override("font", _font)
+	if _action_font:
+		_ready_btn.add_theme_font_override("font", _action_font)
 	_ready_btn.add_theme_font_size_override("font_size", 28)
 	_ready_btn.add_theme_color_override("font_color",         bg_col)
 	_ready_btn.add_theme_color_override("font_hover_color",   bg_col)

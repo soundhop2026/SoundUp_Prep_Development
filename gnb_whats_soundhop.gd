@@ -5,19 +5,20 @@ const AMBER     : Color  = Color("#FFB703")
 const CREAM     : Color  = Color("#EDE4D3")
 const WHITE     : Color  = Color("#FFFFFF")
 const DARK      : Color  = Color("#333333")
-const FONT_PATH : String = "res://UI_assets/210 연필스케치R.ttf"
 
 # 3-column card grid — narrower cards with side breathing room
 const CARD_W   : float = 330.0
 const CARD_GAP : float = 16.0
+const DESC_LINE_SPACING : int = -4   # character-card description line tightening
 const CARD_L_X : float = (1280.0 - CARD_W * 3.0 - CARD_GAP * 2.0) * 0.5  # ≈ 129
 
-var _font : Font = null
+var _font      : Font = null   # UIFonts.learning()      — explanatory / body copy
+var _font_bold : Font = null   # UIFonts.learning_bold() — headings and card titles
 
 func _ready() -> void:
 	SceneBackground.set_color(CREAM)
-	if ResourceLoader.exists(FONT_PATH):
-		_font = load(FONT_PATH)
+	_font      = UIFonts.learning()        # body copy
+	_font_bold = UIFonts.learning_bold()   # headings, section titles, card titles
 
 	var bg := ColorRect.new()
 	bg.color        = CREAM
@@ -64,7 +65,7 @@ func _build_hero() -> void:
 	add_child(panel)
 
 	_root_label("Hear it. Find it. Hop.",
-		Vector2(0, 8), Vector2(1280, 40), 30, AMBER, HORIZONTAL_ALIGNMENT_CENTER)
+		Vector2(0, 8), Vector2(1280, 40), 30, AMBER, HORIZONTAL_ALIGNMENT_CENTER, true)
 	_root_label("A phonics game where sound always comes first — no letters, no reading, no rush.",
 		Vector2(100, 50), Vector2(1080, 34), 15, AMBER, HORIZONTAL_ALIGNMENT_CENTER)
 
@@ -72,7 +73,7 @@ func _build_hero() -> void:
 # ─── Section 2: What is SoundHop ─────────────────────────────────────────────
 func _build_what_is_soundhop() -> void:
 	_root_label("What is SoundHop",
-		Vector2(CARD_L_X, 100), Vector2(600, 24), 18, PURPLE)
+		Vector2(CARD_L_X, 100), Vector2(600, 24), 18, PURPLE, HORIZONTAL_ALIGNMENT_LEFT, true)
 	_root_label(
 		"Children need to hear sounds before they can read them.\n" +
 		"SoundHop trains the ear first — through listening, matching, and play.",
@@ -82,7 +83,7 @@ func _build_what_is_soundhop() -> void:
 # ─── Section 3: How it works ─────────────────────────────────────────────────
 func _build_how_it_works() -> void:
 	_root_label("How it works",
-		Vector2(CARD_L_X, 179), Vector2(400, 24), 18, PURPLE)
+		Vector2(CARD_L_X, 179), Vector2(400, 24), 18, PURPLE, HORIZONTAL_ALIGNMENT_LEFT, true)
 
 	var steps : Array[Dictionary] = [
 		{ "num": "01", "title": "Listen",
@@ -113,7 +114,7 @@ func _make_step_card(num: String, title: String, body: String,
 	hdr.size     = Vector2(CARD_W - 24, 26)
 	hdr.add_theme_font_size_override("font_size", 17)
 	hdr.add_theme_color_override("font_color", PURPLE)
-	if _font: hdr.add_theme_font_override("font", _font)
+	if _font_bold: hdr.add_theme_font_override("font", _font_bold)
 	panel.add_child(hdr)
 
 	var body_lbl := Label.new()
@@ -142,7 +143,7 @@ func _make_step_card(num: String, title: String, body: String,
 # ─── Section 4: Meet the Characters ──────────────────────────────────────────
 func _build_meet_characters() -> void:
 	_root_label("Meet the Characters",
-		Vector2(CARD_L_X, 328), Vector2(700, 24), 18, PURPLE)
+		Vector2(CARD_L_X, 328), Vector2(700, 24), 18, PURPLE, HORIZONTAL_ALIGNMENT_LEFT, true)
 
 	var chars : Array[Dictionary] = [
 		{ "name": "Pointed Hand",
@@ -200,7 +201,11 @@ func _make_char_card(char_name: String, desc: String,
 		else:
 			img.size     = Vector2(ICON_FULL, ICON_FULL)
 			img.position = Vector2((CARD_W - ICON_FULL) * 0.5, 4)
-		_apply_playbutton_tint(img, icon_path)
+		# No amber tint here: playbutton.png is already black-outline artwork
+		# (its ink measures RGB 72,69,69). The yellow outline this card used to
+		# show came from _apply_playbutton_tint() recolouring it, not from a
+		# different asset — so showing the real artwork means dropping the tint,
+		# not swapping a file. Same texture, same size, same position.
 		panel.add_child(img)
 
 	var name_lbl := Label.new()
@@ -210,7 +215,7 @@ func _make_char_card(char_name: String, desc: String,
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_lbl.add_theme_font_size_override("font_size", 15)
 	name_lbl.add_theme_color_override("font_color", PURPLE)
-	if _font: name_lbl.add_theme_font_override("font", _font)
+	if _font_bold: name_lbl.add_theme_font_override("font", _font_bold)
 	panel.add_child(name_lbl)
 
 	var desc_lbl := Label.new()
@@ -220,6 +225,12 @@ func _make_char_card(char_name: String, desc: String,
 	desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc_lbl.autowrap_mode        = TextServer.AUTOWRAP_WORD
 	desc_lbl.add_theme_font_size_override("font_size", 13)
+	# Andika is 22px tall at 13pt and Godot adds its default line_spacing of 3,
+	# so a 3-line description rendered ~75px into a 58px box and spilled past the
+	# bottom of the card — worst on Pointed Hand, Listen Button and Open Hand.
+	# Tightening the line step to ~18px fits all three inside their own card
+	# without touching the card size, position, font size or wording.
+	desc_lbl.add_theme_constant_override("line_spacing", DESC_LINE_SPACING)
 	desc_lbl.add_theme_color_override("font_color", DARK)
 	if _font: desc_lbl.add_theme_font_override("font", _font)
 	panel.add_child(desc_lbl)
@@ -260,7 +271,7 @@ void fragment() { vec4 t = texture(TEXTURE, UV); COLOR = vec4(c.rgb, t.a); }"""
 
 
 func _root_label(text: String, pos: Vector2, sz: Vector2, fsize: int, col: Color,
-		halign: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> void:
+		halign: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT, bold: bool = false) -> void:
 	var lbl := Label.new()
 	lbl.text                 = text
 	lbl.position             = pos
@@ -269,7 +280,8 @@ func _root_label(text: String, pos: Vector2, sz: Vector2, fsize: int, col: Color
 	lbl.autowrap_mode        = TextServer.AUTOWRAP_WORD
 	lbl.add_theme_font_size_override("font_size", fsize)
 	lbl.add_theme_color_override("font_color", col)
-	if _font: lbl.add_theme_font_override("font", _font)
+	var face : Font = _font_bold if bold else _font
+	if face: lbl.add_theme_font_override("font", face)
 	add_child(lbl)
 
 

@@ -128,3 +128,64 @@ The QA results below record the results confirmed in the 2026-09-28 conversation
 - **LOCKED:** Change the production release gate, public version, Android `versionCode`, and iOS build number only during final 1.0.2 release preparation after remaining QA is complete.
 - **SOURCE CONTROL:** Before this documentation update, Mac Collie's work was committed as `0172420` (generic entry progression), `435da08` (persisted reset indexes), and `fd0e53b` (per-Group Sound Quest cards), with a clean working tree. The production release gate remained `level1`.
 - **SCOPE — Arthur worklog only:** Keep this entry in a separate commit containing only `ARTHUR_WORKLOG.md`. Production release scope, version/build numbers, gameplay files, font files, and Collie's `Worklog.md` are outside this update. No push is requested.
+
+## 2026-09-29 — Shared UI Typography Framework & GNB Home Finalization
+
+This entry records decisions and QA results confirmed in the 2026-09-29 conversation. It refines the SOUNDHOP Shared Font System recorded on 2026-09-28 §6, which is now superseded on two points: Andika is split into Regular and Bold roles, and Schoolbell is no longer restricted to the Title PlayButton head.
+
+### 1. Global Typography Framework Established
+
+- **FINALIZED:** Game 1 now has a role-based UI typography system intended to be shared by SoundHop games rather than redesigned separately for each game. Typography is assigned by what the text **is**, not by which screen it sits on.
+
+| Font | Role | Scope |
+| --- | --- | --- |
+| Schoolbell Regular | Character / logo lettering | SOUNDHOP lettering visually integrated with the PlayButton character |
+| Andika Regular | Learning / information | Explanatory, informational and supporting UI text |
+| Andika Bold | Major information hierarchy | Product-name headings, major titles, section headings, primary GNB/navigation labels |
+| JetBrains Mono Regular / Bold | Action / transaction | Buttons, action instructions, subscription and pricing interactions, transactional surfaces |
+
+- **LOCKED — Real weights only:** Use the actual font-weight files. Do not synthesize Bold.
+- **REFINES 2026-09-28 §6:** Andika was previously recorded as a single role; it is now Regular for information content and Bold for information structure. Schoolbell was previously recorded as "PlayButton head only"; its scope is now SOUNDHOP lettering integrated with the PlayButton character wherever that occurs, which includes GNB Home.
+
+### 2. Shared Product Surfaces
+
+- **LOCKED:** GNB, Parent Gate and Subscription are shared product surfaces across games. Game 2 / LetterHopHop inherits the same typography framework and hierarchy rather than establishing a separate font system.
+- **SHARED:** typography roles; hierarchy principles; GNB framework; Parent Gate framework; Subscription framework.
+- **GAME-SPECIFIC:** character and artwork; colors; layout where appropriate; gameplay; learning design; game identity.
+- **PRINCIPLE:** *Standardize the framework, not the learning design.*
+
+### 3. GNB Home Redesign Finalized
+
+- **RESOLVED:** The previous GNB Home SOUNDHOP logo treatment was replaced.
+- **FINAL STATE:** PlayButton face retained as character artwork; SOUNDHOP rendered in Schoolbell Regular above the PlayButton head so the two read as one character/logo unit; Learning Sounds in Andika Bold; What's SoundHop, Where am I and Subscribe following the approved Andika hierarchy.
+- **RESOLVED — Vertical composition:** Rebuilt as one stack with clear breathing space between PlayButton/logo -> Learning Sounds -> navigation cards -> Subscribe.
+- **RESOLVED — Optical alignment:** Final visual QA caught a 15 px difference between screen center and the logo's true visual center. Learning Sounds is now aligned to the logo center rather than blindly centered to the screen; the navigation cards and Subscribe intentionally remain on the screen center, as they belong to the card grid rather than the logo.
+- **LOCKED:** Final GNB Home visual state approved. No further design changes.
+
+### 4. What's SoundHop Refinement
+
+- **RESOLVED:** Refined under the same hierarchy — major headings and card titles in Andika Bold, explanatory copy in Andika Regular, spacing tightened where needed, and PlayButton artwork presentation corrected.
+- **CONFIRMED:** Final visual result approved.
+
+### 5. Other Verified Surfaces
+
+- **CONFIRMED — Visually checked:** Title, Level Intro, GNB Home, What's SoundHop, Where am I, Parent Gate, Subscription.
+- **CONFIRMED:** Title retains Schoolbell for the PlayButton-integrated SOUNDHOP character lettering; product-name "SoundHop" headings in UI use Andika Bold; action and transaction language continues to use JetBrains Mono.
+
+### 6. Implementation / Release Safety
+
+- **MANUAL QA — PASS:** Final live GNB navigation verification passed 14/14.
+- **PACKAGE AUDIT — PASS:** Schoolbell, Andika and JetBrains Mono present; required Godot imports present; font licenses present; production font paths resolve; temporary QA files absent.
+- **CONFIRMED — Release gate unchanged:** `HIGHEST_RELEASED_LEVEL_ID = "level1"`.
+- **CONFIRMED — No version/build change.**
+- **CONFIRMED — No unintended changes** to gameplay, progression, routing, save, subscription, Parent Gate, billing or release logic.
+- **SOURCE CONTROL:** Font/UI framework commit `95befe3f9c26deef5c15d4a5234b9f0e3746dd25` — "Standardize Game 1 UI typography and GNB presentation". Mac `main` was pushed and verified equal to `origin/main` with a clean working tree.
+- **NEXT — Windows:** The push also delivered the four previously local commits, so Windows is now five commits behind `origin/main` and must Fetch/Pull before its next commit.
+
+### 7. Open Item
+
+- **PENDING — Legacy 210-font references:** Five legacy 210-font references remain intentionally unresolved and are documented in the shared font framework. Do not migrate them automatically; each requires an explicit role/design decision.
+
+### 8. Scope
+
+- **SCOPE — Arthur worklog only:** This entry is committed separately, containing only `ARTHUR_WORKLOG.md`. Code, framework documentation, assets, release scope, version/build numbers and Collie's `Worklog.md` are outside this update.

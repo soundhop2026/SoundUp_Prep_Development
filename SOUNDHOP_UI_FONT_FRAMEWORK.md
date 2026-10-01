@@ -91,6 +91,23 @@ UI/product-name heading is Andika Bold.
 
 Use the real `Andika-Bold.ttf`. **Never synthesize bold.**
 
+### 4.1 Runtime-generated learning letterforms
+
+**Locked 2026-09-30.** Letters and glyphs **generated as text at runtime** that the child is
+directly learning or recognising take **Andika Bold** — not the body face, and not a
+character/brand face.
+
+The test is what the text *is* for the child, not where it sits. A letter the child is being
+asked to identify, match or collect is learning content at its most literal, and it is read as
+a *letterform* rather than as a word. Andika is already the alphabet's design language in
+SoundHop — it is the asset-creation font behind the baked letter artwork — and Bold carries the
+stroke weight that keeps a single glyph legible at gameplay sizes and at a distance.
+
+This does **not** apply to general UI text. A heading is not a letterform and explanatory copy
+is not a letterform; those keep §3 and §4. Nor does it reach baked alphabet artwork: where
+letters ship as image assets they stay image assets (§1). The rule governs the
+runtime-generated case only.
+
 ---
 
 ## 5. Action / transaction — `action()` / `action_bold()`
@@ -105,6 +122,41 @@ Use the real Regular and Bold files. **Never synthesize bold.**
 `JetBrainsMono-ExtraBold.ttf` ships alongside them but is deliberately **not** exposed as a
 role — an available asset, not a current answer.
 
+### 5.1 Intro primary continue/play CTA — Regular, not Bold
+
+**Locked 2026-09-30.** The primary continue/play call to action on an Intro screen takes
+**JetBrains Mono Regular** — `action()`, not `action_bold()`.
+
+This covers, by name:
+
+| Button | Where |
+|---|---|
+| **Ready to Play** | Game 1 `level_intro.gd` |
+| **Keep Hopping** | Game 2 `preprep_intro.gd` (Prep Intro) **and** `phase_intro.gd` (Level 1 Intro) |
+
+Both of Game 2's Keep Hopping buttons are covered. They are the same CTA at two points in the
+flow, and the rule is the button's *function*, not its screen — a later rename or a third
+instance inherits it automatically.
+
+**The Regular/Bold boundary, stated so it needs no interpretation.** §5 above distinguishes
+"normal" from "emphasised" action text without saying where a button falls. It falls under
+Regular:
+
+- `action()` — **Regular** — is the face of an action control itself: buttons, CTAs, and the
+  transaction UI's own labels.
+- `action_bold()` — **Bold** — is for emphasis *inside* a run of action or transaction copy: a
+  price or a term picked out within a sentence, a `RichTextLabel`'s `bold_font`. It is inline
+  emphasis, **not** a control's face.
+
+A button already carries its emphasis through size, colour and its filled shape. Setting the
+face to Bold as well adds a second emphasis channel to something that is not competing for
+attention with anything — and because JetBrains Mono is monospace, both weights occupy exactly
+the same advance width, so the only change is heavier strokes inside an unchanged footprint.
+
+This matches what the codebase already did before the rule was written: across Game 1,
+`action_bold()` appears only as a `RichTextLabel` `bold_font` and one inline face selection in
+the subscription flow. It has never been a button's face.
+
 ---
 
 ## 6. Visual hierarchy principle
@@ -114,9 +166,9 @@ the hierarchy instead of expressing it.
 
 | | |
 |---|---|
-| Andika **Bold** | information *structure* — headings, major navigation |
+| Andika **Bold** | information *structure* — headings, major navigation; runtime-generated learning letterforms (§4.1) |
 | Andika Regular | information *content* — explanation, supporting text |
-| JetBrains Mono | action / transaction |
+| JetBrains Mono | action / transaction; **Regular** is the face of the control itself, Bold is inline emphasis within action copy (§5.1) |
 | Schoolbell | the SOUNDHOP wordmark in the PlayButton character/logo system |
 | Hand-drawn artwork | faces, and any lettering explicitly approved to stay artwork (§1) |
 
@@ -181,23 +233,60 @@ Schoolbell is Regular-only.
 
 ---
 
-## 8. Current legacy exceptions
+## 8. Legacy typography exceptions
 
-These still use the legacy `210 연필스케치R.ttf` and are **explicitly unresolved**. Do not
-migrate them automatically; each needs its role reviewed and approved first.
+Every game carries legacy typography — text that predates this framework and still renders in
+whatever face that game used before it. Those exceptions are **game-specific**, and this shared
+document deliberately does not enumerate any one game's files.
 
-| File | What it renders |
-|---|---|
-| `level_transition.gd` | Coronation — "You made it!", "Keep hopping!", level name |
-| `prep_transition.gd` | the "Keep Hopping!" button at the free→premium boundary |
-| `sound_quest.gd` | Prep Sound Quest gameplay copy |
-| `level1_sound_quest.gd` | Level 1 Sound Quest gameplay copy (declares `FONT_PATH` but applies no override — dead constant) |
-| `debug_menu.gd` | QA tooling; never ships visible (`DebugConfig.DEBUG_MODE = false`) |
+Three rules govern all of them:
 
-Separately: **no gameplay scene sets any font at all.** `game.gd`, `game15.gd`, `game2.gd`,
-`game25.gd`, `prep_game.gd` and `transition.gd` have zero font overrides, so their HUD and cube
-text render in Godot's default face. Not a legacy reference — a gap in the role system, and an
-open question for whoever extends this framework to gameplay.
+1. **A legacy list belongs to the game, not to the framework.** Each game records its own
+   outstanding uses in its own copy of this document (§8.1) or its own worklog. A filename in
+   one game's list says nothing about any other game, and must never be carried across as if it
+   were.
+2. **Ambiguous legacy uses are reviewed individually.** A use is resolved by deciding which
+   semantic role the text actually has, and recording that decision. Remaining unresolved is a
+   valid state; guessing is not.
+3. **Rendering in the old font is not, by itself, a reason to migrate it** — never auto-migrate
+   text merely because it uses a legacy face, and never batch-replace a face across a
+   repository (§7). The converse holds too: legacy status confers no protection. Being old is
+   not an argument either way; the role is.
+
+A game's legacy list is a record of what is still **pending**, never a list of approved
+exemptions. An entry leaves the list when its role has been assigned, or when keeping the
+legacy face has been explicitly approved with a stated reason.
+
+### 8.1 Game 1 (SoundUp) — pending
+
+Five files still render through the legacy `210 연필스케치R.ttf` and are **explicitly
+unresolved**. Each needs its semantic role reviewed and approved before anything moves; do not
+migrate them automatically (§7).
+
+| File | What it renders | State |
+|---|---|---|
+| `level_transition.gd` | Coronation — "You made it!", "Keep hopping!", level name | applies the legacy face |
+| `prep_transition.gd` | the "Keep Hopping!" button at the free→premium boundary | applies the legacy face |
+| `debug_menu.gd` | QA tooling; never ships visible (`DebugConfig.DEBUG_MODE = false`) | applies the legacy face |
+| `sound_quest.gd` | Prep Sound Quest gameplay copy | **dead constant** — declares `FONT_PATH` and loads `_font`, but never applies it |
+| `level1_sound_quest.gd` | Level 1 Sound Quest gameplay copy | **dead constant** — same as above |
+
+The two Sound Quest entries are a cleanup task, not a typography decision: whatever they render
+is already in Godot's default face, because the loaded font is never assigned to anything.
+
+**The gameplay scenes render no text at all.** `game.gd`, `game15.gd`, `game2.gd`, `game25.gd`
+and `prep_game.gd` declare zero `Label` nodes and zero `text` properties, and every `.text`
+assignment in them sets the empty string — their cubes and controls are image assets. An earlier
+revision of this document described them as rendering HUD and cube text in Godot's default face;
+that was wrong, and there is no gap in the role system here to close.
+
+**Already compliant with the locked rules above:**
+
+- §5.1 — `level_intro.gd` applies `UIFonts.action()` to **Ready to Play**. Across Game 1,
+  `action_bold()` is used only as a `RichTextLabel` `bold_font` (`choose_plan.gd`) and one
+  inline face selection (`premium_intro.gd`); it has never been a control's face.
+- §4.1 — no applicable case. Game 1 generates no learning letterforms as runtime text; its
+  letters and words ship as image assets, which stay artwork under §1.
 
 ---
 

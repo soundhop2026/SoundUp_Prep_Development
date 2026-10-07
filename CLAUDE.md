@@ -388,6 +388,12 @@ The Game scene and its Set Transition scene must use the same Level background c
 | Level 1 | `#6EB5FF` sky blue | `game.gd` | `transition.gd` `else` branch |
 | Level 1.5 | `#A83A22` deep red-brown | `game15.gd` `BG_COLOR` | `transition.gd` `elif _for_l15` (via `Level15Progress.active`) |
 | Level 2 | `#7A8C2E` olive green | `game2.gd` `BG_COLOR` | `transition.gd` `if _for_l2` (via `Level2Progress.active`) |
+| Level 2.5 | `#B8631A` burnt orange | not built yet | not built yet |
+
+Level 2.5's `#B8631A` is locked (2026-10-07). Its Game scene and Set Transition do not exist yet; when
+they are built, both must use this color. Today it is applied only to Level 2.5's Where Am I level card
+(`gnb_where_am_i.gd`, `_build_level_meta()`, replacing the old `#7B68EE` placeholder). It has no Level Intro
+copy yet, so `level_intro.gd`'s `LEVEL_DATA` has no entry to color.
 
 `transition.tscn`'s editor-default background (`#A8E063`) is dead data — `transition.gd._ready()`
 always overwrites it from the `active` flags. Level 1's sky blue is written as

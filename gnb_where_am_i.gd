@@ -136,7 +136,7 @@ func _build_level_meta() -> void:
 		  "grouped": false, "group_meta": {} },
 		{ "id": "level25", "label": "Level 2.5", "tagline": "Rimes", "done": 0, "total": 19,
 		  "locked": l25_lock, "sets": [], "pfn": func(_i): pass,
-		  "show_all": false, "color": Color("#7B68EE"), "txt_color": Color("#EDE4D3"),
+		  "show_all": false, "color": Color("#B8631A"), "txt_color": Color("#EDE4D3"),
 		  "grouped": false, "group_meta": {} },
 	]
 

@@ -3,6 +3,7 @@ extends Node2D
 # ─── Colors ───────────────────────────────────────────────────────────────────
 const PURPLE     : Color = Color("#4B0082")
 const PURPLE_TINT: Color = Color("#E8DCF5")   # completed tile tint
+const IN_PROGRESS_TINT : Color = Color("#F4EEFA")   # entered but not yet passed
 const AMBER      : Color = Color("#FFB703")
 const CREAM      : Color = Color("#EDE4D3")
 const WHITE      : Color = Color("#FFFFFF")
@@ -90,14 +91,38 @@ func _ready() -> void:
 	add_child(_content)
 
 	_show_levels_page()
+	# Access follows the store: a verified subscription (or its loss) re-renders
+	# the current page at once so lock states are never stale.
+	SaveManager.entitlement().entitlement_changed.connect(_on_entitlement_changed)
+
+
+func _on_entitlement_changed(_entitled: bool) -> void:
+	if _content == null:
+		return
+	_build_level_meta()
+	if _page != "levels" and (_sel_level < 0 or _sel_level >= _levels.size() or _levels[_sel_level]["locked"]):
+		_show_levels_page()
+		return
+	match _page:
+		"levels": _show_levels_page()
+		"groups": _show_groups_page()
+		"chunks": _show_chunks_page()
+		"sets":
+			var ld : Dictionary = _levels[_sel_level]
+			if ld.get("grouped", false):
+				_show_sets_page()
+			elif ld["sets"].size() > CHUNK_MAX:
+				_show_sets_page_chunk()
+			else:
+				_show_sets_page_flat()
 
 
 # ─── Level metadata ───────────────────────────────────────────────────────────
 func _build_level_meta() -> void:
-	var prep_done  : int = 26 if SaveManager.is_prep_completed()   else SaveManager.get_prep_set_index()
-	var l1_done    : int = 17 if SaveManager.is_level1_completed()  else SaveManager.get_level1_set_index()
-	var l15_done   : int = 13 if SaveManager.is_level15_completed() else SaveManager.get_level15_set_index()
-	var l2_done    : int = 12 if SaveManager.is_level2_completed()  else SaveManager.get_level2_set_index()
+	var prep_done  : int = ProgressStatus.completed_count("prep")
+	var l1_done    : int = ProgressStatus.completed_count("level1")
+	var l15_done   : int = ProgressStatus.completed_count("level15")
+	var l2_done    : int = ProgressStatus.completed_count("level2")
 
 	# Curriculum order: each lock cascades — a later level can never be unlocked
 	# while an earlier one is still locked.
@@ -112,7 +137,11 @@ func _build_level_meta() -> void:
 	# never entered" state, and under the old test that state unlocked the new
 	# level (and its Sound Quests) in Where Am I before the player had ever
 	# seen its Intro.
-	var l1_lock  : bool = not SaveManager.has_entered_level("level1")
+	#
+	# Every Level after Prep is premium: without a verified subscription the whole
+	# Level (and, through the cascade, every later Level) shows as locked. Access
+	# only — no record changes, and completion shown here is untouched.
+	var l1_lock  : bool = not SaveManager.is_subscribed() or not SaveManager.has_entered_level("level1")
 	var l15_lock : bool = not ReleaseScope.is_level_released("level15") or l1_lock  or not SaveManager.has_entered_level("level15")
 	var l2_lock  : bool = not ReleaseScope.is_level_released("level2")  or l15_lock or not SaveManager.has_entered_level("level2")
 	var l25_lock : bool = not ReleaseScope.is_level_released("level25") or l2_lock  or not SaveManager.has_entered_level("level25")
@@ -143,7 +172,7 @@ func _build_level_meta() -> void:
 
 func _prep_sets() -> Array:
 	var ph : Dictionary = { "A": "m  s  t  b  v  k", "B": "n  f  p  d  g  j",
-		"C": "h  w  y  l  z  r", "D": "contrast pairs", "E": "q  x  s  k",
+		"C": "h  w  y  l  z  r", "D": "contrast pairs", "E": "q  x  s  k  w",
 		"F": "all sounds mixed" }
 	var out : Array = []
 	var labels : Array = PrepLevelProgress.set_labels
@@ -211,7 +240,7 @@ func _prep_group_meta() -> Dictionary:
 		"B": { "title": "n  f  p  d  g  j", "goal": "Find the picture that starts with the sound." },
 		"C": { "title": "h  w  y  l  z  r", "goal": "Find the picture that starts with the sound." },
 		"D": { "title": "contrast pairs",   "goal": "Tell two similar sounds apart." },
-		"E": { "title": "q  x  s  k",       "goal": "Find the picture that starts with the sound." },
+		"E": { "title": "q  x  s  k  w",   "goal": "Find the picture that starts with the sound." },
 		"F": { "title": "all sounds mixed", "goal": "Practice every sound together." },
 	}
 
@@ -277,8 +306,7 @@ func _sound_quest_entries_for(level_id: String, letter: String, group_index: int
 				"scene":     "res://sound_quest.tscn",
 				"pfn":       func():
 					SoundQuestState.group_start_index = r.x
-					SoundQuestState.group_end_index   = r.y
-					PrepLevelProgress.current_index   = r.y,   # keeps maze-difficulty style correct (sound_quest.gd reads this, not the state singleton, for that)
+					SoundQuestState.group_end_index   = r.y,
 			}]
 		"level1":
 			var r : Vector2i = _level1_group_ranges()[group_index]
@@ -444,16 +472,17 @@ func _show_levels_page() -> void:
 	_page = "levels"
 	_clear_content()
 
-	var prep_done  : int = 26 if SaveManager.is_prep_completed()   else SaveManager.get_prep_set_index()
-	var l1_done    : int = 17 if SaveManager.is_level1_completed()  else SaveManager.get_level1_set_index()
-	var l15_done   : int = 13 if SaveManager.is_level15_completed() else SaveManager.get_level15_set_index()
-	var l2_done    : int = 12 if SaveManager.is_level2_completed()  else SaveManager.get_level2_set_index()
+	var prep_done  : int = ProgressStatus.completed_count("prep")
+	var l1_done    : int = ProgressStatus.completed_count("level1")
+	var l15_done   : int = ProgressStatus.completed_count("level15")
+	var l2_done    : int = ProgressStatus.completed_count("level2")
 	var total_done : int = prep_done + l1_done + l15_done + l2_done
 
 	var level_names : Array[String] = ["Prep Level", "Level 1", "Level 1.5", "Level 2", "Level 2.5"]
 	var cur : String = level_names[_current_level_index()]
 
-	_set_header("Where am I", "%d sets done  ·  now: %s" % [total_done, cur])
+	var sets_word : String = "set" if total_done == 1 else "sets"
+	_set_header("Where am I", "%d %s done  ·  now: %s" % [total_done, sets_word, cur])
 
 	var cols    : int        = 2
 	var tile_w  : float      = _tile_w(cols)
@@ -471,6 +500,23 @@ func _show_levels_page() -> void:
 			tile.pressed.connect(_on_level_tapped.bind(i))
 
 
+# NOT STARTED white, IN PROGRESS #F4EEFA, COMPLETED #E8DCF5, LOCKED the existing grey.
+func _status_color(status: int) -> Color:
+	match status:
+		ProgressStatus.Status.COMPLETED:   return PURPLE_TINT
+		ProgressStatus.Status.IN_PROGRESS: return IN_PROGRESS_TINT
+		ProgressStatus.Status.LOCKED:      return GRAY_H
+	return WHITE
+
+
+# The Set indexes of a Group's (or chunk's) Sets, for deriving its status.
+func _set_indices(sets: Array) -> Array:
+	var out : Array = []
+	for sd in sets:
+		out.append(int(sd["index"]))
+	return out
+
+
 func _make_level_tile(ld: Dictionary, width: float, metrics: Dictionary) -> Button:
 	var h : float = metrics["h"]
 	var tile := Button.new()
@@ -482,7 +528,7 @@ func _make_level_tile(ld: Dictionary, width: float, metrics: Dictionary) -> Butt
 	var is_done : bool = ld["done"] >= ld["total"] and not ld["locked"]
 
 	var style := StyleBoxFlat.new()
-	style.bg_color                   = GRAY_H if ld["locked"] else (PURPLE_TINT if is_done else WHITE)
+	style.bg_color                   = _status_color(ProgressStatus.Status.LOCKED if ld["locked"] else ProgressStatus.level_status(String(ld["id"])))
 	style.border_color               = PURPLE
 	style.border_width_top           = 3
 	style.border_width_bottom        = 3
@@ -527,7 +573,7 @@ func _show_groups_page() -> void:
 	_set_header(ld["label"], ld.get("tagline", ""))
 
 	var groups      : Array = _group_sets(ld["sets"])
-	var done_counts : Array = _group_done_counts(groups, ld["done"])
+	var done_counts : Array = _group_done_counts(groups)
 
 	var cols   : int   = 2
 	var tile_w : float = _tile_w(cols)
@@ -536,7 +582,8 @@ func _show_groups_page() -> void:
 		var group : Dictionary = groups[gi]
 		var row : int = gi / cols
 		var col : int = gi % cols
-		var tile := _make_group_tile(group["letter"], done_counts[gi], group["sets"].size(), tile_w)
+		var status : int = ProgressStatus.group_status(String(ld["id"]), _set_indices(group["sets"]))
+		var tile := _make_group_tile(group["letter"], done_counts[gi], group["sets"].size(), tile_w, status)
 		tile.position = Vector2(PAGE_PAD + col * (tile_w + TILE_GAP), TOP_PAD + row * (GRP_TILE_H + TILE_GAP))
 		_content.add_child(tile)
 		tile.pressed.connect(_on_group_tapped.bind(gi))
@@ -553,15 +600,14 @@ func _group_sets(sets: Array) -> Array:
 	return groups
 
 
-func _group_done_counts(groups: Array, level_done: int) -> Array:
+# How many of each group's (or chunk's) Sets are actually recorded as passed.
+func _group_done_counts(groups: Array) -> Array:
 	var done_counts : Array = []
-	var running : int = 0
 	for group in groups:
 		var gd : int = 0
-		for _s in group["sets"]:
-			if running < level_done:
+		for sd in group["sets"]:
+			if SaveManager.is_set_completed(String(sd.get("key", ""))):
 				gd += 1
-			running += 1
 		done_counts.append(gd)
 	return done_counts
 
@@ -598,7 +644,7 @@ func _show_chunks_page() -> void:
 	_set_header(ld["label"], ld.get("tagline", ""))
 
 	var chunks      : Array = _chunk_sets(ld["sets"])
-	var done_counts : Array = _group_done_counts(chunks, ld["done"])
+	var done_counts : Array = _group_done_counts(chunks)
 
 	var cols   : int   = 2
 	var tile_w : float = _tile_w(cols)
@@ -607,24 +653,27 @@ func _show_chunks_page() -> void:
 		var chunk : Dictionary = chunks[ci]
 		var row : int = ci / cols
 		var col : int = ci % cols
-		var tile := _make_chunk_tile(chunk["label"], done_counts[ci], chunk["sets"].size(), tile_w)
+		var status : int = ProgressStatus.group_status(String(ld["id"]), _set_indices(chunk["sets"]))
+		var tile := _make_chunk_tile(chunk["label"], done_counts[ci], chunk["sets"].size(), tile_w, status)
 		tile.position = Vector2(PAGE_PAD + col * (tile_w + TILE_GAP), TOP_PAD + row * (GRP_TILE_H + TILE_GAP))
 		_content.add_child(tile)
 		tile.pressed.connect(_on_chunk_tapped.bind(ci))
 
 
-func _make_chunk_tile(label: String, done: int, total: int, width: float) -> Button:
+func _make_chunk_tile(label: String, done: int, total: int, width: float, status: int) -> Button:
 	var tile := Button.new()
 	tile.custom_minimum_size = Vector2(width, GRP_TILE_H)
 	tile.size                = Vector2(width, GRP_TILE_H)
 	tile.text                = ""
 
 	var is_done : bool = done >= total
-	_style_tile(tile, is_done)
+	var locked  : bool = status == ProgressStatus.Status.LOCKED
+	_style_tile(tile, status)
 
-	_panel_label(tile, label, Vector2(0, 18), Vector2(width, 44), 30, PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
+	_panel_label(tile, ("🔒  " if locked else "") + label, Vector2(0, 18), Vector2(width, 44), 30,
+		WHITE if locked else PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
 	_panel_label(tile, "%d / %d%s" % [done, total, "  ✓" if is_done else ""],
-		Vector2(0, 68), Vector2(width, 30), 20, BROWN, HORIZONTAL_ALIGNMENT_CENTER)
+		Vector2(0, 68), Vector2(width, 30), 20, WHITE if locked else BROWN, HORIZONTAL_ALIGNMENT_CENTER)
 
 	return tile
 
@@ -634,25 +683,27 @@ func _on_chunk_tapped(ci: int) -> void:
 	_show_sets_page_chunk()
 
 
-func _make_group_tile(letter: String, done: int, total: int, width: float) -> Button:
+func _make_group_tile(letter: String, done: int, total: int, width: float, status: int) -> Button:
 	var tile := Button.new()
 	tile.custom_minimum_size = Vector2(width, GRP_TILE_H)
 	tile.size                = Vector2(width, GRP_TILE_H)
 	tile.text                = ""
 
 	var is_done : bool = done >= total
-	_style_tile(tile, is_done)
+	var locked  : bool = status == ProgressStatus.Status.LOCKED
+	_style_tile(tile, status)
 
-	_panel_label(tile, "Set %s" % letter, Vector2(0, 18), Vector2(width, 44), 34, PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
+	_panel_label(tile, ("🔒  " if locked else "") + ("Set %s" % letter), Vector2(0, 18), Vector2(width, 44), 34,
+		WHITE if locked else PURPLE, HORIZONTAL_ALIGNMENT_CENTER)
 	_panel_label(tile, "%d / %d%s" % [done, total, "  ✓" if is_done else ""],
-		Vector2(0, 68), Vector2(width, 30), 20, BROWN, HORIZONTAL_ALIGNMENT_CENTER)
+		Vector2(0, 68), Vector2(width, 30), 20, WHITE if locked else BROWN, HORIZONTAL_ALIGNMENT_CENTER)
 
 	return tile
 
 
-func _style_tile(tile: Button, filled: bool) -> void:
+func _style_tile(tile: Button, status: int) -> void:
 	var style := StyleBoxFlat.new()
-	style.bg_color                   = PURPLE_TINT if filled else WHITE
+	style.bg_color                   = _status_color(status)
 	style.border_color               = PURPLE
 	style.border_width_top           = 3
 	style.border_width_bottom        = 3
@@ -683,7 +734,7 @@ func _show_sets_page() -> void:
 	var group  : Dictionary = groups[_sel_group]
 	var letter : String = group["letter"]
 
-	var done_counts : Array = _group_done_counts(groups, ld["done"])
+	var done_counts : Array = _group_done_counts(groups)
 	var group_done  : int = done_counts[_sel_group]
 	var group_total : int = group["sets"].size()
 	var meta        : Dictionary = ld.get("group_meta", {}).get(letter, {})
@@ -705,7 +756,7 @@ func _show_sets_page() -> void:
 	cells_area.position = Vector2(0, TOP_PAD + 130)
 	cells_area.size     = Vector2(vp_w, _content.size.y - (TOP_PAD + 130))
 	_content.add_child(cells_area)
-	_render_set_cells(cells_area, display_sets, ld, group_done, sq_start_idx)
+	_render_set_cells(cells_area, display_sets, ld, sq_start_idx)
 
 
 # ─── Screen 3 — Set detail (ungrouped levels, e.g. Level 2) ───────────────────
@@ -716,8 +767,7 @@ func _show_sets_page_flat() -> void:
 	var ld : Dictionary = _levels[_sel_level]
 	_set_header(ld["label"], ld.get("tagline", ""))
 
-	var display_count : int   = ld["total"] if ld.get("show_all", false) else ld["done"]
-	var visible_sets  : Array = ld["sets"].slice(0, display_count)
+	var visible_sets : Array = ld["sets"]
 
 	var vp_w : float = get_viewport_rect().size.x
 	var cells_area := Control.new()
@@ -730,7 +780,7 @@ func _show_sets_page_flat() -> void:
 			Vector2(PAGE_PAD, 40), Vector2(vp_w - PAGE_PAD * 2, 30), 20, BROWN, HORIZONTAL_ALIGNMENT_CENTER)
 		return
 
-	_render_set_cells(cells_area, visible_sets, ld, ld["done"])
+	_render_set_cells(cells_area, visible_sets, ld)
 
 
 # ─── Screen 3 — Set detail (one chunk of an ungrouped-but-many level) ─────────
@@ -743,15 +793,13 @@ func _show_sets_page_chunk() -> void:
 
 	var chunks      : Array      = _chunk_sets(ld["sets"])
 	var chunk       : Dictionary = chunks[_sel_chunk]
-	var done_counts : Array      = _group_done_counts(chunks, ld["done"])
-	var chunk_done  : int        = done_counts[_sel_chunk]
 
 	var vp_w : float = get_viewport_rect().size.x
 	var cells_area := Control.new()
 	cells_area.position = Vector2(0, TOP_PAD)
 	cells_area.size     = Vector2(vp_w, _content.size.y - TOP_PAD)
 	_content.add_child(cells_area)
-	_render_set_cells(cells_area, chunk["sets"], ld, chunk_done)
+	_render_set_cells(cells_area, chunk["sets"], ld)
 
 
 # Row height for the Set-card grid, computed from how many cards actually
@@ -767,7 +815,7 @@ func _cell_metrics(count: int, area_h: float) -> Dictionary:
 
 # Shared low-level cell grid renderer — used both for Level 2's flat list and
 # for a single Set Group's individual sets on Screen 3.
-func _render_set_cells(parent: Control, cell_sets: Array, ld: Dictionary, local_done: int,
+func _render_set_cells(parent: Control, cell_sets: Array, ld: Dictionary,
 		sound_quest_start_idx: int = -1) -> void:
 	var metrics  : Dictionary = _cell_metrics(cell_sets.size(), parent.size.y)
 	var row_step : float = metrics["row_step"]
@@ -781,22 +829,49 @@ func _render_set_cells(parent: Control, cell_sets: Array, ld: Dictionary, local_
 				break
 			var cell_x : float = page_pad + side * (CELL_W + CELL_GAP)
 			var is_sq  : bool  = sound_quest_start_idx >= 0 and idx >= sound_quest_start_idx
-			_make_completed_cell(parent, cell_sets[idx], ld, cell_x, row_y, cell_h, idx < local_done, is_sq)
+			_make_completed_cell(parent, cell_sets[idx], ld, cell_x, row_y, cell_h, _is_set_done(cell_sets[idx]), is_sq)
 
 
 # Sub-element offsets below were tuned at this reference height (the old
 # fixed CELL_H) and scale proportionally via k for smaller row heights.
 const CELL_H_REF : float = 92.0
 
+# A card is locked when its Set cannot be entered yet (a Level's other Sets stay
+# locked until its first Set has actually been attempted; everything but Prep's
+# free Sets also needs a verified subscription). A Prep Sound Quest card is
+# locked unless its Group contains a free Set; every other Level's Sound Quest
+# needs a subscription. Locking is access only: it never changes a record, and
+# a completed Set that is currently inaccessible keeps its completion.
+func _is_card_locked(sd: Dictionary, ld: Dictionary) -> bool:
+	if sd.has("index"):
+		return not ProgressStatus.is_set_accessible(String(ld.get("id", "")), int(sd["index"]))
+	if ld.get("id", "") != "prep":
+		return not SaveManager.is_subscribed()
+	var group : int = "ABCDEF".find(String(sd.get("key", "")).get_slice("_", 2))   # "prep_soundquest_B" -> B
+	return group < 0 or not PrepLevelProgress.is_group_accessible(group)
+
+
+# A Set card is done only if that exact Set is recorded as passed. Sound Quest
+# cards (they carry their own pfn) are never "completed".
+func _is_set_done(sd: Dictionary) -> bool:
+	return not sd.has("pfn") and SaveManager.is_set_completed(String(sd.get("key", "")))
+
+
 func _make_completed_cell(parent: Control, sd: Dictionary,
 		ld: Dictionary, cx: float, cy: float, cell_h: float, is_completed: bool = true,
 		is_sound_quest: bool = false) -> void:
 	var k : float = cell_h / CELL_H_REF
+	var locked : bool = _is_card_locked(sd, ld)
+	# A Set card takes its colour from its status; Sound Quest cards are not Sets
+	# and keep the plain white card (grey only when locked).
+	var status : int = ProgressStatus.Status.NOT_STARTED
+	if sd.has("index"):
+		status = ProgressStatus.set_status(String(ld["id"]), int(sd["index"]))
 	var panel := Panel.new()
 	panel.position = Vector2(cx, cy)
 	panel.size     = Vector2(CELL_W, cell_h)
 	var sty := StyleBoxFlat.new()
-	sty.bg_color                   = WHITE
+	sty.bg_color                   = GRAY_H if locked else _status_color(status)
 	sty.border_color               = PURPLE
 	sty.border_width_top           = 2
 	sty.border_width_bottom        = 2
@@ -808,6 +883,14 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 	sty.corner_radius_bottom_right = 12
 	panel.add_theme_stylebox_override("panel", sty)
 	parent.add_child(panel)
+
+	# A locked card keeps the grey-with-lock look of a locked Level tile: lock
+	# glyph in the ✓ slot, white text, and no ✓, ×N count or ▶ replay button.
+	if locked:
+		_panel_label(panel, "🔒", Vector2(10, 32 * k), Vector2(30, 32 * k), max(12, int(round(20 * k))), WHITE)
+		_panel_label(panel, sd["label"], Vector2(38, 28 * k), Vector2(58, 36 * k), max(14, int(round(24 * k))), WHITE)
+		_panel_label(panel, sd["phonemes"], Vector2(100, 31 * k), Vector2(320, 34 * k), max(12, int(round(19 * k))), WHITE)
+		return
 
 	# ✓ checkmark (completed sets only)
 	if is_completed:
@@ -875,7 +958,14 @@ func _panel_label(parent: Control, text: String, pos: Vector2, sz: Vector2,
 
 # ─── Replay launch ────────────────────────────────────────────────────────────
 func _on_replay_pressed(sd: Dictionary, ld: Dictionary) -> void:
-	ReviewState.active  = true
+	if _is_card_locked(sd, ld):
+		return
+	if sd.has("index"):
+		# A chosen Set starts as a real, scored attempt that follows the normal
+		# transition and next-Set rules, and must not inherit a stale retry.
+		ProgressStatus.clear_retry(String(ld["id"]))
+	else:
+		ReviewState.active = true   # Sound Quest returns to Where Am I by design
 	ReviewState.set_key = sd["key"]
 	# A set dict's own "pfn" (no-arg) takes precedence over the level's
 	# ld["pfn"] (single flat-index arg) — used by the synthetic Sound Quest

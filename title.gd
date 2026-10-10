@@ -608,4 +608,13 @@ func _animate_out_then_route() -> void:
 	await bt.finished
 	await get_tree().create_timer(1.0).timeout
 
-	_enter_level(_forward_target_level_id())
+	# Let the launch-time store check finish (bounded by the request time-out), so
+	# a subscriber is not routed as a non-subscriber. This only waits for the
+	# store's answer; it never grants access.
+	await SaveManager.entitlement().settle()
+	var target : String = _forward_target_level_id()
+	if target != "prep" and not SaveManager.is_subscribed():
+		# Level 1 onward is premium. Without a verified subscription the child
+		# lands in the free Prep content instead; every record is untouched.
+		target = "prep"
+	_enter_level(target)

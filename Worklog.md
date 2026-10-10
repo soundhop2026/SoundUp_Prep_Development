@@ -61,6 +61,171 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-10-11 (separate entry) — Generic Level-to-Level Progression Framework
+
+Kept apart from the C7 entry above; its results are independent of C7's.
+
+### Completed
+Finished the generic routing between released Levels, with the production boundary unchanged
+(`HIGHEST_RELEASED_LEVEL_ID = "level1"`). Windows only, isolated scratch saves, not committed.
+
+- **`release_scope.gd`**: the next Level is derived from `PROGRESSION_ORDER` (`next_level_id()`), with
+  `LEVEL_NAMES`, `begin_coronation(level_id)` (completed flag + rewind + Coronation target; never marks the next
+  Level entered) and `coronation_exit_scene(next_id)` (Level Intro if the next Level is released *and* has a scene,
+  else Title). `is_level_released()` reads a runtime copy, `released_boundary_id`, that starts at the constant;
+  only tests assign it, to simulate later releases.
+- **`transition.gd`** (`_complete_level`) and **`prep_transition.gd`** now call `begin_coronation()` — the
+  hardcoded per-Level `match` arms and Prep's hardcoded Level 1 route are gone.
+- **`level_transition.gd`** ends through `_route_after_coronation()` (same behavior; one extra safety: a Level
+  that is released on paper but has no scene — Level 2.5 today — exits to Title instead of a broken Intro).
+- Unchanged: Set records, counts, retries, the C1–C7 behavior, subscription gates, Level Intro, release state,
+  Level 2.5 (no scenes added), and the `#B8631A` color.
+- **Tests (new `gp` suite, 89 checks, all passing):** boundary stays `level1`; chain and names; exit routing under
+  simulated boundaries `level1` / `level15` / `level2` / `level25`; first completion, out-of-order completion
+  (last missing Set in the middle), replay of a middle and of the final Set, no second Coronation; Coronation →
+  Intro → Ready entering the newly released Level only at Ready; lapsed-subscriber gate at Ready; a Level completed
+  before the next one shipped entering it later via Title with no Coronation replay; Where Am I following the
+  boundary; the real `transition.gd` / `prep_transition.gd` first-completion routes.
+- **Regression after the change:** C1 48, C2 38, C3 53, C4 60+19+18+3, C5 48, C6 6, Level 1 fixes 25, Sound Quest
+  20, Prep Group E 16, and the C7 suite (33, 26, 54, 63, 12, 5, 2) — all passing.
+
+### Risks / Gotchas
+- Raising the boundary is still a one-line constant change, but a Level with no scene in `LEVEL_SCENES` (Level 2.5)
+  will keep exiting to Title even if released.
+- New file list is unchanged by this entry (changes are edits to existing files).
+
+---
+
+## 2026-10-11
+
+### Completed
+C7 — subscription entitlement and premium-gameplay interruption, implemented on Windows against isolated
+scratch saves (real save untouched). Not committed. Harnesses live outside the repo.
+
+- **New `entitlement_service.gd`** (child of the `SaveManager` autoload, no new autoload): store-verified
+  entitlement with request generations, event-aware ordering, UNKNOWN-is-not-loss, one shared Android
+  `BillingClient` / iOS `GDScriptStoreKit2`. `SaveManager.is_subscribed()` now means "verified this session";
+  the saved `subscribed` flag is a display mirror and is ignored for access. `set_subscribed()` is a QA/test hook.
+- **New `premium_gameplay.gd`**: registry of the 11 premium gameplay scenes, entry guard, group join, refuse /
+  route-to-paywall, audio stop. All 11 scenes got an entry guard (Prep scenes only for premium content), a
+  group join and `interrupt_for_entitlement_loss()`; a loss stops them immediately, writes nothing and routes to
+  the subscription flow (`CONTEXT_PREMIUM_LOCKED` → back to Where Am I after subscribing / Restore).
+- **Access model**: every non-Prep Set / Sound Quest is premium (`ProgressStatus.needs_subscription`);
+  `next_step` returns PAYWALL for any Level; `transition.gd` routes it to the subscription flow; Where Am I locks
+  Level tiles and non-Prep Sound Quest cards and re-renders on `entitlement_changed`; Title waits for the launch
+  check and sends a lapsed player to Prep; Level Intro refuses to enter a Level without a subscription.
+- **`choose_plan.gd`** rewired to the shared service: purchase and Restore confirm through it, Restore always asks
+  the store (no flag short-circuit) and has a third "couldn't check" outcome.
+- **iOS wrapper fix** (`ios/plugins/store_kit2_wrapper.gd`): `sync()` now actually calls the native `sync()`
+  and returns `synchronized` (it used to return `transaction_state_changed` without calling anything).
+- **Tests (Windows):** C7 suite 33 + 26 + 54 + 63 + 12 + 5 + 2 checks, all passing, plus the earlier suites
+  re-run (see the report for totals).
+
+### Decisions
+- Access is the store's last answer; UNKNOWN never grants or removes anything. A fresh launch has no premium until
+  the store answers (Title and Level Intro wait a bounded time for that first answer; Where Am I re-renders
+  when it arrives).
+- Interrupted attempts are never recorded or counted; free Prep content and Set Transitions are not interrupted.
+- Lapsed player on Title lands in free Prep content (not the paywall); every Level tile is locked while lapsed.
+
+### Risks / Gotchas
+- **Device verification still required** (cannot be tested on Windows): all real Play / App Store states
+  (active, cancelled-but-paid, expired, refunded, grace, hold), offline launch (iOS lookup needs the network),
+  shared-client reconnect, resume refresh, real `AppStore.sync()` Restore, Android purchase dictionary keys.
+- New files must be committed together: `entitlement_service.gd`, `premium_gameplay.gd` and their `.uid` files
+  (plus `progress_status.gd`/`.uid` from C1–C6). A fresh checkout needs an import to register the new classes.
+- The new "Couldn't Check Purchases" copy ("We couldn't reach the store. Please try again in a moment.") needs
+  owner approval. The 15-minute re-check interval and 20-second request time-out are constants in the service.
+- A new Level / Sound Quest scene must be registered in `PremiumGameplay.SCENE_PATHS` or it will be unguarded
+  (the C7 test fails on an unregistered one).
+
+### Next Session
+- Owner review of C7 results; then the agreed Git order (Windows commits and pushes after explicit approval; Mac
+  pulls). Device verification pass on Android and iOS. Godot 4.7.2 migration assessment remains open.
+
+---
+
+## 2026-10-10
+
+### Completed
+Progress and access framework for Game 1, in six verified stages (C1–C6), implemented on Windows. All of it
+was verified against isolated scratch saves (the test process was pointed at a temporary save folder, so the
+real save was never written; one check only read a copy of it). The test harnesses live outside the repo and
+are not committed.
+
+- **C1 — Prep subscription enforcement (was a release blocker).** `PrepLevelProgress` gained access checks
+  (`is_set_accessible`, `is_group_accessible`, `next_set_locked`); `prep_game.gd` and `sound_quest.gd` check
+  access at the top of `_ready()` so no route can start a premium Set or Sound Quest; Where Am I locks those
+  cards (grey + lock, no ▶). Sets A1–A2 and Sound Quest A are free; everything else needs a subscription.
+  `choose_plan.gd`'s grant routing no longer uses the in-memory index (it could rewind saved progress or mark
+  Prep complete) and routes exactly once; `PremiumIntroState` now carries a context
+  (`prep_boundary` / `prep_locked` / `gnb`). Title (via `PrepLevelProgress.load_from_save()`) shows the last accessible Set to
+  a player who cannot enter their saved one, without rewriting the cursor. Sound Quest reads its Group from
+  its own state instead of borrowing the resume cursor.
+- **C2 — explicit progress records.** `sets_entered` / `sets_completed` / `progress_records_version` in the
+  save, with a one-time additive migration (see `CLAUDE.md` → Save System). `ReleaseScope.set_keys()` builds the
+  record keys. Real-save check: a copy of the real save migrated to "all 26 Prep Sets passed, nothing else",
+  with every other value, including all stored counts, identical.
+- **Level 1 corrections.** The below-65% automatic redirect to Prep was removed from `transition.gd`. The
+  incorrect-rounds retry loop was corrected: once a retry has begun, any result below 95% keeps retrying only
+  the remaining incorrect rounds (new `LevelProgress.last_run_was_retry`, set by `game.gd` on every Set load).
+  The retry-subset score calculation and the Levels 1.5 / 2 thresholds are unchanged.
+- **C3 — ×N counting.** A count is added once when a full Set attempt finishes (pass or fail). Entering and
+  abandoning, incorrect-rounds retry runs and QA debug launches never count. Stored counts untouched; Sound
+  Quest counting unchanged.
+- **C4 — free selection, first-time Coronation, routing.** New `progress_status.gd`. Entry and completion are
+  written to the records (entry at the first round, completion the moment a pass is known); the cursor follows
+  the Set last played. After a pass: first full completion → Coronation; else the following Set (even if passed
+  before); else the Prep paywall; else Where Am I. Replays and chosen Sets are real scored attempts. Cube
+  boards fill from the records. Where Am I reads ✓ marks and counts from the records and locks Sets by access.
+- **C5 — four-state Where Am I display.** NOT STARTED `#FFFFFF`, IN PROGRESS `#F4EEFA`, COMPLETED `#E8DCF5`,
+  LOCKED the existing grey + lock, on Level tiles, Group / chunk tiles and Set cards. Derived only from the
+  records and access rules.
+- **C6 — documentation and a small fix.** `CLAUDE.md` updated (new Progress & Access section, Save System,
+  progress singletons, Level 1 retry loop, Prep per-Set 85% criterion, design rules 12–14, pending items). The
+  Where Am I header now reads "1 set done" (plural otherwise).
+- **Test totals:** 332 checks across C1–C5 plus the Level 1 corrections, all passing, before C6.
+
+### Decisions
+- Progress and access are tracked independently; only the explicit records are evidence of progress. The
+  resume cursor and ×N counts are never evidence.
+- Pass criteria are unchanged and Level-specific: Prep ≥ 85% per Set, Level 1 ≥ 95%, Levels 1.5 and 2 ≥ 85%.
+- A Coronation is guarded by the Level's own completed flag, so it plays once per Level. Title's "new Prep
+  cycle" after everything released is complete now ends at Where Am I instead of repeating the Coronation.
+- Locked Group tiles stay tappable so children can see the locked Set cards; gameplay access stays blocked.
+- A fresh player sees grey tiles for every Set but the first: the approved first-Set accessibility rule.
+
+### Risks / Gotchas
+- **Subscription entitlement refresh (C7) is REQUIRED before the Level 1.5 release.** Nothing refreshes
+  entitlement at launch or on foreground; expiry and refunds are ignored; the `subscribed` flag is never
+  cleared outside QA; Restore short-circuits on the flag. Needs physical Android and iOS verification. Until it
+  ships, a lapsed subscriber keeps access. Also verify on a device that the iOS `sync()` wrapper really
+  triggers a restore.
+- **First launch after pulling these changes migrates the save once** (it gains `sets_entered`,
+  `sets_completed`, `progress_records_version`). A Set a child entered but never passed, and the Set the cursor
+  points at, show NOT STARTED after migration; that history cannot be reconstructed.
+- **New files must be committed together:** `progress_status.gd` and `progress_status.gd.uid`. A fresh checkout
+  also needs the editor (or a headless `--import`) to register the new `class_name`.
+- Level 1.5 release gate is unchanged (`ReleaseScope.HIGHEST_RELEASED_LEVEL_ID` is still `level1`); version
+  numbers, `export_presets.cfg` and `project.godot` were not touched.
+- **Prep Group E content, confirmed by the product owner: K Q S W X (/ks/).** The playable data
+  (`prep_1e_1` / `prep_1e_2`) was already right and was not touched. Corrected to match: `CLAUDE.md`'s Prep
+  table, Where Am I's two Group E labels (they were missing "w"), a comment in `prep_level_progress.gd`, and the
+  Prep 1E row of the two June 2026 design docs (`SoundUp_curriculum_arc.md`,
+  `SoundUp_prep_and_level1_detail.md`). Those two docs otherwise still describe the older 33-set scope and
+  predate everything above.
+
+### Next Session
+- Git sync order, agreed: finish and verify on Windows; Mac checks its tree and pulls what Windows already
+  pushed; Windows commits and pushes this work; Mac pulls the new commits.
+- C7: subscription entitlement refresh (propose the smallest safe architecture first, and whether an autoload
+  is needed; do not change `project.godot` without separate approval), then device verification.
+- Release-readiness review: whether Levels 1, 1.5 and 2 need scene-entry guards beyond the existing layers.
+- Godot 4.7.2 migration (assessment done, not started): the iOS StoreKit plugin was built against 4.5.1 and
+  needs a rebuild on Mac.
+
+---
+
 ## 2026-09-17
 
 ### Completed

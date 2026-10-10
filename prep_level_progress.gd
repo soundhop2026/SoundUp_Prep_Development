@@ -35,7 +35,7 @@ static var sets : Array[String] = [
 	"res://prep_1d_4.json",
 	"res://prep_1d_5.json",
 	"res://prep_1d_6.json",
-	# ── Set 5: Q X-ks S K (3 choices) ───────────────────────────────────────
+	# ── Set 5: K Q S W X-ks (3 choices) ─────────────────────────────────────
 	"res://prep_1e_1.json",
 	"res://prep_1e_2.json",
 	# ── Set 6: All sounds mixed (5 choices) ──────────────────────────────────
@@ -76,17 +76,38 @@ const FREE_SET_COUNT : int = 2
 static func is_free_set(index: int) -> bool:
 	return index < FREE_SET_COUNT
 
-# True right after finishing the last free set, before advancing past it —
-# the exact moment the Parent Gate should intercept progression.
-static func crosses_into_premium() -> bool:
-	return is_free_set(current_index) and not is_free_set(current_index + 1)
+# ─── Access (subscription) — independent of learning progress ────────────────
+# Whether a Set or Sound Quest can be entered depends only on the free Sets and
+# the subscription flag. It never reads or writes completion data or the cursor.
+static func is_set_accessible(index: int) -> bool:
+	return is_free_set(index) or SaveManager.is_subscribed()
+
+static func last_accessible_index() -> int:
+	return sets.size() - 1 if SaveManager.is_subscribed() else FREE_SET_COUNT - 1
+
+# A Group is free only if it contains a free Set (today: Group A alone).
+static func is_group_free(group: int) -> bool:
+	var start_idx : int = 0 if group == 0 else MAIN_SET_BOUNDARIES[group - 1] + 1
+	return is_free_set(start_idx)
+
+static func is_group_accessible(group: int) -> bool:
+	return is_group_free(group) or SaveManager.is_subscribed()
+
+# True when a following Set exists but this player may not enter it yet — the
+# exact moment the existing paywall (Keep Hopping -> Parent Gate) must appear.
+static func next_set_locked() -> bool:
+	return has_next() and not is_set_accessible(current_index + 1)
+
+# Which main set (0–5) a sub-set index belongs to.
+static func group_number_for_index(index: int) -> int:
+	for i in range(MAIN_SET_BOUNDARIES.size()):
+		if index <= MAIN_SET_BOUNDARIES[i]:
+			return i
+	return MAIN_SET_BOUNDARIES.size() - 1
 
 # Returns which main set (0–6) the current sub-set belongs to.
 static func main_set_number() -> int:
-	for i in range(MAIN_SET_BOUNDARIES.size()):
-		if current_index <= MAIN_SET_BOUNDARIES[i]:
-			return i
-	return MAIN_SET_BOUNDARIES.size() - 1
+	return group_number_for_index(current_index)
 
 # Inclusive [start, end] sub-set index range for the Group current_index
 # belongs to (e.g. Group A -> [0, 3]) — used by Sound Quest to assemble a
@@ -124,3 +145,7 @@ static func reset() -> void:
 
 static func load_from_save() -> void:
 	current_index = SaveManager.get_prep_set_index()
+	# Display clamp only: a player who cannot enter the saved Set resumes at the
+	# last Set they can. The saved cursor itself is never rewritten here.
+	if current_index > last_accessible_index():
+		current_index = last_accessible_index()

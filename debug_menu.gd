@@ -175,7 +175,7 @@ func _build_premium_gate_demo(start_y: float) -> float:
 
 func _on_test_premium_flow_pressed() -> void:
 	SaveManager.set_subscribed(false)
-	PremiumIntroState.context_id = "prep"
+	PremiumIntroState.context_id = PremiumIntroState.CONTEXT_GNB
 	get_tree().change_scene_to_file("res://premium_intro.tscn")
 
 

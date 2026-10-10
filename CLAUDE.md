@@ -38,8 +38,8 @@ title.tscn / title.gd
 prep_game.tscn / prep_game.gd  ←─────────────────────────────┐
     ↓ (each set done)                                         │ retry loop
 prep_transition.tscn / prep_transition.gd ────────────────────┘
-    ↓ (all 26 sets done, accuracy ≥ 85%)
-level_transition.tscn / level_transition.gd   ← plays ONCE in a child's lifetime
+    ↓ (every Prep Set passed — the Level's first full completion)
+level_transition.tscn / level_transition.gd   ← plays ONCE per Level, on its first full completion
     ↓
 game.tscn / game.gd  ←───────────────────────────────────────┐
     ↓ (each set done)                                         │ retry / replay
@@ -121,19 +121,21 @@ actually playable.
 | 1B | prep_1b_1 → prep_1b_4 | N F P D G J | 4 |
 | 1C | prep_1c_1 → prep_1c_6 | H W Y L R Z | 4 |
 | 1D | prep_1d_1 → prep_1d_6 | Contrast pairs | 4 |
-| 1E | prep_1e_1 → prep_1e_2 | C-soft G-soft X Q | 3 |
+| 1E | prep_1e_1 → prep_1e_2 | K Q S W X (/ks/) | 3 |
 | 1F | prep_1f_1 → prep_1f_4 | All sounds mixed | 5 |
 
-### Accuracy tracking (`PrepLevelProgress`)
-- `pass_total` — total rounds completed
-- `pass_wrong` — rounds where child pressed wrong at least once
-- `accuracy()` = `(pass_total - pass_wrong) / pass_total`
-- A "wrong round" = any round with at least one wrong press
+### Accuracy tracking (per Set)
+- Computed in `prep_game.gd` for the run just played, and stored in `PrepLevelProgress.last_score_pct`.
+- A "wrong round" = any round with at least one wrong press (a round is counted on its first completion only).
+- Score = `(rounds − wrong rounds) / rounds`. `PrepLevelProgress.retry_rounds` holds the wrong rounds.
 
-### 85% gate
-- After all 26 sets: if `accuracy() >= 0.85` → cube dance → `level_transition.tscn`
-- If `< 0.85` → wrong-round retry (flat, continuous, no new cubes)
-- Retry loops until accuracy reaches 85%+
+### 85% pass criterion (per Set — not across all 26 Sets)
+- Each Set passes at **≥ 85%** (no stars in Prep). A pass is recorded in `sets_completed`; what follows is
+  decided by [Progress & Access](#progress--access-locked).
+- Below 85%: only that Set's wrong rounds are retried (flat, continuous, no new cubes), looping until the
+  Set reaches 85%.
+- There is no accuracy gate across the whole Level. The Level is complete when every one of its 26 Sets has
+  been passed.
 
 ---
 
@@ -142,27 +144,33 @@ actually playable.
 **Purpose:** Between-set celebration inside Prep Level.
 
 - Background: baby green `#A8E063`
-- Sets 1–25: PlayButton bounces ×6 → earned cubes dance → next set
-- Set 26: bounce → accuracy check → cubes dance → route
-- Retry graduation (`is_retry=true`): no bounce → all 26 cubes dance → `level_transition`
+- Every Set: PlayButton bounces ×6 → the pass is recorded → cube board → routing per
+  [Progress & Access](#progress--access-locked) (Coronation on first full completion, else the following
+  Set, else the subscription paywall, else Where Am I)
+- Below 85%: no cubes; back to `prep_game.tscn` to retry the wrong rounds
 
 ### Cube board
 - Same system as Level 1's `transition.gd` cube board (reused, not reimplemented separately) —
   same asset, deep-blue filled / faint-white-outline colors, 40px cubes on a 48px step, two
   rows split by `(total+1)/2`, centred at x=640.
-- 26 cubes total — one per **individual set**, not per main group; `earned = PrepLevelProgress.current_index + 1`
-- Whole board is created (hidden) in `_ready()`; `_show_cubes(earned)` reveals it on a pass,
-  and only the newly-earned cube plays the continuous wiggle dance (`_dance_cube`) — same
-  behavior as Level 1, not a full-board group dance
+- 26 cubes total — one per **individual set**, not per main group. A cube is filled only if that Set is
+  recorded as passed (`sets_completed`), so a Set passed out of order never lights earlier cubes.
+- Whole board is created (hidden) in `_ready()`; `_show_cubes()` reveals it on a pass, and only the Set
+  just passed plays the continuous wiggle dance (`_dance_cube`) — same behavior as Level 1, not a
+  full-board group dance
 
 ### CRITICAL routing rule
-`has_next()` MUST be called BEFORE `advance()` — reversed order silently routes to title.
+`has_next()` MUST be called BEFORE `advance()` — reversed order silently routes to title. Routing now goes
+through `ProgressStatus.next_step()`, which checks that a following Set exists before any advance.
 
 ---
 
 ## Level Transition (`level_transition.tscn` / `level_transition.gd`)
 
-**Purpose:** Coronation. Plays ONCE when a child graduates from Prep to Level 1.
+**Purpose:** Coronation. Plays ONCE per Level, on that Level's first full completion (Prep → Level 1,
+Level 1 → 1.5, 1.5 → 2, 2 → 2.5). The Level Transition scene is shared; `LevelTransition.next_level_id`
+says where it leads. It never repeats when an already-completed Set is replayed. See
+[Progress & Access](#progress--access-locked).
 
 ### Visual design
 - Background: cream `#EDE4D3`
@@ -265,10 +273,18 @@ that round).
 8. POP ×10 (first 5 fast, last 5 slow)
 9. 5s hold → track 1 ends → track 2 plays → track 2 ends → route
 
-### Score thresholds
-- ≥ 95% → 3 stars → advance
-- 85–94% → 2 stars → retry wrong rounds
-- ≤ 84% → 1 star → replay full set
+### Score thresholds and the retry loop
+- **Initial ≥ 95% → 3 stars → Set passed.**
+- **Initial 85–94% → 2 stars → retry the incorrect rounds only.** Once an incorrect-rounds retry has begun,
+  any result below 95% (1★ or 2★) keeps retrying only the rounds still incorrect — never the whole Set. A
+  retry run is scored over the retry rounds only (unchanged calculation); ≥ 95% passes. The marker is
+  `LevelProgress.last_run_was_retry`, assigned by `game.gd` on every Set load (true only when it loaded
+  `retry_rounds`), so it can never carry into a new Set.
+- **Initial below 85% → 1 star → replay the whole Set.**
+- A below-65% score is an ordinary 1-star result. The old rule that sent a child who scored under 65% on
+  the first Level 1 Set back to Prep was removed: children no longer choose between Prep and Level 1, so
+  a low Level 1 score never sends a child anywhere else.
+- Levels 1.5 and 2 are unchanged: ≥ 85% (2★ or better) passes ("Gain and Move"); below that retries.
 
 ### Music
 - Track 1: `BGM&effect/transition_fanfare.wav`
@@ -286,9 +302,20 @@ Autoload singleton. Saves to `user://soundup_save.json`.
 
 | Key | Type | Purpose |
 |---|---|---|
-| `prep_completed` | bool | true after graduating to Level 1 |
-| `prep_set_index` | int | current Prep set index |
-| `level1_set_index` | int | current Level 1 set index |
+| `prep_completed`, `level1_completed`, `level15_completed`, `level2_completed` | bool | set once, on that Level's first full completion; guards the Coronation |
+| `prep_set_index`, `level1_set_index`, `level15_set_index`, `level2_set_index` | int | **resume cursor**: the Set last actually played, or after a pass the Set that follows. Reset to 0 on a Level's first completion. Never evidence of entry or completion |
+| `levels_entered` | dict | per-Level entry flag, written only by the Level Intro's Ready button; drives Where Am I's Level lock |
+| `sets_entered`, `sets_completed` | dict | **explicit per-Set records**, keyed `<level_id>_<label>` (e.g. `prep_A1`, `level15_E3`, `level2_L`); the only evidence a Set was entered / passed |
+| `progress_records_version` | int | `1` once the records exist; an older save is migrated exactly once on load |
+| `review_counts` | dict | ×N counts shown in Where Am I (display only; never evidence) |
+| `subscribed` | bool | **display mirror only** of the last store-verified state; never read for access (see Subscription Entitlement & Premium Gameplay) |
+| `path_chosen`, `chose_level1_path` | bool | legacy path flags; nothing sets `chose_level1_path` any more |
+
+**Migration (one time, additive):** a save without `progress_records_version` gets records from the only
+reliable pre-record evidence — a Level's completed flag marks all its Sets; otherwise Sets before the
+saved cursor are marked. It never reads `review_counts`, never removes or lowers anything, and never
+touches cursors, flags, counts or subscription. The Set the cursor points at, and any Set that was
+entered but never passed, stay NOT STARTED (that history cannot be reconstructed).
 
 **Save file location (for testing):**
 `C:\Users\user\AppData\Roaming\Godot\app_userdata\SoundUp_Prep_Development\soundup_save.json`
@@ -305,14 +332,32 @@ Delete this file for a clean test from the beginning.
 - `current_index` — which Level 1 set is active
 - `last_score_pct` — mastery accuracy from last set (default 0.0 = 1 star)
 - `is_retry` — if true, `game.gd` loads `retry_rounds` instead of JSON
-- `retry_rounds` — array of wrong round dicts for 2-star path
+- `retry_rounds` — array of wrong round dicts for the incorrect-rounds retry path
+- `last_run_was_retry` — true only for the run just played when it replayed `retry_rounds` (see Level 1 retry loop)
 - `sets` — array of 17 JSON paths (adding a set = one line here, nothing else)
 
 ### `PrepLevelProgress` (prep_level_progress.gd)
-- `pass_total`, `pass_wrong`, `wrong_round_dicts`
-- `retry_rounds`, `is_retry`
-- `accuracy()` → float
-- `load_from_save()` — restores index from SaveManager on title press
+- `current_index`, `last_score_pct` (per-Set accuracy), `retry_rounds`, `is_retry`
+- `FREE_SET_COUNT` (2), `is_set_accessible()`, `is_group_accessible()`, `next_set_locked()` — subscription access
+- `load_from_save()` — restores the cursor from SaveManager; for a player who cannot enter that Set it displays
+  the last accessible Set instead, without rewriting the saved cursor
+
+### `Level15Progress`, `Level2Progress`
+Same shape as `LevelProgress` (13 and 12 Sets); Level 1.5 and Level 2 pass at ≥ 85%.
+
+### `ProgressStatus` (progress_status.gd)
+Pure functions, no writes: `needs_subscription()`, `is_set_accessible()`, `set_status()` / `group_status()` /
+`level_status()`, `all_required_completed()`, `first_completion_ready()`, `next_step()`, `clear_retry()`.
+
+### `ReleaseScope` helpers (release_scope.gd)
+`set_keys(level_id)` / `set_key(level_id, index)` build the record keys; `record_cursor(level_id, index)`
+saves the resume cursor.
+
+### `PremiumIntroState` (premium_intro_state.gd)
+Context for the subscription flow: `CONTEXT_PREP_BOUNDARY` (passed the last free Set → continue to the next),
+`CONTEXT_PREP_LOCKED` (tried a premium Prep Set → back to Where Am I), `CONTEXT_PREMIUM_LOCKED` (premium
+gameplay refused or interrupted → back to Where Am I), `CONTEXT_GNB` (opened from GNB Home → back there).
+Granting access never writes progress by itself.
 
 ---
 
@@ -372,6 +417,77 @@ void fragment() {
 9. **Never auto-advance past the highest publicly released Level.** After any Level's Coronation, the game continues into the next Level only if it's within the current build's release scope — otherwise the player returns to Title instead. See [Release Scope Gate](#release-scope-gate-locked) — this is a generic framework rule, not a one-off patch for any specific Level.
 10. **A Set Transition always matches the background color of the gameplay it belongs to.** See [Background Color Rule](#background-color-rule-locked) — main gameplay and Sound Quest are two separate palettes, and a Sound Quest Set Transition follows its Sound Quest Set's color, never the parent Level's main color.
 11. **Typography is assigned by semantic role, never by screen.** Schoolbell = character/logo text · Andika Regular = information content · Andika Bold = information structure · JetBrains Mono Regular/Bold = action/transaction. The SOUNDHOP wordmark in the PlayButton logo system is Schoolbell text; existing lettering artwork is not automatically protected. Never synthesize bold; never do a repository-wide font replacement. Full rules: [`SOUNDHOP_UI_FONT_FRAMEWORK.md`](SOUNDHOP_UI_FONT_FRAMEWORK.md); implementation: `ui_fonts.gd`.
+12. **Progress and access are separate; the explicit Set records are the only evidence of progress.** The resume cursor and the ×N counts are never evidence of entry or completion, and locking a Set never changes a record. See [Progress & Access](#progress--access-locked).
+13. **×N counts full Set attempts only.** Entering and leaving, incorrect-rounds retry runs and QA debug launches never count. See [Progress & Access](#progress--access-locked).
+14. **A Coronation plays once per Level, on its first full completion, and no Level advances while a required Set is incomplete.** See [Progress & Access](#progress--access-locked).
+
+---
+
+## Progress & Access (locked)
+
+Locked 2026-10 (stages C1–C6). Terminology is Level → Group → Set → Round.
+
+### Three separate things
+| Thing | Where | Meaning |
+|---|---|---|
+| **Progress records** | `SaveManager` `sets_entered` / `sets_completed` | The only evidence a Set was entered / passed. Entry is written at actual gameplay entry (the first round of a real play); completion when a Set is passed by its Level's own criterion. Records only grow: replays, failures and access changes never clear one. |
+| **Resume cursor** | `*_set_index` | The Set last actually played; after a pass, the Set that follows. Title resumes here. A real entry may overwrite it, including when replaying an earlier Set. |
+| **×N counts** | `review_counts` | Display only. |
+
+### Access (separate from progress)
+- A Level's first Set is always open. Once it has actually been attempted, **every** Set in that Level is
+  open for free selection, whatever else has been passed. Before that, the other Sets are LOCKED.
+- **Prep subscription takes precedence:** free users reach only Sets A1–A2 (`PrepLevelProgress.FREE_SET_COUNT`);
+  Set 3 onward needs a subscription, and a subscriber reaches every Prep Set immediately. Completing a free
+  Set never unlocks a paid Set. **Prep Sound Quest A is free; Sound Quest B–F need a subscription** (a Group
+  is free only if it contains a free Set). Sound Quest A does not require completing A1 or A2.
+- Enforced at every route: Where Am I locks the cards, and every premium gameplay scene checks access in
+  `_ready()` (a blocked entry goes to the premium screen and touches no progress). See Subscription Entitlement
+  & Premium Gameplay for the full model, including Levels 1+. Title shows the last
+  accessible Set to a player who cannot enter their saved one, without rewriting the cursor.
+- A completed Set that becomes inaccessible keeps its completion and shows LOCKED.
+- Level prerequisites are enforced by the existing layers: Where Am I's lock cascade, Title's forward routing
+  and the Coronation hand-off. Locked Group tiles stay tappable so a child can see the locked Set cards;
+  gameplay access stays blocked.
+
+### Passing a Set, and what follows
+- Pass criteria, unchanged: **Prep ≥ 85%** (per Set, no stars); **Level 1 ≥ 95% (3★)**; **Level 1.5 and Level 2
+  ≥ 85% (2★ or better)**. The pass is recorded as soon as the result is known.
+- After a pass, in this order (`ProgressStatus.next_step`):
+  1. The Level has just become fully completed for the first time → the Coronation (the existing flow).
+  2. Otherwise, a following Set exists and is accessible → go to it, **even if it was passed before**.
+  3. A following Set exists but needs a subscription → the existing paywall (Prep: Keep Hopping → Parent Gate →
+     Choose Plan; Levels 1 / 1.5 / 2: straight to the subscription flow, pass already recorded).
+  4. Otherwise (the final Set was reached) → Where Am I.
+- The next Level is never entered while any required Set is incomplete. Required Sets: Prep 26, Level 1 17,
+  Level 1.5 13, Level 2 12. **Sound Quest is never part of Level completion.**
+- **Coronation guard:** it fires only when every required Set is recorded *and* the Level's own completed
+  flag is not yet set, so replaying completed Sets — including Title's "new Prep cycle" — never repeats it.
+- A Set chosen in Where Am I starts as a real, scored attempt that follows the rules above (any stale retry is
+  cleared first). Sound Quest cards keep their own review flow back to Where Am I.
+- Cube boards fill from the records, never from a Set index.
+
+### ×N play counts
+- One count when a **full** Set attempt finishes (every round of the full Set reached), **whether it passes
+  or fails**. Entering and abandoning, incorrect-rounds-only retry runs and QA debug launches never count.
+- Applies to Prep, Level 1, Level 1.5 and Level 2 (including `game25.gd`, which serves Level 2 Sets I–L).
+- Counts stored by earlier builds (which counted at entry) are preserved exactly as stored; the corrected
+  rule applies from now on. **Sound Quest counting is unchanged** (one count at the quest's first round).
+- Where Am I display unchanged: shown only for completed Sets and Sound Quest cards, and only when above 0.
+
+### Where Am I states
+Derived only from the records and the access rules — never from the cursor.
+
+| State | Color | Meaning |
+|---|---|---|
+| NOT STARTED | `#FFFFFF` | accessible, never actually entered |
+| IN PROGRESS | `#F4EEFA` | actually entered, not yet passed |
+| COMPLETED | `#E8DCF5` | passed by its Level's criterion |
+| LOCKED | `#AAAAAA` + lock | cannot be entered; takes precedence over everything |
+
+- A **Group** is LOCKED only when none of its Sets can be entered, COMPLETED only when every one is passed,
+  IN PROGRESS once any has been entered or passed, otherwise NOT STARTED. A **Level** reflects all its Sets
+  the same way (its own lock cascade applies on top). Sound Quest cards keep the plain white card.
 
 ---
 
@@ -516,13 +632,71 @@ Product-wide framework rule — applies to every Level's Coronation, current and
 
 ### Implementation
 - `release_scope.gd` (`class_name ReleaseScope`) — `PROGRESSION_ORDER` is the full Level
-  sequence in curriculum order, matching `LevelTransition.next_level_id`'s real values
-  exactly. `HIGHEST_RELEASED_LEVEL_ID` is the single constant to change when a new Level
-  ships publicly. `is_level_released(level_id)` is the one function everything else calls.
-- Coronation exit (`level_transition.gd`): `if not ReleaseScope.is_level_released(next_level_id): route to title.tscn; return` — checked right before the existing auto-advance-to-Level-Intro line, so it's the only thing gated; the Coronation choreography itself is untouched.
+  sequence in curriculum order **and is the Coronation hand-off chain itself**: the Level
+  after a completed Level is simply the next entry (`next_level_id()`); no Level-to-Level route
+  is hardcoded anywhere. `HIGHEST_RELEASED_LEVEL_ID` is the single constant to change when a
+  new Level ships publicly. `is_level_released(level_id)` is the one function everything else
+  calls (it reads the runtime copy `released_boundary_id`, which always starts at the constant;
+  only tests assign it, to simulate a later release).
+- `ReleaseScope.begin_coronation(level_id)` — called by `prep_transition.gd` and `transition.gd`
+  on a Level's first full completion (`ProgressStatus.next_step` → CORONATION): sets that Level's
+  completed flag (the guard that stops the Coronation repeating), rewinds its runtime position,
+  and sets `LevelTransition.next_level_id` / `level_name` from the chain. It never marks the next
+  Level entered; only the Level Intro's Ready button does.
+- Coronation exit (`level_transition.gd` → `_route_after_coronation()` →
+  `ReleaseScope.coronation_exit_scene(next_id)`): the next Level's Intro if that Level is released
+  **and has a scene to enter**, otherwise Title (also after the last Level). The Coronation
+  choreography itself is untouched. A Level completed before the next one shipped is entered later
+  through Title's forward routing → Intro → Ready, with no Coronation replay.
 - Where Am I's lock cascade (`gnb_where_am_i.gd`, `_build_level_meta()`): each of `l15_lock`/`l2_lock`/`l25_lock` independently ORs in `not ReleaseScope.is_level_released(<that level's id>)` alongside its existing progression-based term. Prep and Level 1 are never gated this way — Prep is never locked at all, and Level 1's own lock (`l1_lock`) is purely progression-based, since Level 1 is always in scope for this framework's earliest possible release.
 
 ---
+
+## Subscription Entitlement & Premium Gameplay (C7, locked)
+
+Policy: a valid subscription gives premium access; an expired one does not. **Access is whatever Google Play /
+the App Store last verified.** No app-managed grace periods, no legacy allowances, no time extensions; a
+connectivity problem never creates or extends an entitlement. (Billing grace period, retry and account hold are
+the *store's* behavior: the store keeps or drops the subscription and the app only reads the answer.)
+
+**Free vs premium.** Free: Prep Sets A1/A2 and Prep Sound Quest A. **Premium: everything else** — every other
+Prep Set and Prep Sound Quest, and **all of Level 1, 1.5, 2, 2.5 and every future Level and Sound Quest**.
+
+**`EntitlementService`** (`entitlement_service.gd`, hosted as a child of the `SaveManager` autoload — no new
+autoload, `project.godot` untouched; reach it with `SaveManager.entitlement()`):
+- `SaveManager.is_subscribed()` is the single choke point = "the store said ENTITLED this session". A fresh launch
+  is UNVERIFIED (no premium) until the store answers; the saved `subscribed` key is never evidence.
+- Verified at launch, on app resume, on entering premium gameplay, every 15 min while entitled, on
+  purchase/restore/transaction events, and on explicit Restore. Android: `BillingClient.query_purchases(SUBS)`;
+  iOS: StoreKit 2 `ProductInfo.is_purchased`; Restore calls the real `AppStore.sync()`.
+- An answer is ENTITLED, NOT_ENTITLED, or UNKNOWN. **UNKNOWN (offline, store error, time-out) changes nothing and
+  interrupts nothing** — it is not confirmed loss. Requests are generation-numbered: only the latest generation
+  may change state, and an answer issued before a purchase/restore/refund event is discarded and re-asked. The
+  first NOT_ENTITLED right after an event-confirmed entitlement is verified once more. No silence timers.
+- **One shared** `BillingClient` / `GDScriptStoreKit2` for the whole app (a second instance double-fires native
+  callbacks). `choose_plan.gd` only attaches its UI handlers and detaches in `_exit_tree`.
+- Restore always asks the store: ENTITLED → continue; NOT_ENTITLED → "No Purchases Found"; UNKNOWN →
+  "Couldn't Check Purchases" (try again).
+- `DebugConfig.DEBUG_MODE` (false in every committed build) entitles desktop builds that have no store.
+
+**`PremiumGameplay`** (`premium_gameplay.gd`): registry `SCENE_PATHS` of the 11 premium gameplay scenes
+(`prep_game`, `sound_quest`, `game`, `level1_sound_quest`, `game15`, `level15_sound_quest_ab/cd/e/f`, `game2`,
+`game25`), plus `level_scene_admitted()`, `join()`, `refuse()`, `route_to_paywall()`.
+- **Entry guard**: each Level scene's `_ready()` starts with `level_scene_admitted()` (verified subscription, or a
+  QA `DebugConfig.debug_launch`); Prep scenes keep their access check and add the group join only for premium
+  content. A refused entry writes nothing and goes to the subscription flow.
+- **Interruption**: on a confirmed loss, every scene in group `premium_gameplay` runs
+  `interrupt_for_entitlement_loss()` — stops immediately (does not wait for the Set / Quest to end), locks input,
+  stops audio, clears any retry state, and routes to `premium_intro.tscn` (`CONTEXT_PREMIUM_LOCKED`). It never
+  terminates the app. **Nothing is written**: the interrupted attempt is not recorded complete and not counted;
+  records, resume cursor and ×N counts are preserved. A registered scene that forgot the method is still routed
+  by the service. Free Prep content and Set Transitions are never interrupted.
+- After subscribing or Restoring, access returns and the subscription flow goes back to Where Am I.
+- **New Level or Sound Quest scene: add its path to `SCENE_PATHS`, add the entry guard, join the group, and
+  implement `interrupt_for_entitlement_loss()`** (the C7 test scans `*.tscn` and fails on an unregistered one).
+- Where Am I locks every Level tile (and so every Sound Quest card) without a verified subscription and re-renders
+  when `entitlement_changed` fires; Title waits (bounded) for the launch check, and sends a lapsed player to free
+  Prep content instead of Level 1+; Level Intro refuses to mark a Level entered without a subscription.
 
 ## Planned / Pending
 
@@ -531,6 +705,12 @@ Product-wide framework rule — applies to every Level's Coronation, current and
 - **Transition scene rename**: `prep_transition` → `prep_set_transition`, `transition` → `level1_set_transition` (deferred).
 - **Tablet end-to-end test**: all 17 Level 1 sets on device (deferred).
 - **Level 2+**: not yet designed.
+- **Subscription entitlement (C7) — implemented and verified on Windows only; physical-device verification is
+  still REQUIRED before the Level 1.5 release.** See Subscription Entitlement & Premium Gameplay. Device checks:
+  active / cancelled-but-paid / expired / refunded / grace / hold on both stores, offline launch (iOS product
+  lookup needs the network → UNKNOWN → no premium until online), the shared Android client reconnect, the
+  resume notification, iOS Restore through the real `AppStore.sync()`, and the Android purchase dictionary keys
+  (`product_ids`, `purchase_state`).
 
 ## Update — June 2026
 Companion app renamed: Glide → SoundBuddy

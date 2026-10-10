@@ -284,6 +284,13 @@ func _on_ready_pressed(lid: String) -> void:
 
 
 func _enter_level_now(lid: String) -> void:
+	if lid != "prep":
+		await SaveManager.entitlement().settle()
+		if not PremiumGameplay.level_scene_admitted():
+			# Every Level after Prep is premium. Nothing is marked entered and no
+			# record changes; the subscription flow returns to Where Am I.
+			PremiumGameplay.route_to_paywall(get_tree())
+			return
 	SaveManager.mark_level_entered(lid)
 	# Restore the saved index rather than forcing 0: on the normal first-entry
 	# paths (Coronation hand-off, Title's Case B) the saved index is already 0,

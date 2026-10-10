@@ -71,9 +71,12 @@ func purchase_product(product_id: String, quantity: int = 1) -> Signal:
 
 
 func sync() -> Signal:
-	if not _store_kit:
-		return synchronized
-	return _store_kit.transaction_state_changed
+	# Must actually call the native sync (AppStore.sync()); it used to return
+	# transaction_state_changed without ever calling it, so Restore never asked
+	# the App Store anything. `synchronized` fires when the round-trip finishes.
+	if _store_kit:
+		_store_kit.sync()
+	return synchronized
 
 
 class ProductInfo:

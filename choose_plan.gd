@@ -61,7 +61,7 @@ const CARD_H : float = 230.0
 const CARD_GAP : float = 40.0
 const CARDS_Y : float = 150.0
 
-const SUBSCRIPTION_PRODUCT_ID : String = "soundhop_subscription"   # one product, two base plans below
+const SUBSCRIPTION_PRODUCT_ID : String = EntitlementService.ANDROID_PRODUCT_ID   # one product, two base plans below
 const MONTHLY_BASE_PLAN_ID : String = "monthly"
 const YEARLY_BASE_PLAN_ID  : String = "yearly"
 
@@ -81,6 +81,8 @@ var _font_bold : Font = null   # UIFonts.action_bold()
 var _font_name : Font = null   # UIFonts.learning_bold()
 var _billing : BillingClient = null
 var _billing_ready : bool = false   # true once the current platform's product info is confirmed loaded
+
+var _granted_routed : bool = false
 
 var _storekit : GDScriptStoreKit2 = null
 var _ios_monthly_ready : bool = false
@@ -321,25 +323,58 @@ func _is_billing_supported_platform() -> bool:
 # platform's client here rather than gating construction itself — only the
 # actual purchase/restore ACTIONS need an OS.get_name() gate, matching
 # where real money could move.
+#
+# The store clients are SHARED with the entitlement service (one BillingClient /
+# one GDScriptStoreKit2 for the whole app: a second instance would double every
+# native callback). This screen only attaches its own UI handlers to them and
+# detaches in _exit_tree. Whether access is granted is decided by the service.
 func _init_billing() -> void:
+	var service : EntitlementService = SaveManager.entitlement()
+	service.restore_finished.connect(_on_restore_finished)
 	match OS.get_name():
 		"Android":
-			_billing = BillingClient.new()
-			add_child(_billing)
+			_billing = service.billing_client()
+			if _billing == null:
+				return
 			_billing.connected.connect(_on_billing_connected)
 			_billing.connect_error.connect(_on_billing_connect_error)
 			_billing.query_product_details_response.connect(_on_query_product_details_response)
-			_billing.query_purchases_response.connect(_on_query_purchases_response)
 			_billing.on_purchase_updated.connect(_on_purchase_updated)
 			_billing.acknowledge_purchase_response.connect(_on_acknowledge_purchase_response)
-			_billing.start_connection()
+			if service.is_billing_connected():
+				_on_billing_connected()
+			else:
+				# The service owns the connection; asking it to verify (re)connects
+				# if needed, and `connected` above then loads the product details.
+				service.refresh("plan_screen")
 		"iOS":
-			_storekit = GDScriptStoreKit2.new()
+			_storekit = service.storekit()
+			if _storekit == null:
+				return
 			_storekit.product_info_received.connect(_on_ios_product_info_received)
 			_storekit.transaction_state_changed.connect(_on_ios_transaction_state_changed)
-			_storekit.synchronized.connect(_on_ios_synchronized)
 			_storekit.request_product_info(IOS_MONTHLY_PRODUCT_ID)
 			_storekit.request_product_info(IOS_YEARLY_PRODUCT_ID)
+
+
+func _exit_tree() -> void:
+	var service : EntitlementService = SaveManager.entitlement()
+	if service != null and service.restore_finished.is_connected(_on_restore_finished):
+		service.restore_finished.disconnect(_on_restore_finished)
+	if _billing != null:
+		_disconnect_if(_billing.connected, _on_billing_connected)
+		_disconnect_if(_billing.connect_error, _on_billing_connect_error)
+		_disconnect_if(_billing.query_product_details_response, _on_query_product_details_response)
+		_disconnect_if(_billing.on_purchase_updated, _on_purchase_updated)
+		_disconnect_if(_billing.acknowledge_purchase_response, _on_acknowledge_purchase_response)
+	if _storekit != null:
+		_disconnect_if(_storekit.product_info_received, _on_ios_product_info_received)
+		_disconnect_if(_storekit.transaction_state_changed, _on_ios_transaction_state_changed)
+
+
+func _disconnect_if(sig: Signal, handler: Callable) -> void:
+	if sig.is_connected(handler):
+		sig.disconnect(handler)
 
 
 func _on_billing_connected() -> void:
@@ -383,21 +418,12 @@ func _on_ios_transaction_state_changed(transaction: GDScriptStoreKit2.Transactio
 	match transaction.transaction_state:
 		GDScriptStoreKit2.TransactionState.PURCHASED, GDScriptStoreKit2.TransactionState.RESTORED:
 			if transaction.product_id in [IOS_MONTHLY_PRODUCT_ID, IOS_YEARLY_PRODUCT_ID]:
-				SaveManager.set_subscribed(true)
+				SaveManager.entitlement().confirm_entitled()
 				_continue_granted()
 		GDScriptStoreKit2.TransactionState.CANCELED:
 			_on_purchase_cancelled()
 		_:
 			pass   # FAILED / REFUNDED / PENDING / DEFERRED / EXPIRED — no action here
-
-
-# sync()'s network round-trip finished. Any RESTORED transaction it found
-# already arrived (and was handled) via _on_ios_transaction_state_changed
-# above before this fires, so if we're still here and still unsubscribed,
-# there was genuinely nothing to restore.
-func _on_ios_synchronized() -> void:
-	if not SaveManager.is_subscribed():
-		_show_no_purchases_dialog()
 
 
 func _highlight_card(card: Panel) -> void:
@@ -456,11 +482,10 @@ func _on_purchase_updated(response: Dictionary) -> void:
 		return
 	for purchase in response.get("purchases", []):
 		if purchase.get("purchase_state", -1) == BillingClient.PurchaseState.PURCHASED:
-			# Acknowledge in the background — Google auto-refunds an
-			# unacknowledged purchase within 3 days, but the UX doesn't wait
-			# on it; access is granted the moment Play confirms PURCHASED.
-			if not purchase.get("is_acknowledged", false):
-				_billing.acknowledge_purchase(purchase.get("purchase_token", ""))
+			# The entitlement service (same signal) acknowledges the purchase in
+			# the background — Google auto-refunds an unacknowledged purchase
+			# within 3 days, but the UX doesn't wait on it; access is granted
+			# the moment Play confirms PURCHASED.
 			_on_purchase_success()
 			return
 
@@ -472,9 +497,10 @@ func _on_acknowledge_purchase_response(response: Dictionary) -> void:
 
 func _on_purchase_success() -> void:
 	# Platform dialog is native and closes itself on success — nothing to
-	# dismiss here. Unlock + save, then continue straight through, no
+	# dismiss here. Play confirmed the purchase, so access is granted now (the
+	# service keeps verifying afterwards); continue straight through, no
 	# confirmation screen.
-	SaveManager.set_subscribed(true)
+	SaveManager.entitlement().confirm_entitled()
 	_continue_granted()
 
 
@@ -482,41 +508,23 @@ func _on_purchase_cancelled() -> void:
 	pass   # native dialog closed itself — stay right here, no progress lost
 
 
+# Restore asks the STORE (never short-circuits on a local flag). The service
+# answers through restore_finished: access, nothing found, or could-not-check.
 func _on_restore_pressed() -> void:
-	if SaveManager.is_subscribed():
-		_continue_granted()
-		return
-	match OS.get_name():
-		"Android":
-			if _billing == null:
-				_show_no_purchases_dialog()
-				return
-			_billing.query_purchases(BillingClient.ProductType.SUBS)
-		"iOS":
-			if _storekit == null:
-				_show_no_purchases_dialog()
-				return
-			_storekit.sync()
-			# _on_ios_transaction_state_changed grants access if sync() finds
-			# an active purchase; _on_ios_synchronized shows the "nothing
-			# found" dialog once the round-trip finishes with no match.
-		_:
-			_show_no_purchases_dialog()
-
-
-func _on_query_purchases_response(response: Dictionary) -> void:
-	if response.get("response_code", -1) != BillingClient.BillingResponseCode.OK:
-		printerr("[billing] query_purchases failed: ", response)
+	if not _is_billing_supported_platform():
 		_show_no_purchases_dialog()
 		return
-	for purchase in response.get("purchases", []):
-		if purchase.get("purchase_state", -1) == BillingClient.PurchaseState.PURCHASED:
-			if not purchase.get("is_acknowledged", false):
-				_billing.acknowledge_purchase(purchase.get("purchase_token", ""))
-			SaveManager.set_subscribed(true)
+	SaveManager.entitlement().restore()
+
+
+func _on_restore_finished(result: int) -> void:
+	match result:
+		EntitlementService.Result.ENTITLED:
 			_continue_granted()
-			return
-	_show_no_purchases_dialog()
+		EntitlementService.Result.NOT_ENTITLED:
+			_show_no_purchases_dialog()
+		_:
+			_show_restore_unreachable_dialog()
 
 
 func _on_not_now_pressed() -> void:
@@ -600,19 +608,37 @@ func _show_no_purchases_dialog() -> void:
 		"We couldn't find an active subscription\nfor this account.")
 
 
+# ─── Restore Purchases could not reach the store (not a "no" — just no answer) ─
+func _show_restore_unreachable_dialog() -> void:
+	_show_message_dialog("Couldn't Check Purchases",
+		"We couldn't reach the store.\nPlease try again in a moment.")
+
+
 # ─── Routing once access is granted — same context pattern as premium_intro ─
 func _continue_granted() -> void:
+	# StoreKit can report the same entitlement more than once (purchase result,
+	# Transaction.updates, Transaction.unfinished) — route exactly once.
+	if _granted_routed:
+		return
+	_granted_routed = true
 	match PremiumIntroState.context_id:
-		"prep":
-			if PrepLevelProgress.has_next():
+		PremiumIntroState.CONTEXT_PREP_BOUNDARY:
+			# Continue exactly one Set past the one just passed. Uses the index
+			# recorded at the boundary, never whatever the in-memory cursor
+			# happens to hold, and never completes Prep or any Level.
+			var from_index : int = PremiumIntroState.boundary_index
+			PremiumIntroState.boundary_index = -1
+			if from_index >= 0 and PrepLevelProgress.is_set_accessible(from_index + 1) \
+					and from_index + 1 < PrepLevelProgress.sets.size():
+				PrepLevelProgress.current_index = from_index
 				PrepLevelProgress.advance()
 				get_tree().change_scene_to_file("res://prep_game.tscn")
 			else:
-				SaveManager.set_prep_completed()
-				PrepLevelProgress.reset()
-				LevelTransition.next_level_id = "level1"
-				LevelTransition.level_name    = "Level 1"
-				get_tree().change_scene_to_file("res://level_transition.tscn")
+				get_tree().change_scene_to_file("res://title.tscn")
+		PremiumIntroState.CONTEXT_PREP_LOCKED, PremiumIntroState.CONTEXT_PREMIUM_LOCKED:
+			get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
+		_:
+			get_tree().change_scene_to_file("res://gnb_home.tscn")
 
 
 func _build_copyright_label() -> void:

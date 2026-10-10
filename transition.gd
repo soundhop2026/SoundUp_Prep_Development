@@ -172,10 +172,11 @@ func _create_cubes() -> void:
 		add_child(sp)
 		_cubes.append(sp)
 
-func _show_cubes(earned: int) -> void:
+func _show_cubes(level_id: String) -> void:
+	var keys : Array[String] = ReleaseScope.set_keys(level_id)
 	for i in range(_cubes.size()):
 		_cubes[i].visible  = true
-		_cubes[i].modulate = CUBE_FILLED if i < earned else CUBE_EMPTY
+		_cubes[i].modulate = CUBE_FILLED if (i < keys.size() and SaveManager.is_set_completed(keys[i])) else CUBE_EMPTY
 
 # Each earned cube bounces independently — runs until Where Am I cancels it
 func _dance_cube(idx: int, gen: int) -> void:
@@ -437,6 +438,14 @@ func _play_transition() -> void:
 	elif pct >= 85.0:
 		stars = 2
 
+	# Record the pass now, before anything is shown or routed, so the cube board
+	# and every routing decision read the same explicit record. The pass test is
+	# each Level's own, unchanged: Level 1 needs 3★, Levels 1.5 and 2 need >=2★.
+	var level_id : String = "level2" if _for_l2 else ("level15" if _for_l15 else "level1")
+	var passed   : bool   = (stars >= 2) if (_for_l2 or _for_l15) else (stars == 3)
+	if passed:
+		SaveManager.mark_set_completed(ReleaseScope.set_key(level_id, ProgressStatus.current_index(level_id)))
+
 	var gap     : float = 200.0
 	var start_x : float = 640.0 + _center_offset - (stars - 1) * gap / 2.0
 	var final_y : float = 490.0
@@ -493,22 +502,12 @@ func _play_transition() -> void:
 
 		if not await _wait(0.04, gen): return
 
-	# --- Cube board: one cube per set, index is the truth ---
-	# Level 1: 3★ only (≥95%). Level 1.5 and Level 2: ≥2★ (Gain and Move).
-	var show_cubes : bool = (stars == 3) if not (_for_l2 or _for_l15) else (stars >= 2)
-	if show_cubes:
-		if _for_l2:
-			var earned : int = Level2Progress.current_index + 1
-			_show_cubes(earned)
-			_dance_cube(earned - 1, gen)
-		elif _for_l15:
-			var earned : int = Level15Progress.current_index + 1
-			_show_cubes(earned)
-			_dance_cube(earned - 1, gen)
-		else:
-			var earned : int = LevelProgress.current_index + 1
-			_show_cubes(earned)
-			_dance_cube(earned - 1, gen)
+	# --- Cube board: one cube per set, filled from the explicit completion records ---
+	# A cube is filled only if that Set was actually passed, so a Set passed out of
+	# order never lights earlier ones. The Set just passed is the one that dances.
+	if passed:
+		_show_cubes(level_id)
+		_dance_cube(ProgressStatus.current_index(level_id), gen)
 
 	# 2.0s to see the stars (+ cubes dancing), then fade music and route
 	if not await _wait(2.0, gen): return
@@ -522,65 +521,74 @@ func _play_transition() -> void:
 	# --- Progression routing ---
 	if _for_l2:
 		Level2Progress.active = false
-		var next_scene : String = "res://game25.tscn" if Level2Progress.is_option1() else "res://game2.tscn"
 		if stars >= 2:
-			if Level2Progress.has_next():
-				Level2Progress.advance()
-				SaveManager.set_level2_set_index(Level2Progress.current_index)
-				var after_scene : String = "res://game25.tscn" if Level2Progress.is_option1() else "res://game2.tscn"
-				get_tree().change_scene_to_file(after_scene)
-			else:
-				SaveManager.set_level2_completed()
-				Level2Progress.reset()
-				LevelTransition.next_level_id = "level25"
-				LevelTransition.level_name    = "Level 2.5"
-				get_tree().change_scene_to_file("res://level_transition.tscn")
+			_route_after_pass("level2")
 		else:
 			Level2Progress.is_retry = true
-			get_tree().change_scene_to_file(next_scene)
+			get_tree().change_scene_to_file("res://game25.tscn" if Level2Progress.is_option1() else "res://game2.tscn")
 	elif _for_l15:
 		Level15Progress.active = false
 		if stars >= 2:
-			if Level15Progress.has_next():
-				Level15Progress.advance()
-				get_tree().change_scene_to_file("res://game15.tscn")
-			else:
-				SaveManager.set_level15_completed()
-				Level15Progress.reset()
-				LevelTransition.next_level_id = "level2"
-				LevelTransition.level_name    = "Level 2"
-				get_tree().change_scene_to_file("res://level_transition.tscn")
+			_route_after_pass("level15")
 		else:
 			Level15Progress.is_retry = true
 			get_tree().change_scene_to_file("res://game15.tscn")
 	else:
 		if stars == 3:
-			if LevelProgress.has_next():
-				LevelProgress.advance()
-				SaveManager.set_level1_set_index(LevelProgress.current_index)
-				get_tree().change_scene_to_file("res://game.tscn")
-			else:
-				SaveManager.set_level1_completed()
-				LevelProgress.reset()
-				LevelTransition.next_level_id = "level15"
-				LevelTransition.level_name    = "Level 1.5"
-				get_tree().change_scene_to_file("res://level_transition.tscn")
-		elif stars == 2:
+			_route_after_pass("level1")
+		elif stars == 2 or LevelProgress.last_run_was_retry:
+			# Initial 85–94%: retry the incorrect rounds only. Once an incorrect-
+			# rounds retry has begun, any result below 95% (1★ or 2★) keeps
+			# retrying only the rounds still incorrect — never the whole Set.
 			LevelProgress.is_retry = true
 			get_tree().change_scene_to_file("res://game.tscn")
 		else:
-			# 1 star: below 65% on the very first set → redirect to Prep
-			if LevelProgress.current_index == 0 \
-					and not SaveManager.is_prep_completed() \
-					and LevelProgress.last_score_pct < 65.0:
-				LevelProgress.is_retry = false
-				LevelProgress.retry_rounds.clear()
-				PrepLevelProgress.load_from_save()
-				get_tree().change_scene_to_file("res://prep_game.tscn")
-			else:
-				LevelProgress.is_retry = false
-				LevelProgress.retry_rounds.clear()
-				get_tree().change_scene_to_file("res://game.tscn")
+			# Initial result below 85%: retry the whole Set. A low score never
+			# sends the child anywhere else.
+			LevelProgress.is_retry = false
+			LevelProgress.retry_rounds.clear()
+			get_tree().change_scene_to_file("res://game.tscn")
+
+
+# After a Set is passed (and recorded): the approved order — Coronation on the
+# Level's first full completion, else the following Set, else Where Am I. The
+# next Level is never entered while any required Set remains incomplete.
+func _route_after_pass(level_id: String) -> void:
+	match ProgressStatus.next_step(level_id):
+		ProgressStatus.Step.CORONATION:
+			_complete_level(level_id)
+		ProgressStatus.Step.NEXT_SET:
+			_advance_to_next_set(level_id)
+		ProgressStatus.Step.PAYWALL:
+			# Level 1 onward is premium: the following Set needs a verified
+			# subscription (it lapsed or is unverified). The pass is already
+			# recorded; nothing else changes.
+			PremiumGameplay.route_to_paywall(get_tree())
+		_:
+			get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
+
+
+# The existing Coronation hand-off, unchanged, reached only on a Level's first completion.
+func _complete_level(level_id: String) -> void:
+	ReleaseScope.begin_coronation(level_id)
+	get_tree().change_scene_to_file("res://level_transition.tscn")
+
+
+# The Set that immediately follows, even if it was passed before.
+func _advance_to_next_set(level_id: String) -> void:
+	match level_id:
+		"level2":
+			Level2Progress.advance()
+			ReleaseScope.record_cursor("level2", Level2Progress.current_index)
+			get_tree().change_scene_to_file("res://game25.tscn" if Level2Progress.is_option1() else "res://game2.tscn")
+		"level15":
+			Level15Progress.advance()
+			ReleaseScope.record_cursor("level15", Level15Progress.current_index)
+			get_tree().change_scene_to_file("res://game15.tscn")
+		_:
+			LevelProgress.advance()
+			ReleaseScope.record_cursor("level1", LevelProgress.current_index)
+			get_tree().change_scene_to_file("res://game.tscn")
 
 
 # ─── Star display helpers ──────────────────────────────────────────────────────

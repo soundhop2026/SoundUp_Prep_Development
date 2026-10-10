@@ -101,10 +101,11 @@ func _create_cube_board() -> void:
 		_cubes.append(sp)
 
 # Reveals the whole board at once: filled cubes solid, rest faint outline
-func _show_cubes(earned: int) -> void:
+func _show_cubes() -> void:
+	var keys : Array[String] = ReleaseScope.set_keys("prep")
 	for i in range(_cubes.size()):
 		_cubes[i].visible  = true
-		_cubes[i].modulate = CUBE_FILLED if i < earned else CUBE_EMPTY
+		_cubes[i].modulate = CUBE_FILLED if (i < keys.size() and SaveManager.is_set_completed(keys[i])) else CUBE_EMPTY
 
 # Each earned cube bounces independently — runs until Where Am I cancels it
 func _dance_cube(idx: int, gen: int) -> void:
@@ -140,6 +141,9 @@ func _play_transition() -> void:
 
 	var passed : bool  = PrepLevelProgress.last_score_pct >= 85.0
 	var base_y : float = 290.0
+	# Record the pass up front so the cube board and routing read one explicit record.
+	if passed:
+		SaveManager.mark_set_completed(ReleaseScope.set_key("prep", PrepLevelProgress.current_index))
 
 	# ── 4 bounces with ascending pitch ────────────────────────────────────────
 	var snd := AudioStreamPlayer.new()
@@ -198,9 +202,8 @@ func _play_transition() -> void:
 	# ── Passed (≥ 85%) — one cube per set, same reveal as Level 1 ────────────
 	PrepLevelProgress.is_retry = false
 
-	var earned : int = PrepLevelProgress.current_index + 1
-	_show_cubes(earned)
-	_dance_cube(earned - 1, gen)
+	_show_cubes()
+	_dance_cube(PrepLevelProgress.current_index, gen)
 	if not await _wait(2.0, gen): return
 
 	await _exit_play_button()
@@ -210,23 +213,24 @@ func _play_transition() -> void:
 	# Everything above this point (bounce, cubes, exit fade) is identical for
 	# every set, free or not. Only right here — after the transition has
 	# fully finished — do we ever stop and wait for an explicit choice.
-	if PrepLevelProgress.crosses_into_premium():
-		_await_keep_hopping_then_continue()
-		return
-
-	_continue_to_next_set()
+	_continue_after_pass()
 
 
-func _continue_to_next_set() -> void:
-	if PrepLevelProgress.has_next():
-		PrepLevelProgress.advance()
-		get_tree().change_scene_to_file("res://prep_game.tscn")
-	else:
-		SaveManager.set_prep_completed()
-		PrepLevelProgress.reset()
-		LevelTransition.next_level_id = "level1"
-		LevelTransition.level_name    = "Level 1"
-		get_tree().change_scene_to_file("res://level_transition.tscn")
+# After a Set is passed (and recorded): the approved order — Coronation on the
+# Level's first full completion, else the following Set, else the subscription
+# paywall (a following Set exists but needs a subscription), else Where Am I.
+func _continue_after_pass() -> void:
+	match ProgressStatus.next_step("prep"):
+		ProgressStatus.Step.CORONATION:
+			ReleaseScope.begin_coronation("prep")
+			get_tree().change_scene_to_file("res://level_transition.tscn")
+		ProgressStatus.Step.NEXT_SET:
+			PrepLevelProgress.advance()
+			get_tree().change_scene_to_file("res://prep_game.tscn")
+		ProgressStatus.Step.PAYWALL:
+			_await_keep_hopping_then_continue()
+		_:
+			get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
 
 
 # ─── "Keep Hopping!" — the one explicit choice before premium content ───────
@@ -264,7 +268,8 @@ func _await_keep_hopping_then_continue() -> void:
 	fade.tween_property(btn, "modulate:a", 1.0, 0.4)
 
 	btn.pressed.connect(func():
-		PremiumIntroState.context_id = "prep"
+		PremiumIntroState.context_id     = PremiumIntroState.CONTEXT_PREP_BOUNDARY
+		PremiumIntroState.boundary_index = PrepLevelProgress.current_index
 		get_tree().change_scene_to_file("res://premium_intro.tscn")
 	)
 

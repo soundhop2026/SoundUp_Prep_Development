@@ -40,6 +40,11 @@ static var cubes_earned   : int   = 0
 # is_retry      — true means _load_rounds() should load retry_rounds, not the JSON file
 static var retry_rounds : Array = []
 static var is_retry     : bool  = false
+# True only while the scene just played was an incorrect-rounds retry run.
+# game.gd assigns it on every Set load (true when it loaded retry_rounds, false
+# for a full Set), so it can never carry over to a new Set. transition.gd reads
+# it to keep retrying only the remaining incorrect rounds until the pass mark.
+static var last_run_was_retry : bool = false
 
 # ─── Main-set boundaries ──────────────────────────────────────────────────────
 # 7 Groups (A–G). Each boundary is the index of the LAST sub-set in a Group.
@@ -76,12 +81,14 @@ static func has_next() -> bool:
 
 static func advance() -> void:
 	current_index += 1
+	last_run_was_retry = false
 
 static func reset() -> void:
 	current_index = 0
 	cubes_earned  = 0
 	retry_rounds.clear()
 	is_retry = false
+	last_run_was_retry = false
 	# Persist the rewind, exactly as PrepLevelProgress.reset() and
 	# Level15Progress.reset() already do. Without this the saved index stayed
 	# at the last set forever after Level 1 was completed, so any later entry

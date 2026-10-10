@@ -69,7 +69,7 @@ SoundBuddy — letters + spelling (mirrors all levels)
 | 1B | 4–7 | N F P D G J | 4 |
 | 1C | 8–13 | H W Y L R Z | 4 |
 | 1D | 14–19 | Contrast pairs | 4 |
-| 1E | 20–23 | C-soft G-soft X Q | 3 |
+| 1E | 20–23 | K Q S W X (/ks/) in the playable 1E-1/1E-2; the unused 1E-3/1E-4 hold C-soft G-soft Q X | 3 |
 | 1F | 24–27 | All sounds mixed | 5 |
 | 1G | 28–32 | Ending sounds | 4 |
 

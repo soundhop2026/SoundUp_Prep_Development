@@ -46,11 +46,26 @@ var _back_btn           : TextureButton    = null
 var _center_offset      : float            = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
 var _play_counted       : bool             = false  # true once this scene instance's real-play
 													  # count increment has fired (see _start_round)
+var _count_this_run     : bool             = false  # a full-attempt count may be recorded for this run (not a QA debug launch)
+var _is_retry_run       : bool             = false  # this run replays only incorrect rounds (never a full attempt)
+var _run_counted        : bool             = false  # a run is counted at most once (see _count_full_attempt)
+var _entitlement_interrupted : bool         = false  # confirmed entitlement loss already handled (see interrupt_for_entitlement_loss)
 var _audio_dead         : bool             = false  # set true once Where Am I is pressed — after
 													  # this, no gameplay audio may ever play again
 													  # for this scene instance (see _safe_play)
 
 func _ready() -> void:
+	# The one gameplay-entry boundary for Prep: every route (Where Am I, Title
+	# resume, a retry) lands here, so a premium Set can never start for a player
+	# who has not subscribed. Touches no progress.
+	if not PrepLevelProgress.is_set_accessible(PrepLevelProgress.current_index):
+		PremiumIntroState.context_id = PremiumIntroState.CONTEXT_PREP_LOCKED
+		get_tree().change_scene_to_file("res://premium_intro.tscn")
+		return
+	# Prep's free Sets (A1/A2) are never interrupted; every other Prep Set is
+	# premium gameplay and stops the moment the subscription is confirmed lost.
+	if not PrepLevelProgress.is_free_set(PrepLevelProgress.current_index):
+		PremiumGameplay.join(self)
 	_center_offset = SceneBackground.center_offset()
 	_listen_bar_base_pos.x = SceneBackground.GAMEPLAY_LEFT_X
 	SceneBackground.set_color(Color("#A8E063"))
@@ -140,6 +155,18 @@ func _safe_play(player: AudioStreamPlayer) -> void:
 		return
 	player.play()
 
+# Confirmed entitlement loss during premium gameplay: stop now, write nothing
+# (no completion, no full-attempt count, cursor and records untouched), and go
+# to the subscription flow. Called by EntitlementService via PremiumGameplay.GROUP.
+func interrupt_for_entitlement_loss() -> void:
+	if _entitlement_interrupted:
+		return
+	_entitlement_interrupted = true
+	_seq_gen += 1   # cancels any in-flight auto-play sequence
+	_kill_gameplay_audio()
+	ProgressStatus.clear_retry("prep")
+	PremiumGameplay.refuse(self)
+
 func _kill_gameplay_audio() -> void:
 	_audio_dead = true
 	for p in [$ListenSound, $CorrectSound, $OopsSound, $WrongSound,
@@ -217,6 +244,7 @@ func _load_rounds() -> void:
 		# Retry mode: load the wrong rounds snapshot, shuffle for variety
 		rounds = PrepLevelProgress.retry_rounds.duplicate()
 		rounds.shuffle()
+		_is_retry_run = true
 	else:
 		rounds = data["rounds"].duplicate()
 		_shuffle_no_consecutive()
@@ -283,7 +311,11 @@ func _start_round() -> void:
 		if DebugConfig.debug_launch:
 			DebugConfig.debug_launch = false
 		else:
-			SaveManager.increment_review_count("prep_" + PrepLevelProgress.current_set_label())
+			_count_this_run = true   # counted when the run finishes, not on entry (see _count_full_attempt)
+			# Actual gameplay entry: the explicit record, and the resume cursor (the Set
+			# last actually played). Neither is derived from the other or from ×N.
+			SaveManager.mark_set_entered(ReleaseScope.set_key("prep", PrepLevelProgress.current_index))
+			ReleaseScope.record_cursor("prep", PrepLevelProgress.current_index)
 
 	_audio_dead      = false   # revive audio — starting/restarting a round always
 							   # means this scene is active and playable again
@@ -497,12 +529,18 @@ func _restore_button_positions() -> void:
 
 # ─── Set complete ─────────────────────────────────────────────────────────────
 
-func _do_level_complete() -> void:
-	result_locked = true
-	if ReviewState.active:
-		ReviewState.active = false
-		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
+# ×N counts FULL Set attempts only. It increments once when a full-Set run reaches
+# its end, whatever the result. Entering and leaving, an incorrect-rounds retry
+# run, a QA debug launch, and a second call for the same run never count.
+func _count_full_attempt() -> void:
+	if _run_counted or not _count_this_run or _is_retry_run:
 		return
+	_run_counted = true
+	SaveManager.increment_review_count("prep_" + PrepLevelProgress.current_set_label())
+
+func _do_level_complete() -> void:
+	_count_full_attempt()
+	result_locked = true
 	var score_pct : float = 100.0 if _local_total == 0 else \
 		float(_local_total - _local_wrong) / float(_local_total) * 100.0
 	PrepLevelProgress.last_score_pct = score_pct

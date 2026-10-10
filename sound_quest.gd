@@ -228,7 +228,36 @@ var _center_offset   : float         = 0.0   # mobile-alignment fix — see Scen
 var _slot_positions   : Array[Vector2] = []   # SLOT_POSITIONS recentered by _center_offset
 
 
+var _entitlement_interrupted : bool = false   # confirmed entitlement loss already handled
+
+
+# Confirmed entitlement loss during premium gameplay: stop now, write nothing
+# (no completion, no full-attempt count, cursor and records untouched), and go
+# to the subscription flow. Called by EntitlementService via PremiumGameplay.GROUP.
+func interrupt_for_entitlement_loss() -> void:
+	if _entitlement_interrupted:
+		return
+	_entitlement_interrupted = true
+	_busy = true
+	PremiumGameplay.stop_audio(self)
+	PremiumGameplay.refuse(self)
+
+
 func _ready() -> void:
+	# Group A's Sound Quest is free (its Group contains the free Sets); the other
+	# Groups need a subscription. Checked at entry so no route can bypass the
+	# Where Am I card lock. Touches no progress.
+	if not PrepLevelProgress.is_group_accessible(
+			PrepLevelProgress.group_number_for_index(SoundQuestState.group_end_index)):
+		set_process_input(false)
+		PremiumIntroState.context_id = PremiumIntroState.CONTEXT_PREP_LOCKED
+		get_tree().change_scene_to_file("res://premium_intro.tscn")
+		return
+	# Group A's Sound Quest is never interrupted; every other Prep Sound Quest is
+	# premium gameplay and stops the moment the subscription is confirmed lost.
+	if not PrepLevelProgress.is_group_free(
+			PrepLevelProgress.group_number_for_index(SoundQuestState.group_end_index)):
+		PremiumGameplay.join(self)
 	_center_offset = SceneBackground.center_offset()
 	for pos in SLOT_POSITIONS:
 		_slot_positions.append(pos + Vector2(_center_offset, 0))
@@ -751,7 +780,7 @@ func _play_phoneme(index: int) -> void:
 # Weighted-random style pick, eligible set widening by Group. See
 # STYLE_WEIGHTS_BY_GROUP above and maze_generator.gd's style constants.
 func _pick_style() -> String:
-	var group   : int        = clampi(PrepLevelProgress.main_set_number(), 0, STYLE_WEIGHTS_BY_GROUP.size() - 1)
+	var group   : int        = clampi(PrepLevelProgress.group_number_for_index(SoundQuestState.group_end_index), 0, STYLE_WEIGHTS_BY_GROUP.size() - 1)
 	var weights : Dictionary = STYLE_WEIGHTS_BY_GROUP[group]
 	var total   : float      = 0.0
 	for w in weights.values():

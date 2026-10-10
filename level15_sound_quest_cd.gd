@@ -63,7 +63,26 @@ var _play_counted : bool = false   # true once this scene instance's real-play c
 var _transitions : Level15SoundQuestTransitions = null
 
 
+var _entitlement_interrupted : bool = false   # confirmed entitlement loss already handled
+
+
+# Confirmed entitlement loss during premium gameplay: stop now, write nothing
+# (no completion, no full-attempt count, cursor and records untouched), and go
+# to the subscription flow. Called by EntitlementService via PremiumGameplay.GROUP.
+func interrupt_for_entitlement_loss() -> void:
+	if _entitlement_interrupted:
+		return
+	_entitlement_interrupted = true
+	_busy = true
+	PremiumGameplay.stop_audio(self)
+	PremiumGameplay.refuse(self)
+
+
 func _ready() -> void:
+	if not PremiumGameplay.level_scene_admitted():
+		PremiumGameplay.refuse(self)
+		return
+	PremiumGameplay.join(self)
 	var _center_offset : float = SceneBackground.center_offset()
 	TARGET_POS.x     += _center_offset
 	PLAYBUTTON_POS.x += _center_offset

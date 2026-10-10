@@ -6,6 +6,10 @@ extends Node
 
 const SAVE_PATH := "user://soundup_save.json"
 
+# Bumped when the explicit per-Set records (sets_entered / sets_completed) were
+# introduced. A save older than this is migrated exactly once on load.
+const RECORDS_VERSION := 1
+
 var _data : Dictionary = _default_data()
 
 static func _default_data() -> Dictionary:
@@ -26,10 +30,25 @@ static func _default_data() -> Dictionary:
 		"chose_level1_path"   : false,
 		"review_counts"       : {},
 		"subscribed"          : false,
+		"sets_entered"        : {},
+		"sets_completed"      : {},
+		"progress_records_version": RECORDS_VERSION,
 	}
+
+var _entitlement : EntitlementService = null
 
 func _ready() -> void:
 	load_game()
+	# Subscription entitlement (see entitlement_service.gd). Hosted here rather
+	# than as its own autoload; created after load so the service can mirror into _data.
+	_entitlement = EntitlementService.new()
+	_entitlement.name = "EntitlementService"
+	add_child(_entitlement)
+
+func _notification(what: int) -> void:
+	# Coming back from the store / OS subscription screen / background: re-verify.
+	if what == NOTIFICATION_APPLICATION_RESUMED and _entitlement != null:
+		_entitlement.refresh("resume")
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
@@ -172,6 +191,67 @@ func _infer_entered_levels() -> void:
 	if changed:
 		save_game()
 
+# ─── Explicit per-Set records (entry and completion, kept independently) ──────
+# Keys are "<level_id>_<set label>" (see ReleaseScope.set_keys), the same shape
+# as the review_counts keys. These are the ONLY evidence of what a player has
+# entered or passed: the *_set_index cursor is a resume pointer, and ×N play
+# counts are a display number — neither proves entry or completion.
+# Records only ever grow; nothing here clears an entry or a completion.
+func has_entered_set(key: String) -> bool:
+	return _data.get("sets_entered", {}).get(key, false)
+
+func is_set_completed(key: String) -> bool:
+	return _data.get("sets_completed", {}).get(key, false)
+
+# Written at actual gameplay entry. Idempotent; saves only when it changes.
+func mark_set_entered(key: String) -> void:
+	_ensure_records()
+	if _data["sets_entered"].get(key, false):
+		return
+	_data["sets_entered"][key] = true
+	save_game()
+
+# Written when a Set is passed by its own existing criterion. Completion implies
+# entry. Idempotent; saves only when it changes.
+func mark_set_completed(key: String) -> void:
+	_ensure_records()
+	var changed : bool = false
+	if not _data["sets_entered"].get(key, false):
+		_data["sets_entered"][key] = true
+		changed = true
+	if not _data["sets_completed"].get(key, false):
+		_data["sets_completed"][key] = true
+		changed = true
+	if changed:
+		save_game()
+
+func _ensure_records() -> void:
+	if not _data.get("sets_entered") is Dictionary:
+		_data["sets_entered"] = {}
+	if not _data.get("sets_completed") is Dictionary:
+		_data["sets_completed"] = {}
+
+# One-time, additive migration of a pre-records save. It only reads state that
+# was reliable in older builds: a Level's completed flag, and the cursor, which
+# the old linear flow advanced only after a Set was passed. It never reads
+# review_counts (those count entries, not completions). It never removes or
+# lowers anything, and never touches the cursor, flags, counts, entered levels
+# or subscription. A Set the player entered but never passed, including the Set
+# the cursor currently points at, is left NOT STARTED: that history cannot be
+# reconstructed.
+func _migrate_set_records() -> void:
+	_ensure_records()
+	for level_id : String in ["prep", "level1", "level15", "level2"]:
+		var keys : Array[String] = ReleaseScope.set_keys(level_id)
+		var level_done : bool = _data.get(level_id + "_completed", false)
+		var cursor : int = int(_data.get(level_id + "_set_index", 0))
+		var count : int = keys.size() if level_done else clampi(cursor, 0, keys.size())
+		for i in range(count):
+			_data["sets_entered"][keys[i]]   = true
+			_data["sets_completed"][keys[i]] = true
+	_data["progress_records_version"] = RECORDS_VERSION
+	save_game()
+
 func is_path_chosen() -> bool:
 	return _data.get("path_chosen", false)
 
@@ -186,10 +266,26 @@ func set_chose_level1_path() -> void:
 	_data["chose_level1_path"] = true
 	save_game()
 
+# Premium access = what the store last verified this session (EntitlementService).
+# The saved `subscribed` key is only a mirror for display / debugging; it is never
+# read for access, so a flag left by an older build or a lapsed subscription
+# can never grant anything.
 func is_subscribed() -> bool:
-	return _data.get("subscribed", false)
+	return _entitlement != null and _entitlement.is_entitled()
 
+func entitlement() -> EntitlementService:
+	return _entitlement
+
+# QA / test hook only (debug menu, harnesses): sets the entitlement state without
+# touching a store and without interrupting gameplay. Real purchases and
+# restores go through EntitlementService.
 func set_subscribed(value: bool) -> void:
+	if _entitlement != null:
+		_entitlement.debug_set_state(value)
+
+func mirror_entitlement(value: bool) -> void:
+	if _data.get("subscribed", false) == value:
+		return
 	_data["subscribed"] = value
 	save_game()
 
@@ -220,6 +316,11 @@ func unlock_all_levels() -> void:
 	# is meant to open everything, so mark the levels entered explicitly too.
 	for lid : String in ["prep", "level1", "level15", "level2", "level25"]:
 		_data["levels_entered"][lid] = true
+	_ensure_records()
+	for lid : String in ["prep", "level1", "level15", "level2"]:
+		for key : String in ReleaseScope.set_keys(lid):
+			_data["sets_entered"][key]   = true
+			_data["sets_completed"][key] = true
 	save_game()
 
 func clear_all_data() -> void:
@@ -246,7 +347,14 @@ func load_game() -> void:
 	var text := file.get_as_text()
 	file.close()
 	var parsed: Variant = JSON.parse_string(text)
+	var needs_migration : bool = false
 	if parsed is Dictionary:
 		for key in parsed:
 			_data[key] = parsed[key]
+		# Decided from the file itself, not _data: a save that predates the
+		# records has no version key, and _data would otherwise already hold
+		# the current default.
+		needs_migration = int(parsed.get("progress_records_version", 0)) < RECORDS_VERSION
 	_infer_entered_levels()
+	if needs_migration:
+		_migrate_set_records()

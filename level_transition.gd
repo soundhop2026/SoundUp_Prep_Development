@@ -367,13 +367,14 @@ func _play_sequence() -> void:
 	# — only this auto-advance is blocked, so the next Level unlocks
 	# immediately once ReleaseScope.HIGHEST_RELEASED_LEVEL_ID advances to
 	# include it, no migration needed.
-	if not ReleaseScope.is_level_released(next_level_id):
-		get_tree().change_scene_to_file("res://title.tscn")
-		return
+	_route_after_coronation()
 
-	# Auto-advance to Level Intro
-	LevelIntroState.level_id = next_level_id
-	get_tree().change_scene_to_file("res://level_intro.tscn")
+
+func _route_after_coronation() -> void:
+	var scene : String = ReleaseScope.coronation_exit_scene(next_level_id)
+	if scene == "res://level_intro.tscn":
+		LevelIntroState.level_id = next_level_id   # entry is recorded by the Intro's Ready button, not here
+	get_tree().change_scene_to_file(scene)
 
 # ─── Crown descent ────────────────────────────────────────────────────────────
 func _descend_crown(dur_seconds: float) -> void:

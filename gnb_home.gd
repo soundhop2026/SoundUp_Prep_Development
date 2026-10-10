@@ -282,9 +282,8 @@ func _build_subscribe_link() -> void:
 	# Small, low-key direct entry to the subscription screen — visible to all
 	# users, not just App Review. Existing paywall (prep_transition.gd, after
 	# the 2 free Prep sets) is untouched; this just adds a second door into
-	# the SAME premium_intro.tscn -> choose_plan.tscn flow, without setting
-	# PremiumIntroState.context_id, so it falls into the same "prep" default
-	# branch a genuinely fresh, never-played install already uses today.
+	# the SAME premium_intro.tscn -> choose_plan.tscn flow, with its own
+	# CONTEXT_GNB so granting access returns here and never touches progress.
 	const BTN_W : float = 200.0
 	const BTN_H : float =  36.0
 
@@ -313,6 +312,8 @@ func _build_subscribe_link() -> void:
 
 
 func _on_subscribe_pressed() -> void:
+	PremiumIntroState.context_id     = PremiumIntroState.CONTEXT_GNB
+	PremiumIntroState.boundary_index = -1
 	get_tree().change_scene_to_file("res://premium_intro.tscn")
 
 

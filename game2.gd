@@ -73,9 +73,35 @@ var _eval_btn_tween : Tween = null
 var _center_offset : float = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
 var _play_counted  : bool  = false  # true once this scene instance's real-play count
 									 # increment has fired (see _start_round)
+var _count_this_run     : bool             = false  # a full-attempt count may be recorded for this run (not a QA debug launch)
+var _is_retry_run       : bool             = false  # this run replays only incorrect rounds (never a full attempt)
+var _run_counted        : bool             = false  # a run is counted at most once (see _count_full_attempt)
 
 # ─── Ready ────────────────────────────────────────────────────────────────────
+var _entitlement_interrupted : bool = false   # confirmed entitlement loss already handled
+
+
+# Confirmed entitlement loss during premium gameplay: stop now, write nothing
+# (no completion, no full-attempt count, cursor and records untouched), and go
+# to the subscription flow. Called by EntitlementService via PremiumGameplay.GROUP.
+func interrupt_for_entitlement_loss() -> void:
+	if _entitlement_interrupted:
+		return
+	_entitlement_interrupted = true
+	result_locked = true
+	_walk_gen += 1
+	_stop_cube_blink()
+	_stop_eval_pulse()
+	ProgressStatus.clear_retry("level2")
+	PremiumGameplay.stop_audio(self)
+	PremiumGameplay.refuse(self)
+
+
 func _ready() -> void:
+	if not PremiumGameplay.level_scene_admitted():
+		PremiumGameplay.refuse(self)
+		return
+	PremiumGameplay.join(self)
 	_center_offset = SceneBackground.center_offset()
 	SceneBackground.set_color(BG_COLOR)
 	$background.color    = BG_COLOR
@@ -241,6 +267,7 @@ func _load_rounds() -> void:
 		rounds = Level2Progress.retry_rounds.duplicate()
 		Level2Progress.is_retry = false
 		Level2Progress.retry_rounds.clear()
+		_is_retry_run = true
 	else:
 		rounds = data["rounds"].duplicate()
 	rounds.shuffle()
@@ -259,7 +286,11 @@ func _start_round() -> void:
 		if DebugConfig.debug_launch:
 			DebugConfig.debug_launch = false
 		else:
-			SaveManager.increment_review_count("level2_" + Level2Progress.current_set_label())
+			_count_this_run = true   # counted when the run finishes, not on entry (see _count_full_attempt)
+			# Actual gameplay entry: the explicit record, and the resume cursor (the Set
+			# last actually played). Neither is derived from the other or from ×N.
+			SaveManager.mark_set_entered(ReleaseScope.set_key("level2", Level2Progress.current_index))
+			ReleaseScope.record_cursor("level2", Level2Progress.current_index)
 	result_locked    = false
 	idle_time        = 0.0
 	phase            = "wait_listen"
@@ -319,14 +350,20 @@ func _restart_round() -> void:
 	_start_round()
 	_round_hint_used = was_hint_used
 
+# ×N counts FULL Set attempts only. It increments once when a full-Set run reaches
+# its end, whatever the result. Entering and leaving, an incorrect-rounds retry
+# run, a QA debug launch, and a second call for the same run never count.
+func _count_full_attempt() -> void:
+	if _run_counted or not _count_this_run or _is_retry_run:
+		return
+	_run_counted = true
+	SaveManager.increment_review_count("level2_" + Level2Progress.current_set_label())
+
 func _do_level_complete() -> void:
+	_count_full_attempt()
 	result_locked = true
 	_stop_cube_blink()
 	_stop_eval_pulse()
-	if ReviewState.active:
-		ReviewState.active = false
-		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
-		return
 	Level2Progress.last_score_pct = \
 		float(clean_correct_count) / float(rounds.size()) * 100.0
 	Level2Progress.retry_rounds = _assisted_rounds.duplicate()

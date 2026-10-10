@@ -33,6 +33,9 @@ var _audio_dead         : bool             = false  # set true once Where Am I i
 													  # for this scene instance (see _safe_play)
 var _play_counted       : bool             = false  # true once this scene instance's real-play
 													  # count increment has fired (see _start_round)
+var _count_this_run     : bool             = false  # a full-attempt count may be recorded for this run (not a QA debug launch)
+var _is_retry_run       : bool             = false  # this run replays only incorrect rounds (never a full attempt)
+var _run_counted        : bool             = false  # a run is counted at most once (see _count_full_attempt)
 var _round_gen          : int              = 0      # bumped every _start_round() — lets an
 													  # in-flight coroutine from before Where Am I
 													  # was pressed (and later revives on return)
@@ -51,7 +54,29 @@ var LISTEN_BAR_BASE_POS : Vector2 = Vector2(100, 60)   # must match $ListenButto
 # aligns to the same one reference (Prep's), so this file no longer needs its
 # own derivation.
 
+var _entitlement_interrupted : bool = false   # confirmed entitlement loss already handled
+
+
+# Confirmed entitlement loss during premium gameplay: stop now, write nothing
+# (no completion, no full-attempt count, cursor and records untouched), and go
+# to the subscription flow. Called by EntitlementService via PremiumGameplay.GROUP.
+func interrupt_for_entitlement_loss() -> void:
+	if _entitlement_interrupted:
+		return
+	_entitlement_interrupted = true
+	result_locked = true
+	_round_gen += 1
+	_kill_gameplay_audio()
+	ProgressStatus.clear_retry("level1")
+	PremiumGameplay.stop_audio(self)
+	PremiumGameplay.refuse(self)
+
+
 func _ready() -> void:
+	if not PremiumGameplay.level_scene_admitted():
+		PremiumGameplay.refuse(self)
+		return
+	PremiumGameplay.join(self)
 	_center_offset = SceneBackground.center_offset()
 	LISTEN_BAR_BASE_POS.x = SceneBackground.GAMEPLAY_LEFT_X
 	SceneBackground.set_color(Color(0.431, 0.710, 1.0, 1.0))
@@ -184,8 +209,11 @@ func _load_rounds() -> void:
 		rounds = LevelProgress.retry_rounds.duplicate()
 		LevelProgress.is_retry = false
 		LevelProgress.retry_rounds.clear()
+		LevelProgress.last_run_was_retry = true
+		_is_retry_run = true
 	else:
 		rounds = data["rounds"].duplicate()
+		LevelProgress.last_run_was_retry = false
 	_shuffle_no_consecutive()
 	correct_count       = 0
 	clean_correct_count = 0
@@ -251,7 +279,11 @@ func _start_round() -> void:
 		if DebugConfig.debug_launch:
 			DebugConfig.debug_launch = false
 		else:
-			SaveManager.increment_review_count("level1_" + LevelProgress.current_set_label())
+			_count_this_run = true   # counted when the run finishes, not on entry (see _count_full_attempt)
+			# Actual gameplay entry: the explicit record, and the resume cursor (the Set
+			# last actually played). Neither is derived from the other or from ×N.
+			SaveManager.mark_set_entered(ReleaseScope.set_key("level1", LevelProgress.current_index))
+			ReleaseScope.record_cursor("level1", LevelProgress.current_index)
 	_audio_dead            = false   # revive audio — starting/restarting a round always
 									  # means this scene is active and playable again
 	_round_gen            += 1       # invalidate any still-running previous coroutine
@@ -310,12 +342,18 @@ func _blend_round_cube() -> void:
 		var t := create_tween()
 		t.tween_property(_round_cubes[round_index], "color", _round_bg_color, 0.8)
 
-func _do_level_complete() -> void:
-	result_locked = true
-	if ReviewState.active:
-		ReviewState.active = false
-		get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
+# ×N counts FULL Set attempts only. It increments once when a full-Set run reaches
+# its end, whatever the result. Entering and leaving, an incorrect-rounds retry
+# run, a QA debug launch, and a second call for the same run never count.
+func _count_full_attempt() -> void:
+	if _run_counted or not _count_this_run or _is_retry_run:
 		return
+	_run_counted = true
+	SaveManager.increment_review_count("level1_" + LevelProgress.current_set_label())
+
+func _do_level_complete() -> void:
+	_count_full_attempt()
+	result_locked = true
 	LevelProgress.last_score_pct = float(clean_correct_count) / float(rounds.size()) * 100.0
 	LevelProgress.retry_rounds   = _assisted_rounds.duplicate()
 	get_tree().change_scene_to_file("res://transition.tscn")

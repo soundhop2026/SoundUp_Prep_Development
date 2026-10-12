@@ -61,6 +61,34 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-10-12 (later still) - Prep Sound Quest maze interaction
+
+### Completed
+Maze drag correction in `sound_quest.gd` (the only code file changed). Windows only, isolated saves.
+- 100 px in-maze image (smooth 0.15 s shrink from 150), walls drawn above it, completed images 130 px in a 2 x 2 grid.
+- Contact-based delta-follow drag: contact = the 100 x 100 image rectangle + tolerance; freeze beyond 24 px, resume
+  within 12 px (provisional); the grab point is kept; no snap or jump.
+- Movement in half-cell sub-steps with clamp-to-wall (fast movement no longer dropped, no tunnelling); exit zone only
+  through the connected goal cell (the old exit-zone check let the image cross the closed outer wall from the rows
+  next to the goal: 62 of 62 sampled steps were accepted).
+- Bounce: only for a closed interior wall, trigger 24 px of blocked push, none at the outer boundary, one per push
+  (per-direction latches, 12 px re-arm), 0.35 s debounce kept.
+- Touch safety: finger-index ownership, a second finger cannot cancel the drag, focus loss ends it.
+- Rules are in `CLAUDE.md` -> Prep Sound Quest Maze Interaction.
+
+### Tests
+Scripted (33 + 23 safeguard checks), real OS pointer driving the game (interior wall and outer boundary variants,
+9 checks each), stress (40 mazes per path style), full regression (C1-C7, generic progression, free-access, Sound Quest
+counting and scenarios, Where Am I audio). All passing; rendered comparisons checked path visibility and
+recognizability of the bear, bicycle and key at straight corridors, corners and junctions.
+
+### Risks / Gotchas
+- Galaxy real-finger verification is outstanding; tolerances 24 / 12 px and the 12 px bounce re-arm are provisional.
+- The 20 % wall-overlap target is not enforced (it cannot hold with natural wall contact in the 65 px-cell geometry).
+- A sustained push beyond 24 px still bounces once (no geometric distinction exists).
+
+---
+
 ## 2026-10-12 (later) — Where Am I framework gap corrections (G2, G3, G4; G1 recorded only)
 
 ### Completed

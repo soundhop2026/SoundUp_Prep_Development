@@ -67,10 +67,13 @@ const SLOT_POSITIONS : Array[Vector2] = [
 
 const IMAGE_BOX     : float = 150.0    # word image fits within this box
 # The dragged image shrinks for the whole journey through the maze — at the
-# full 150px IMAGE_BOX it would blanket most of a 65px-cell corridor. Half
-# of IMAGE_BOX, not smaller — small enough to fit the corridor, still large
-# enough that the child can tell what word it still is.
-const MAZE_DRAG_IMAGE_SIZE : float = IMAGE_BOX * 0.5
+# full 150px IMAGE_BOX it would blanket most of a 65px-cell corridor. 100px
+# keeps the word recognizable under a fingertip; the maze walls are drawn
+# ABOVE the image (see _maze_container.z_index) so the route stays readable.
+# Collision never uses the image's bounds, only its centre, so this size is
+# purely visual.
+const MAZE_DRAG_IMAGE_SIZE : float = 100.0
+const MAZE_ENTRY_SHRINK_DUR : float = 0.15   # 150 -> 100 px on entering the maze; gameplay is not held for it
 const BOB_AREA_SIZE : Vector2 = Vector2(190, 190)   # boundary the drag must cross
 
 const TAP_MOVE_THRESHOLD : float = 14.0   # px — below this, a release counts as a tap
@@ -109,6 +112,28 @@ const EXIT_SUCCESS_THRESHOLD : float = 25.0
 const BLOCKED_FEEDBACK_COOLDOWN : float = 0.35
 
 const MOVE_STOP_DELAY : float = 0.18   # no drag-motion event within this window = "stopped"
+
+# ── Maze drag control ───────────────────────────────────────────────────────
+# Contact-based, delta-follow drag. While the fingertip is in contact with the image, the image moves
+# by the finger's own movement (so the child keeps whatever grab point they started with: no forced
+# centring). "Contact" = the pointer is inside the image's 100 x 100 rectangle grown by a tolerance
+# (a fingertip is wider than its single reported point). If contact is lost the image freezes exactly
+# where it is; when the fingertip touches it again it resumes from there, with no snap or jump (the
+# next movement is measured from the re-contact position). These two values are provisional, for
+# tuning on a real device: freeze when more than DRAG_CONTACT_FREEZE_TOL outside the rectangle,
+# resume once within DRAG_CONTACT_RESUME_TOL of it (the smaller value is hysteresis against flicker).
+const DRAG_CONTACT_FREEZE_TOL : float = 24.0
+const DRAG_CONTACT_RESUME_TOL : float = 12.0
+# Movement is applied in sub-steps no longer than half a cell, one axis at a time, so a fast finger can
+# neither be dropped nor tunnel through a wall.
+const MAZE_SUBSTEP_MAX     : float = 65.0 * 0.5
+# Bounce feedback only for a genuine attempt to cross a closed wall: the fingertip target must be at
+# least this far past it. Touching or sliding along a wall never bounces.
+const WALL_CROSS_PENETRATION : float = 24.0
+# Once a push has bounced, the same direction may bounce again only after the finger has retreated:
+# the push has fallen back to this level (provisional, for tuning on a real device).
+const WALL_BOUNCE_REARM    : float = 12.0
+const MAZE_WALL_EPS        : float = 0.01   # how close to a wall the centre may rest
 
 # No guide line — the maze (and its entry) is already fully visible, so the
 # child just free-drags the image toward it. This is how close the drag has
@@ -154,10 +179,10 @@ const ROUND_SIZE : int = 4
 # hand's center around x=890 with ~72px width, spanning roughly x:854-926 —
 # the old start_x=900 sat right inside that span, visually overlapping the
 # hand with whichever image had just exited.
-const COMPLETED_ROW_Y       : float = 600.0
-const COMPLETED_ROW_START_X : float = 960.0
-const COMPLETED_ROW_STEP    : float = 80.0
-const COMPLETED_THUMB_SIZE  : float = 65.0
+# Completed images sit in a 2 x 2 grid of 130 px thumbnails right of the exit (columns x, rows y).
+const COMPLETED_GRID_X      : Array[float] = [1010.0, 1150.0]
+const COMPLETED_GRID_Y      : Array[float] = [480.0, 620.0]
+const COMPLETED_THUMB_SIZE  : float = 130.0
 const COMPLETED_MOVE_DUR    : float = 0.35
 const ROUND_COMPLETE_BEAT   : float = 0.4   # holds the full row on screen for a beat before it clears
 
@@ -202,8 +227,15 @@ var _completed_row_nodes  : Array = []   # parked TextureButtons, freed when the
 var _dragging_slot_index : int = -1
 var _drag_press_pos      : Vector2 = Vector2.ZERO
 var _drag_moved_far      : bool    = false
-var _drag_anchor_pointer : Vector2 = Vector2.ZERO   # pointer pos at the moment maze mode was entered
-var _drag_anchor_target  : Vector2 = Vector2.ZERO   # image center pos at that same moment (== maze start)
+var _drag_frozen         : bool    = false          # contact lost: the image holds still until the fingertip touches it again
+var _maze_last_pos       : Vector2 = Vector2.ZERO   # previous pointer position of the maze drag (delta-follow baseline)
+var _push                : Vector2 = Vector2.ZERO   # finger movement the walls have blocked, per axis (see _maze_check_push)
+var _bounce_armed        : Dictionary = {"x+": true, "x-": true, "y+": true, "y-": true}   # per-direction latch: one bounce per continuous push
+var _drag_source         : String  = ""             # "touch" | "mouse": which device owns the active drag
+var _drag_touch_index    : int     = -1             # finger index of the active touch drag
+var _last_drag_pos       : Vector2 = Vector2.ZERO   # last pointer position of the active drag
+var _shrink_tween        : Tween   = null
+var _maze_in_exit_zone   : bool    = false
 
 var _maze          = null   # MazeGenerator.MazeData
 var _maze_container : Node2D = null
@@ -272,6 +304,7 @@ func _ready() -> void:
 	_create_where_am_i_button()
 	_build_audio_players()
 	_maze_container = Node2D.new()
+	_maze_container.z_index = 1   # maze walls draw ABOVE the dragged image, so the route stays visible
 	add_child(_maze_container)
 	_entry_hand = _make_hand_sprite(ENTRY_HAND_ROTATION_DEG)
 	_exit_hand  = _make_hand_sprite(EXIT_HAND_ROTATION_DEG)
@@ -483,7 +516,7 @@ func _place_word_in_slot(index: int, word: Dictionary) -> void:
 
 
 func _completed_row_slot_pos(i: int) -> Vector2:
-	return Vector2(COMPLETED_ROW_START_X + i * COMPLETED_ROW_STEP, COMPLETED_ROW_Y)
+	return Vector2(COMPLETED_GRID_X[i % 2], COMPLETED_GRID_Y[(i / 2) % 2])
 
 
 func _clear_completed_row() -> void:
@@ -545,6 +578,8 @@ func _snap_back(index: int) -> void:
 	# Restores full size in case this snap-back follows a failed approach/maze
 	# attempt (_enter_approach_mode() shrinks the image for the whole journey)
 	# — harmless no-op if it never left the bobbing area, already full size.
+	if _shrink_tween != null and _shrink_tween.is_valid():
+		_shrink_tween.kill()
 	btn.size         = Vector2(IMAGE_BOX, IMAGE_BOX)
 	btn.pivot_offset = Vector2(IMAGE_BOX, IMAGE_BOX) / 2.0
 	btn.position     = slot["base_pos"] - btn.pivot_offset
@@ -557,33 +592,61 @@ func _input(event: InputEvent) -> void:
 	if _busy:
 		return
 
-	if event is InputEventScreenTouch or event is InputEventMouseButton:
-		var pressed : bool = event.pressed if event is InputEventScreenTouch else \
-			(event.pressed and event.button_index == MOUSE_BUTTON_LEFT)
-		var released : bool = not pressed
-		var pos : Vector2 = event.position
-
-		if pressed and _dragging_slot_index == -1:
-			var idx : int = _hit_test_slot(pos)
-			if idx != -1:
-				_dragging_slot_index = idx
-				_drag_press_pos      = pos
-				_drag_moved_far      = false
-				var slot : Dictionary = _slots[idx]
-				slot["state"] = ST_DRAG_IN_AREA
-				_slots[idx] = slot
-				get_viewport().set_input_as_handled()
-			return
-
-		if released and _dragging_slot_index != -1:
-			_end_drag(pos)
-			get_viewport().set_input_as_handled()
-			return
-
-	elif event is InputEventScreenDrag or event is InputEventMouseMotion:
-		if _dragging_slot_index != -1:
+	if event is InputEventScreenTouch:
+		_pointer_press_release(event.pressed, event.position, "touch", event.index)
+	elif event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			_pointer_press_release(event.pressed, event.position, "mouse", 0)
+	elif event is InputEventScreenDrag:
+		# only the finger that owns the drag moves it
+		if _dragging_slot_index != -1 and _drag_source == "touch" and event.index == _drag_touch_index:
 			_update_drag(event.position)
 			get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion:
+		if _dragging_slot_index != -1 and _drag_source == "mouse":
+			_update_drag(event.position)
+			get_viewport().set_input_as_handled()
+
+
+# A press starts a drag only when none is active (a second finger is ignored). A release ends the drag
+# only when it comes from the SAME finger / device that started it: another finger lifting, or the
+# emulated mouse events a touch screen sends alongside a touch, never cancel the active drag.
+func _pointer_press_release(pressed: bool, pos: Vector2, source: String, index: int) -> void:
+	if pressed:
+		if _dragging_slot_index != -1:
+			return
+		var idx : int = _hit_test_slot(pos)
+		if idx != -1:
+			_dragging_slot_index = idx
+			_drag_source         = source
+			_drag_touch_index    = index
+			_drag_press_pos      = pos
+			_last_drag_pos       = pos
+			_drag_moved_far      = false
+			_drag_frozen      = false
+			var slot : Dictionary = _slots[idx]
+			slot["state"] = ST_DRAG_IN_AREA
+			_slots[idx] = slot
+			get_viewport().set_input_as_handled()
+		return
+	if _dragging_slot_index == -1:
+		return
+	if source != _drag_source:
+		return
+	if source == "touch" and index != _drag_touch_index:
+		return
+	_end_drag(pos)
+	get_viewport().set_input_as_handled()
+
+
+# The app lost focus / was paused mid-drag: the release will never arrive, so end the drag here
+# exactly as a release would (a failed attempt snaps back; it is never a tap, so no phoneme plays).
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT \
+			or what == NOTIFICATION_APPLICATION_PAUSED:
+		if _dragging_slot_index != -1:
+			_drag_moved_far = true
+			_end_drag(_last_drag_pos)
 
 
 func _hit_test_slot(pos: Vector2) -> int:
@@ -598,6 +661,7 @@ func _hit_test_slot(pos: Vector2) -> int:
 
 
 func _update_drag(pos: Vector2) -> void:
+	_last_drag_pos = pos
 	var idx  : int = _dragging_slot_index
 	var slot : Dictionary = _slots[idx]
 	var btn  : TextureButton = slot["node"]
@@ -641,25 +705,29 @@ func _update_approach_drag(idx: int, pos: Vector2) -> void:
 		_enter_maze_from_approach(idx, pos)
 
 
-# This is a discovery activity, not an assessment: hitting a wall never
-# resets the image back to the start, and never fully halts the drag either
-# — a move that's blocked diagonally still slides along whichever single
-# axis (X or Y) is still open, the same "slide along the wall" approach
-# most top-down games use, so trying a different direction keeps feeling
-# responsive instead of getting stuck until the child retraces back to
-# exactly where they were. Only a move blocked on BOTH axes at once holds
-# still (with a gentle bounce) for that one frame. The maze is a spanning
-# tree with exactly one route, so persistence always finds it eventually.
+# This is a discovery activity, not an assessment: touching or sliding along a wall is ordinary
+# movement, and a wall crossing attempt never resets the image — it only gives a gentle bounce.
 # Only actually letting go (_end_drag()) ends the attempt.
+#
+# Movement model: while in contact the image moves by the finger's own movement, in sub-steps
+# (_maze_move_swept), sliding along walls and resting against them. Contact is judged on the finger's
+# position relative to the image AFTER the move, so free movement (even a fast flick) never loses
+# contact; only a wall holding the image back while the finger keeps going can open a gap.
 func _update_maze_drag(idx: int, pos: Vector2) -> void:
 	var slot : Dictionary = _slots[idx]
 	var btn  : TextureButton = slot["node"]
 
-	var current  : Vector2 = btn.position + btn.pivot_offset
-	# The maze sits at one fixed shared position, not centered on any slot,
-	# so the proposed move tracks pointer movement relative to the anchor
-	# set below rather than jumping straight to the raw pointer position.
-	var proposed : Vector2 = _drag_anchor_target + (pos - _drag_anchor_pointer)
+	var current : Vector2 = btn.position + btn.pivot_offset
+	var delta   : Vector2 = pos - _maze_last_pos
+	_maze_last_pos = pos
+	var box : Rect2 = Rect2(current - Vector2.ONE * (MAZE_DRAG_IMAGE_SIZE * 0.5), Vector2.ONE * MAZE_DRAG_IMAGE_SIZE)
+
+	if _drag_frozen:
+		if box.grow(DRAG_CONTACT_RESUME_TOL).has_point(pos):
+			_drag_frozen = false   # touching again: resume from here, nothing moves this frame
+			_push = Vector2.ZERO
+			_rearm_bounces()
+		return
 
 	# Word audio is tied to active movement, not the whole attempt: every
 	# drag-motion event restarts the "still moving" timer and resumes
@@ -669,37 +737,22 @@ func _update_maze_drag(idx: int, pos: Vector2) -> void:
 	if _word_audio_active and not _word_player.playing:
 		_word_player.play()
 
-	var resolved : Vector2 = current
-	if _maze_point_valid(proposed):
-		resolved = proposed
-	else:
-		var x_only : Vector2 = Vector2(proposed.x, current.y)
-		var y_only : Vector2 = Vector2(current.x, proposed.y)
-		if _maze_point_valid(x_only):
-			resolved = x_only
-		elif _maze_point_valid(y_only):
-			resolved = y_only
-		else:
-			_on_blocked(idx)
-
+	var resolved : Vector2 = _maze_move_swept(current, current + delta)
 	btn.position = resolved - btn.pivot_offset
-	# Re-anchor every frame (not just when blocked) so the anchor always
-	# reflects exactly where the image is right now — recovery from a
-	# blocked moment is then immediate and precise on the very next frame.
-	_drag_anchor_pointer = pos
-	_drag_anchor_target  = resolved
 
-	# Track which cell the drag actually occupies now, so the NEXT frame's
-	# _maze_point_valid() check compares against the correct starting cell.
-	# Skip this once inside the exit zone — points out there aren't a real
-	# maze cell, and the drag is past needing this check anyway.
-	if not _maze_exit_zone().has_point(resolved):
-		_maze_current_cell = _maze.cell_at(resolved)
-		# Arrived at the goal cell for the first time this attempt — the exit
-		# hand's job ("here's where to head") is done; actually pulling the
-		# image out through the exit is the remaining action.
-		if _maze_current_cell == _maze.goal_cell:
-			_hide_exit_hand()
+	_maze_account_push(delta, resolved - current)
+	_maze_check_push(idx)
+
+	# Contact check on the new relative position: a wall may have held the image back.
+	var box_after : Rect2 = Rect2(resolved - Vector2.ONE * (MAZE_DRAG_IMAGE_SIZE * 0.5), Vector2.ONE * MAZE_DRAG_IMAGE_SIZE)
+	if not box_after.grow(DRAG_CONTACT_FREEZE_TOL).has_point(pos):
+		_drag_frozen = true
+		return
+
+	# Arrived at the goal cell: the exit hand's job ("here's where to head") is done; actually
+	# pulling the image out through the exit is the remaining action.
+	if _maze_current_cell == _maze.goal_cell:
+		_hide_exit_hand()
 
 	var goal_rect  : Rect2 = _maze.cell_rect(_maze.goal_cell)
 	var boundary_x : float = goal_rect.position.x + goal_rect.size.x
@@ -715,20 +768,125 @@ func _maze_exit_zone() -> Rect2:
 		EXIT_ZONE_DEPTH, goal_rect.size.y + EXIT_ZONE_Y_TOLERANCE * 2.0)
 
 
-# Cell-based, not rect-union: adjacent cells' rects always touch regardless
-# of wall state, so a plain "is this point inside a visited cell" test can't
-# tell a real dead end (freely explorable) apart from crossing a genuinely
-# closed wall (must block). Instead, only allow moving from the cell the
-# drag currently occupies (_maze_current_cell) into an adjacent cell when
-# that specific connecting wall is actually open. Wandering into a dead end
-# is real exploration, not a wall — only an actually closed wall segment
-# should ever block the drag. The maze challenge is navigation, not
-# punishment.
+# Cell-based, not rect-union (see maze_generator.gd): only an actually closed wall blocks.
+# The exit zone is reachable ONLY from the goal cell (never through a neighbouring row or the closed
+# outer wall), and from the zone the only way back into the maze is into the goal cell.
 func _maze_point_valid(p: Vector2) -> bool:
 	if _maze_exit_zone().has_point(p):
-		return true
+		return _maze_current_cell == _maze.goal_cell
 	var cell : Vector2i = _maze.cell_at(p)
+	if _maze_in_exit_zone:
+		return cell == _maze.goal_cell
 	return _maze.can_move_between(_maze_current_cell, cell)
+
+
+# Records where the centre now is: its maze cell, or "in the exit zone" (the cell stays the goal cell).
+func _maze_commit(q: Vector2) -> void:
+	if _maze_exit_zone().has_point(q):
+		_maze_in_exit_zone = true
+	else:
+		_maze_in_exit_zone = false
+		_maze_current_cell = _maze.cell_at(q)
+
+
+# One axis-aligned move of at most half a cell. If the destination is not valid the centre is clamped to
+# the last valid position against the wall (it never enters the wall; it rests MAZE_WALL_EPS from it).
+func _maze_axis_move(p: Vector2, d: Vector2) -> Vector2:
+	if d == Vector2.ZERO:
+		return p
+	var q : Vector2 = p + d
+	if _maze_point_valid(q):
+		_maze_commit(q)
+		return q
+	var b : Rect2 = _maze_exit_zone() if _maze_in_exit_zone else _maze.cell_rect(_maze_current_cell)
+	var c : Vector2 = p
+	if d.x != 0.0:
+		c.x = clampf(q.x, b.position.x + MAZE_WALL_EPS, b.end.x - MAZE_WALL_EPS)
+	else:
+		c.y = clampf(q.y, b.position.y + MAZE_WALL_EPS, b.end.y - MAZE_WALL_EPS)
+	if (c - p).dot(d) < 0.0:
+		return p   # never move backwards because of a clamp
+	return c
+
+
+# Moves from `from` toward `to` in sub-steps <= MAZE_SUBSTEP_MAX, one axis at a time (alternating the
+# axis order), so walls are respected along the whole path and sliding falls out naturally.
+func _maze_move_swept(from: Vector2, to: Vector2) -> Vector2:
+	var delta : Vector2 = to - from
+	var n : int = maxi(1, int(ceil(delta.length() / MAZE_SUBSTEP_MAX)))
+	var step : Vector2 = delta / float(n)
+	var pos : Vector2 = from
+	for i in range(n):
+		var before : Vector2 = pos
+		if i % 2 == 0:
+			pos = _maze_axis_move(pos, Vector2(step.x, 0.0))
+			pos = _maze_axis_move(pos, Vector2(0.0, step.y))
+		else:
+			pos = _maze_axis_move(pos, Vector2(0.0, step.y))
+			pos = _maze_axis_move(pos, Vector2(step.x, 0.0))
+		if pos.is_equal_approx(before):
+			break
+	return pos
+
+
+# Is there a maze cell on the far side of this wall? The outer boundary has none: there is no other
+# path beyond it, so pushing against it never bounces (collision still blocks the image there).
+func _maze_wall_is_interior_closed(c: Vector2i, dir: int, vec: Vector2i) -> bool:
+	var nb : Vector2i = c + vec
+	if nb.x < 0 or nb.x >= _maze.cols or nb.y < 0 or nb.y >= _maze.rows:
+		return false
+	return (_maze.passages[c.y][c.x] & dir) == 0
+
+
+func _rearm_bounces() -> void:
+	for k in _bounce_armed.keys():
+		_bounce_armed[k] = true
+
+
+# How far the finger has pushed past a wall the image is resting against: the finger movement a wall
+# blocked, per axis, shrinking again as the finger moves back. It equals the depth the (absent) target
+# would be beyond the wall, i.e. the same quantity the earlier target-based check measured.
+func _maze_account_push(delta: Vector2, moved: Vector2) -> void:
+	for axis in range(2):
+		var d : float = delta[axis]
+		var blocked : float = d - moved[axis]
+		if absf(blocked) > 0.001:
+			_push[axis] += blocked
+		elif d != 0.0:
+			if signf(_push[axis]) == -signf(d):
+				_push[axis] = signf(_push[axis]) * maxf(0.0, absf(_push[axis]) - absf(d))
+			else:
+				_push[axis] = 0.0
+
+
+# Bounce feedback, with two safeguards:
+#  * only for an INTERIOR closed wall (a wall between two maze paths): never at the outer boundary;
+#  * at most one bounce per continuous push in a direction: each of the four directions has a latch that
+#    a bounce disarms and that re-arms only when the push has fallen back to WALL_BOUNCE_REARM or less
+#    (the finger retreated, the image left the wall). The 0.35 s debounce in _on_blocked() stays.
+# The trigger itself is unchanged: a blocked push of WALL_CROSS_PENETRATION or more. Touching, resting
+# against and sliding along a wall add little or no push in the wall's direction.
+func _maze_check_push(idx: int) -> void:
+	if _maze_in_exit_zone:
+		return
+	var c : Vector2i = _maze_current_cell
+	var dirs : Dictionary = {
+		"x+": [_push.x,  MazeGenerator.E, Vector2i(1, 0)],
+		"x-": [-_push.x, MazeGenerator.W, Vector2i(-1, 0)],
+		"y+": [_push.y,  MazeGenerator.S, Vector2i(0, 1)],
+		"y-": [-_push.y, MazeGenerator.N, Vector2i(0, -1)],
+	}
+	var fire : bool = false
+	for k in dirs.keys():
+		var mag : float = maxf(0.0, dirs[k][0])
+		if _bounce_armed[k]:
+			if mag >= WALL_CROSS_PENETRATION and _maze_wall_is_interior_closed(_maze_current_cell, dirs[k][1], dirs[k][2]):
+				_bounce_armed[k] = false
+				fire = true
+		elif mag <= WALL_BOUNCE_REARM:
+			_bounce_armed[k] = true
+	if fire:
+		_on_blocked(idx)
 
 
 # Debounced so it doesn't spam while genuinely pinned in a corner (blocked
@@ -762,6 +920,9 @@ func _end_drag(pos: Vector2) -> void:
 		_fail_attempt(idx)
 
 	_dragging_slot_index = -1
+	_drag_touch_index    = -1
+	_drag_source         = ""
+	_drag_frozen      = false
 
 
 func _play_phoneme(index: int) -> void:
@@ -827,17 +988,33 @@ func _enter_maze_from_approach(index: int, drag_pos: Vector2) -> void:
 	_slots[index] = slot
 
 	var btn : TextureButton = slot["node"]
-	btn.size         = Vector2(MAZE_DRAG_IMAGE_SIZE, MAZE_DRAG_IMAGE_SIZE)
-	btn.pivot_offset = btn.size / 2.0
 
-	# Anchor the image to the maze's actual start cell rather than the raw
-	# arrival point — see _update_maze_drag(), which maps further pointer
-	# motion relative to this anchor.
-	_drag_anchor_pointer = drag_pos
-	_drag_anchor_target  = _maze.start_pos()
-	_maze_current_cell   = _maze.start_cell
+	# Anchor the image to the maze's actual start cell rather than the raw arrival point (at most
+	# APPROACH_ENTRY_RADIUS from the fingertip, so the fingertip is in contact with the image).
+	_maze_last_pos     = drag_pos
+	_push              = Vector2.ZERO
+	_rearm_bounces()
+	_drag_frozen       = false
+	_maze_current_cell = _maze.start_cell
+	_maze_in_exit_zone = false
 
-	btn.position = _drag_anchor_target - btn.pivot_offset
+	btn.position = _maze.start_pos() - btn.pivot_offset
+	_shrink_image(btn, btn.size.x, MAZE_DRAG_IMAGE_SIZE)
+
+
+# Smoothly resizes the image about its own centre; the dragged position / collision centre is unaffected.
+func _shrink_image(btn: TextureButton, from_size: float, to_size: float) -> void:
+	if _shrink_tween != null and _shrink_tween.is_valid():
+		_shrink_tween.kill()
+	_shrink_tween = create_tween()
+	_shrink_tween.tween_method(func(sz: float) -> void:
+		if not is_instance_valid(btn):
+			return
+		var centre : Vector2 = btn.position + btn.pivot_offset
+		btn.size         = Vector2(sz, sz)
+		btn.pivot_offset = btn.size / 2.0
+		btn.position     = centre - btn.pivot_offset,
+		from_size, to_size, MAZE_ENTRY_SHRINK_DUR)
 
 
 func _render_maze() -> void:
@@ -953,6 +1130,7 @@ func _on_move_stop_timeout() -> void:
 
 func _fail_attempt(index: int) -> void:
 	_stop_word_audio()
+	_rearm_bounces()
 	# No "oops try again" cue — this is a discovery activity, not an
 	# assessment. The maze itself is left showing its current shape rather
 	# than hidden — it never disappears once a round has started. The next
@@ -964,6 +1142,7 @@ func _fail_attempt(index: int) -> void:
 	_snap_back(index)
 	if _dragging_slot_index == index:
 		_dragging_slot_index = -1
+	_drag_frozen = false
 	# Back to idle — the entry hand's guidance is relevant again.
 	_show_entry_hand()
 
@@ -989,6 +1168,8 @@ func _succeed_attempt(index: int) -> void:
 	# it stays visible there as a record for the rest of the round. The slot
 	# itself stays empty until the whole round finishes (_check_round_complete).
 	btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if _shrink_tween != null and _shrink_tween.is_valid():
+		_shrink_tween.kill()
 	_completed_row_nodes.append(btn)
 	var target_center : Vector2 = _completed_row_slot_pos(_completed_this_round)
 	_completed_this_round += 1

@@ -700,6 +700,67 @@ autoload, `project.godot` untouched; reach it with `SaveManager.entitlement()`):
   the release boundary live, so a stale page or a direct call cannot start a locked Set or Quest; Title waits (bounded) for the launch check, and sends a lapsed player to free
   Prep content instead of Level 1+; Level Intro refuses to mark a Level entered without a subscription.
 
+## Prep Sound Quest Maze Interaction (locked)
+
+Applies to `sound_quest.gd` (the Prep Sound Quest, the only maze). Tolerances marked *provisional* are for
+tuning with a real finger on the Galaxy tablet; the Windows results are only the baseline.
+
+**Image and layering**
+- Resting and while approaching the maze the picture is 150 x 150 px. It locks into the maze at the entry cell
+  centre (at most `APPROACH_ENTRY_RADIUS`, 45 px, from the fingertip) and tweens to **100 x 100 px** over 0.15 s
+  about its centre; the lock-in never delays play.
+- **Maze walls draw above the dragged image** (`_maze_container.z_index = 1`), so the route stays fully visible
+  (all wall pixels remain visible under the picture; the old layering hid about a third of them and made gaps).
+- Collision uses only the image **centre**; the image's bounds are never part of collision. Visual overlap between
+  the 100 px picture and a wall (the corridor's free width is 59 px) is not a collision, and no wall-overlap
+  percentage is enforced (it cannot hold at 90 or 100 px without removing natural wall contact).
+- Completed images are **130 x 130 px** in a **2 x 2 grid** (columns x = 1010 / 1150, rows y = 480 / 620), right of
+  the exit: top-left, top-right, bottom-left, bottom-right.
+
+**Contact-based delta-follow drag**
+- While the fingertip is in contact with the image, the image moves by the fingertip's own movement, so the child
+  keeps the grab point they started with (no forced centring). **Contact = the pointer is inside the image's
+  100 x 100 rectangle** (not the artwork outline) **grown by a tolerance**.
+- The image **freezes** exactly where it is when the pointer is more than `DRAG_CONTACT_FREEZE_TOL` (**24 px**,
+  *provisional*) outside that rectangle, and **resumes** when it is within `DRAG_CONTACT_RESUME_TOL` (**12 px**,
+  *provisional*) of it. No bounce or snap when freezing; nothing moves on the resume frame, so there is no jump.
+  There is no separate separation cap. Contact is judged after each move, so free movement (even a fast flick)
+  never loses contact; only a wall holding the image back while the finger keeps going can.
+- After a freeze and resume the fingertip sits near the picture's edge, so only about 12 px of further push fit
+  before it freezes again.
+
+**Movement and walls**
+- Movement is applied in sub-steps of at most half a cell (32.5 px), one axis at a time, alternating the axis order,
+  so a fast finger is neither dropped nor able to tunnel through a wall.
+- A blocked move clamps to the last valid position (0.01 px from the wall). Touching a wall, resting against it and
+  sliding along it are ordinary movement and **never bounce**.
+- **Bounce** (`_on_blocked`, a 0.85 scale pulse; it never moves the image or resets maze progress) fires only for a
+  genuine push through a **closed interior wall** (a wall with another maze path behind it):
+  - the finger's blocked push must reach `WALL_CROSS_PENETRATION` (**24 px**);
+  - **no bounce at the outer maze boundary** (collision still blocks the image there);
+  - **at most one bounce per continuous push**: one latch per direction (x+, x-, y+, y-); a bounce disarms that
+    direction, and it re-arms when the push falls back to `WALL_BOUNCE_REARM` (**12 px**, *provisional*) or the
+    image leaves the wall; the latches also reset at lock-in, on a failed attempt and when contact resumes;
+  - the existing 0.35 s debounce stays.
+- Known limitation: no geometric rule can tell a sustained press from a crossing attempt (it is the same finger
+  motion), so the trigger is a distance; the safeguards above limit repeats, not the first bounce.
+
+**Exit**
+- The exit zone is reachable **only through the connected goal cell**: not through a neighbouring row and not
+  through the closed outer wall; from the zone the only way back into the maze is the goal cell. The image counts
+  as out when its centre is at least `EXIT_SUCCESS_THRESHOLD` (25 px) past the goal cell's east edge.
+
+**Input safety**
+- A drag belongs to the device and finger that started it: a second finger touching down is ignored, a second finger
+  lifting does not cancel the drag, and the emulated mouse events a touch screen also sends are ignored.
+- The finger's own release always ends its drag. A release mid-maze is a failed attempt and the image goes home.
+- Losing app focus or pausing mid-drag ends the drag the same way (failed attempt, snap home, no phoneme).
+- Unchanged: audio tied to movement, the Where Am I exit, x-N counting, progression and the C7 subscription rules.
+
+**Galaxy acceptance criterion (outstanding):** a child can keep a finger in contact with the image, see the maze
+path ahead, and naturally guide the image to the exit without unexpected jumps, loss of contact or unnecessary
+bouncing.
+
 ## Planned / Pending
 
 - **Glide companion app** (separate project, new chat): same phoneme sounds but with letters shown — for parents/adults/kids who want to see written words. Mirrors SoundUp's Prep + Level 1 sound sets.
@@ -714,6 +775,8 @@ autoload, `project.godot` untouched; reach it with `SaveManager.entitlement()`):
   resume notification, iOS Restore through the real `AppStore.sync()`, and the Android purchase dictionary keys
   (`product_ids`, `purchase_state`).
 
+- **Prep Sound Quest maze: Galaxy real-finger verification outstanding** (contact tolerances 24 / 12 px, bounce
+  trigger 24 px and re-arm 12 px are provisional). See Prep Sound Quest Maze Interaction.
 - **Level 2 Where Am I audio framework (G1) — known gap, intentionally not fixed yet.** `game2.gd:_on_gnb_flag_pressed`
   and `game25.gd:_on_gnb_flag_pressed` still use the bare overlay handler: no `_kill_gameplay_audio()`, no
   `_audio_dead` guard in the play helpers, no `_start_round()` on close. With Where Am I open the word audio and the

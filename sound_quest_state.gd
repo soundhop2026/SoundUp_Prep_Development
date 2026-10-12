@@ -123,8 +123,12 @@ static func _resolve_image_folder(letter: String) -> String:
 		letter.replace("_", "-").to_lower(),
 		letter.to_lower(),
 	]
+	# Compare against the real folder names, not dir_exists_absolute(): that is case-INSENSITIVE on
+	# Windows/macOS, so "C-soft" matched the real "c-soft" folder, was baked into the manifest, and
+	# then failed on Android's case-sensitive file system (invisible Sound Quest images).
+	var real_folders : PackedStringArray = DirAccess.get_directories_at("res://SoundUp_level1_word images")
 	for c in candidates:
-		if DirAccess.dir_exists_absolute("res://SoundUp_level1_word images/%s" % c):
+		if c in real_folders:
 			return c
 	return letter   # no match found; _list_words_for_phoneme() will just find nothing
 

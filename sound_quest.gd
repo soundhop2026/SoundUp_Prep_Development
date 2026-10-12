@@ -498,6 +498,10 @@ func _place_word_in_slot(index: int, word: Dictionary) -> void:
 	var tex : Texture2D = null
 	if word.get("image", "") != "" and ResourceLoader.exists(word["image"]):
 		tex = load(word["image"]) as Texture2D
+	if tex == null:
+		# Diagnostic only: the slot still plays exactly as before (it stays a live, draggable slot).
+		# A path that differs from the real file only by case fails on device but not on Windows/macOS.
+		push_error("SoundQuest: image failed to load for slot %d: '%s'" % [index, word.get("image", "")])
 	btn.texture_normal = tex
 	btn.position        = base_pos - btn.pivot_offset
 	btn.modulate.a      = 0.0

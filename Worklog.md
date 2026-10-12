@@ -61,6 +61,65 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-10-12 (latest) - Prep Sound Quest Group F invisible images (manifest case mismatch)
+
+### Root cause
+`sound_quest_word_manifest.json` named the image folders `C-soft` and `X-gz`; the real folders are `c-soft` and
+`x-gz`. Packed resources (Android and iOS) are case-sensitive, so **11 Group F word images do not load**:
+celery, cent, cereal, circle, circus, city (`c-soft`) and exact, exam, example, exhaust, exotic (`x-gz`).
+Windows/macOS ignore case, so every desktop run looked fine. The generator
+(`SoundQuestState._resolve_image_folder`) checked folders with `DirAccess.dir_exists_absolute()`, which is
+case-insensitive there, so it baked the wrong spelling into the manifest.
+
+### What it looked like (confirmed on Galaxy and iOS)
+A slot whose image fails to load stays a normal live slot: it is invisible, but tapping it plays the right word
+audio and dragging it through the maze completes it, so the round advances normally. Group F rounds therefore
+showed 4, 3 or 2 pictures while always being four-image rounds.
+
+### Corrections to earlier findings (recorded so they are not repeated)
+- The invisible slots did **not** block round completion (an earlier report said they did).
+- Word **audio is not affected**: all 178 word-audio files resolve with exact case; the audio folder is
+  `C_soft.wav`. Do not touch audio for this.
+- It is **not Android-only**: iOS shows the same invisible images (celery confirmed on iOS).
+- Level 1's Sound Quest Group E/F pools list the same 11 words, but Level 1 Sound Quest draws generic faces,
+  so there was no visible effect. Prep Group E and Level 1.5 are unaffected.
+
+### Fix (focused; no gameplay, maze, progression, scoring or audio change)
+- `sound_quest_word_manifest.json`: `C-soft` -> `c-soft`, `X-gz` -> `x-gz`.
+- `sound_quest_state.gd`: `_resolve_image_folder` now compares against the real folder names (case-exact). Only the
+  manifest generator calls it. The generator now reproduces the committed manifest exactly (23 letters, 0 diffs).
+- `sound_quest.gd` `_place_word_in_slot`: `push_error(...)` when an image fails to load. Diagnostic only; the slot
+  behaves exactly as before (no skipping, no auto-completion).
+- New tools: `tools/audit_sound_quest_resources.py` (exact-case audit of every Prep / Level 1 / Level 1.5 Sound
+  Quest resource, no Godot needed, runs on the Mac too) and `tools/verify_sound_quest_resources.gd` + `.tscn`
+  (same check against an exported package: build every Prep and Level 1 Group pool through the real
+  `build_word_pool`, every Level 1.5 word and the fixed assets). How to run: see each file's header.
+
+### Verification (Windows; packages are `--export-pack` files run on desktop, not devices)
+- Audit: 30 fixed paths, 178 words (images and audio), 130 Level 1.5 words: clean. Against the old manifest it flags
+  13 problems (2 folders + 11 images).
+- Package check (3,320 checks): 0 failures on the Android-preset package and on the iOS-preset package. The
+  pre-fix package fails 33 checks (the 11 words in Prep Group F and Level 1 Groups E/F).
+- Full replay of every round of every Quest of Prep Groups E (40 rounds) and F (180 rounds) through the real
+  success path: 0 rounds with fewer than 4 pictures, none stuck, on both packages. Pre-fix package, Group F:
+  43 of 180 rounds had missing pictures (all still completed).
+- Diagnostic probe: a bad path logs one error and leaves a live ST_BOBBING slot.
+- Regression: C1-C7, generic progression, free access, Sound Quest counting and maze suites (mz2, mz4): all pass.
+
+### Not done / next
+- No APK or iOS build was made. **Mac:** pull this commit, build iOS, verify on an Apple device, handle App Store.
+  **Windows:** Android build/test only when separately authorized (a debug build with Prep Groups B, C, E, F
+  entries was suggested). On-device confirmation that celery etc. are visible is still outstanding.
+- The iOS-preset package check is a resource-lookup comparison only; it does not replace Mac/iOS device testing.
+
+### Gotchas
+- Never run Godot with `--path .` without an isolated `APPDATA`: it starts the `SaveManager` autoload against the
+  real save and may rewrite it (it did rewrite the real save once during this session, most likely via the one-time
+  records migration).
+- A 6-word spot check of a random sample can miss the broken words; replay whole Quests.
+
+---
+
 ## 2026-10-12 (later still) - Prep Sound Quest maze interaction
 
 ### Completed

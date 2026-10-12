@@ -15,7 +15,7 @@
 		]
 	},
 	"C_soft": {
-		"folder": "C-soft",
+		"folder": "c-soft",
 		"words": [
 			"celery",
 			"cent",
@@ -249,7 +249,7 @@
 		]
 	},
 	"X_gz": {
-		"folder": "X-gz",
+		"folder": "x-gz",
 		"words": [
 			"exact",
 			"exam",

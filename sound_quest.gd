@@ -221,6 +221,7 @@ var _move_timer : Timer = null   # word audio pauses when no drag-motion arrives
 var _last_blocked_time : float = -1000.0   # debounces the wall-bump feedback, see _on_blocked()
 
 var _busy : bool = false   # true during Quest Transition / group handoff — input ignored
+var _exiting : bool = false   # Where Am I pressed: Quest frozen and silent while the music fades out
 var _play_counted : bool = false   # true once this scene instance's real-play count
 									# increment has fired (see _start_round)
 
@@ -244,20 +245,16 @@ func interrupt_for_entitlement_loss() -> void:
 
 
 func _ready() -> void:
-	# Group A's Sound Quest is free (its Group contains the free Sets); the other
-	# Groups need a subscription. Checked at entry so no route can bypass the
-	# Where Am I card lock. Touches no progress.
-	if not PrepLevelProgress.is_group_accessible(
-			PrepLevelProgress.group_number_for_index(SoundQuestState.group_end_index)):
+	# Every Sound Quest is premium (only Prep Sets A1/A2 are free), Prep Quest A
+	# included. Checked at entry so no route can bypass the Where Am I card lock.
+	# Touches no progress.
+	if not PremiumGameplay.level_scene_admitted():
 		set_process_input(false)
 		PremiumIntroState.context_id = PremiumIntroState.CONTEXT_PREP_LOCKED
 		get_tree().change_scene_to_file("res://premium_intro.tscn")
 		return
-	# Group A's Sound Quest is never interrupted; every other Prep Sound Quest is
-	# premium gameplay and stops the moment the subscription is confirmed lost.
-	if not PrepLevelProgress.is_group_free(
-			PrepLevelProgress.group_number_for_index(SoundQuestState.group_end_index)):
-		PremiumGameplay.join(self)
+	# Premium gameplay: stops the moment the subscription is confirmed lost.
+	PremiumGameplay.join(self)
 	_center_offset = SceneBackground.center_offset()
 	for pos in SLOT_POSITIONS:
 		_slot_positions.append(pos + Vector2(_center_offset, 0))
@@ -323,7 +320,7 @@ func _build_audio_players() -> void:
 # stopped at its end. Same manual loop-on-finished idiom as level_transition.
 # gd's _start_music()/_on_music_finished().
 func _start_music() -> void:
-	if not ResourceLoader.exists(MUSIC_PATH):
+	if _exiting or not ResourceLoader.exists(MUSIC_PATH):
 		return
 	_music_player           = AudioStreamPlayer.new()
 	_music_player.stream    = load(MUSIC_PATH)
@@ -768,6 +765,8 @@ func _end_drag(pos: Vector2) -> void:
 
 
 func _play_phoneme(index: int) -> void:
+	if _exiting:
+		return
 	var word : Dictionary = _slots[index]["word"]
 	var path : String = word.get("phoneme_audio", "")
 	if path != "" and ResourceLoader.exists(path):
@@ -921,6 +920,8 @@ func _reshape_maze() -> void:
 
 
 func _start_word_audio(index: int) -> void:
+	if _exiting:
+		return
 	var word : Dictionary = _slots[index]["word"]
 	var path : String = word.get("word_audio", "")
 	_word_audio_active = false
@@ -968,6 +969,8 @@ func _fail_attempt(index: int) -> void:
 
 
 func _succeed_attempt(index: int) -> void:
+	if _exiting:
+		return
 	_stop_word_audio()
 	_success_player.play()
 	# Same as _fail_attempt() — the maze stays visible in its current shape;
@@ -1331,6 +1334,26 @@ func _qt_find_dead_end(maze, cell: Vector2i, on_path: Dictionary) -> Vector2i:
 	return branches[randi() % branches.size()]
 
 
+# Where Am I was pressed. From this instant the Quest takes no input and makes no gameplay sound:
+# the word / phoneme / success audio is stopped, nothing can restart it (every play site checks
+# _exiting), and a transparent shield stops pointer taps on the controls. Only the music fade runs on.
+func _begin_exit() -> void:
+	_exiting = true
+	_busy = true
+	_word_audio_active = false
+	for p in [_phoneme_player, _word_player, _success_player]:
+		if p != null:
+			p.stop()
+	if _move_timer != null:
+		_move_timer.stop()
+	var shield := ColorRect.new()
+	shield.color        = Color(0, 0, 0, 0)
+	shield.size         = get_viewport_rect().size
+	shield.mouse_filter = Control.MOUSE_FILTER_STOP
+	shield.z_index      = 9
+	add_child(shield)
+
+
 # ─── Where Am I exit — Sound Quest must never trap the player; this is the
 # ─── only way out besides finishing all 4 Quests ───────────────────────────
 func _create_where_am_i_button() -> void:
@@ -1377,7 +1400,10 @@ func _create_where_am_i_button() -> void:
 
 
 func _on_where_am_i_pressed() -> void:
-	await _stop_music()
+	if _exiting:
+		return
+	_begin_exit()
+	await _stop_music()   # same 1 s music fade as before; everything else is already silent and frozen
 	ReviewState.active = false
 	get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
 

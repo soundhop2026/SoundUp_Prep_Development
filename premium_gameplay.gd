@@ -1,8 +1,8 @@
 class_name PremiumGameplay
 
-# Premium gameplay: everything except Prep Sets A1/A2 and Prep Sound Quest A.
-# That is every other Prep Set and Prep Sound Quest, and ALL of Level 1, 1.5, 2
-# and any later Level or Sound Quest.
+# Premium gameplay: everything except Prep Sets A1/A2.
+# That is every other Prep Set, EVERY Sound Quest (Prep Quest A included), and ALL
+# of Level 1, 1.5, 2 and any later Level.
 #
 # Two obligations for a premium gameplay scene:
 #   1. An entry guard at the top of _ready(): refuse to start without a verified

@@ -78,7 +78,11 @@ func _ready() -> void:
 	bg.color        = CREAM
 	bg.size         = get_viewport_rect().size
 	bg.position     = Vector2.ZERO
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# As an overlay this background must swallow the pointer: the header bar and its labels are
+	# mouse-transparent, so without this the gameplay scene underneath (e.g. its Back button, in the
+	# top 100 px) stayed clickable through the open Where Am I. The overlay's own buttons and cards
+	# are children added after it, so they still receive input first.
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP if is_overlay else Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
 	_build_header_bar()
@@ -838,17 +842,14 @@ const CELL_H_REF : float = 92.0
 
 # A card is locked when its Set cannot be entered yet (a Level's other Sets stay
 # locked until its first Set has actually been attempted; everything but Prep's
-# free Sets also needs a verified subscription). A Prep Sound Quest card is
-# locked unless its Group contains a free Set; every other Level's Sound Quest
-# needs a subscription. Locking is access only: it never changes a record, and
-# a completed Set that is currently inaccessible keeps its completion.
+# free Sets A1/A2 also needs a verified subscription). EVERY Sound Quest card,
+# Prep Quest A included, needs a verified subscription. Locking is access only:
+# it never changes a record, and a completed Set that is currently inaccessible
+# keeps its completion.
 func _is_card_locked(sd: Dictionary, ld: Dictionary) -> bool:
 	if sd.has("index"):
 		return not ProgressStatus.is_set_accessible(String(ld.get("id", "")), int(sd["index"]))
-	if ld.get("id", "") != "prep":
-		return not SaveManager.is_subscribed()
-	var group : int = "ABCDEF".find(String(sd.get("key", "")).get_slice("_", 2))   # "prep_soundquest_B" -> B
-	return group < 0 or not PrepLevelProgress.is_group_accessible(group)
+	return not SaveManager.is_subscribed()
 
 
 # A Set card is done only if that exact Set is recorded as passed. Sound Quest
@@ -958,7 +959,12 @@ func _panel_label(parent: Control, text: String, pos: Vector2, sz: Vector2,
 
 # ─── Replay launch ────────────────────────────────────────────────────────────
 func _on_replay_pressed(sd: Dictionary, ld: Dictionary) -> void:
+	# Enforced here, not only by the card's lock look: the entitlement and the
+	# release boundary are read live, so a stale page or a direct call cannot
+	# start a locked Set or Quest. (The scene's own entry guard is the last line.)
 	if _is_card_locked(sd, ld):
+		return
+	if not ReleaseScope.is_level_released(String(ld.get("id", ""))):
 		return
 	if sd.has("index"):
 		# A chosen Set starts as a real, scored attempt that follows the normal

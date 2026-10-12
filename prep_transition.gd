@@ -29,6 +29,7 @@ var _info_label2 : Label           = null
 var _center_offset : float         = 0.0   # mobile-alignment fix — see SceneBackground.center_offset()
 
 var _gnb_btn : Button = null
+var _bounce_snd : AudioStreamPlayer = null   # the bounce SFX; Where Am I silences it at once
 var _seq_gen : int    = 0   # bumped when Where Am I is pressed — every pending
 							 # await in _play_transition() checks this and
 							 # bails out instead of auto-routing
@@ -146,7 +147,8 @@ func _play_transition() -> void:
 		SaveManager.mark_set_completed(ReleaseScope.set_key("prep", PrepLevelProgress.current_index))
 
 	# ── 4 bounces with ascending pitch ────────────────────────────────────────
-	var snd := AudioStreamPlayer.new()
+	_bounce_snd = AudioStreamPlayer.new()
+	var snd : AudioStreamPlayer = _bounce_snd
 	snd.stream = load("res://BGM&effect/SoundUp_set_transition_sfx.wav")
 	add_child(snd)
 
@@ -324,6 +326,8 @@ func _on_gnb_flag_pressed() -> void:
 	_seq_gen += 1                 # cancels _play_transition() — every pending
 								   # await checks this and bails instead of
 								   # reaching the auto-routing at the end
+	if _bounce_snd != null:
+		_bounce_snd.stop()        # a bounce already in flight must not keep sounding under Where Am I
 	var overlay := CanvasLayer.new()
 	overlay.layer = 100
 	overlay.name  = "GNBOverlay"

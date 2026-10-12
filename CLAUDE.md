@@ -439,8 +439,8 @@ Locked 2026-10 (stages C1–C6). Terminology is Level → Group → Set → Roun
   open for free selection, whatever else has been passed. Before that, the other Sets are LOCKED.
 - **Prep subscription takes precedence:** free users reach only Sets A1–A2 (`PrepLevelProgress.FREE_SET_COUNT`);
   Set 3 onward needs a subscription, and a subscriber reaches every Prep Set immediately. Completing a free
-  Set never unlocks a paid Set. **Prep Sound Quest A is free; Sound Quest B–F need a subscription** (a Group
-  is free only if it contains a free Set). Sound Quest A does not require completing A1 or A2.
+  Set never unlocks a paid Set. **Every Sound Quest needs a subscription, Prep Sound Quest A
+  included** (locked policy: only Prep Sets A1/A2 are free).
 - Enforced at every route: Where Am I locks the cards, and every premium gameplay scene checks access in
   `_ready()` (a blocked entry goes to the premium screen and touches no progress). See Subscription Entitlement
   & Premium Gameplay for the full model, including Levels 1+. Title shows the last
@@ -659,8 +659,9 @@ the App Store last verified.** No app-managed grace periods, no legacy allowance
 connectivity problem never creates or extends an entitlement. (Billing grace period, retry and account hold are
 the *store's* behavior: the store keeps or drops the subscription and the app only reads the answer.)
 
-**Free vs premium.** Free: Prep Sets A1/A2 and Prep Sound Quest A. **Premium: everything else** — every other
-Prep Set and Prep Sound Quest, and **all of Level 1, 1.5, 2, 2.5 and every future Level and Sound Quest**.
+**Free vs premium (locked).** Free: **only Prep Sets A1 and A2.** **Premium: everything else** — every other
+Prep Set, **every Sound Quest (Prep Quest A included)**, and all of Level 1, 1.5, 2, 2.5 and every future Level.
+An expired subscriber keeps A1/A2; all progress and records stay intact and return to use on re-subscribing.
 
 **`EntitlementService`** (`entitlement_service.gd`, hosted as a child of the `SaveManager` autoload — no new
 autoload, `project.godot` untouched; reach it with `SaveManager.entitlement()`):
@@ -683,19 +684,20 @@ autoload, `project.godot` untouched; reach it with `SaveManager.entitlement()`):
 (`prep_game`, `sound_quest`, `game`, `level1_sound_quest`, `game15`, `level15_sound_quest_ab/cd/e/f`, `game2`,
 `game25`), plus `level_scene_admitted()`, `join()`, `refuse()`, `route_to_paywall()`.
 - **Entry guard**: each Level scene's `_ready()` starts with `level_scene_admitted()` (verified subscription, or a
-  QA `DebugConfig.debug_launch`); Prep scenes keep their access check and add the group join only for premium
-  content. A refused entry writes nothing and goes to the subscription flow.
+  QA `DebugConfig.debug_launch`); `prep_game.gd` keeps its own access check and joins the group only for premium
+  Sets (A3+); `sound_quest.gd` uses the same guard as the Level scenes and always joins. A refused entry writes nothing and goes to the subscription flow.
 - **Interruption**: on a confirmed loss, every scene in group `premium_gameplay` runs
   `interrupt_for_entitlement_loss()` — stops immediately (does not wait for the Set / Quest to end), locks input,
   stops audio, clears any retry state, and routes to `premium_intro.tscn` (`CONTEXT_PREMIUM_LOCKED`). It never
   terminates the app. **Nothing is written**: the interrupted attempt is not recorded complete and not counted;
   records, resume cursor and ×N counts are preserved. A registered scene that forgot the method is still routed
-  by the service. Free Prep content and Set Transitions are never interrupted.
+  by the service. Prep Sets A1/A2 and Set Transitions are never interrupted.
 - After subscribing or Restoring, access returns and the subscription flow goes back to Where Am I.
 - **New Level or Sound Quest scene: add its path to `SCENE_PATHS`, add the entry guard, join the group, and
   implement `interrupt_for_entitlement_loss()`** (the C7 test scans `*.tscn` and fails on an unregistered one).
-- Where Am I locks every Level tile (and so every Sound Quest card) without a verified subscription and re-renders
-  when `entitlement_changed` fires; Title waits (bounded) for the launch check, and sends a lapsed player to free
+- Where Am I locks every Level tile and **every Sound Quest card (Prep Quest A included)** without a verified
+  subscription and re-renders when `entitlement_changed` fires. `_on_replay_pressed` re-checks the entitlement and
+  the release boundary live, so a stale page or a direct call cannot start a locked Set or Quest; Title waits (bounded) for the launch check, and sends a lapsed player to free
   Prep content instead of Level 1+; Level Intro refuses to mark a Level entered without a subscription.
 
 ## Planned / Pending
@@ -711,6 +713,13 @@ autoload, `project.godot` untouched; reach it with `SaveManager.entitlement()`):
   lookup needs the network → UNKNOWN → no premium until online), the shared Android client reconnect, the
   resume notification, iOS Restore through the real `AppStore.sync()`, and the Android purchase dictionary keys
   (`product_ids`, `purchase_state`).
+
+- **Level 2 Where Am I audio framework (G1) — known gap, intentionally not fixed yet.** `game2.gd:_on_gnb_flag_pressed`
+  and `game25.gd:_on_gnb_flag_pressed` still use the bare overlay handler: no `_kill_gameplay_audio()`, no
+  `_audio_dead` guard in the play helpers, no `_start_round()` on close. With Where Am I open the word audio and the
+  delayed vowel-walk / word sequences keep playing, and nothing is resumed on close. Level 2 is fully developed but
+  unreleased, so this must be aligned with `game15.gd` (same pattern) before Level 2 is released. The Level 2 Sound
+  Quest is not attached yet.
 
 ## Update — June 2026
 Companion app renamed: Glide → SoundBuddy

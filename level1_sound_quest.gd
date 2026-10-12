@@ -78,6 +78,7 @@ var _round_index    : int   = 0
 var _cloud_faces : Array = []   # Array[TextureRect], this round's Word Cloud
 var _bins        : Array = []   # Array[Dictionary] {node: TextureRect, phoneme, phoneme_audio, collected, target_count, breathing}
 var _busy        : bool  = false   # guards input during round-complete fade / drag resolution
+var _exiting     : bool  = false   # Where Am I pressed: Quest frozen and silent while the music fades out
 var _play_counted : bool = false   # true once this scene instance's real-play count
 									# increment has fired (see _start_round)
 
@@ -332,6 +333,8 @@ func _process(_delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _exiting:
+		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index != MOUSE_BUTTON_LEFT:
@@ -664,6 +667,8 @@ func _spawn_bins(phonemes: Array) -> void:
 # Ephemeral one-shot player per tap so overlapping taps (word audio, phoneme
 # audio, gayageum correct) never cut each other off.
 func _play_sfx(path: String) -> void:
+	if _exiting:
+		return
 	if path == "" or not ResourceLoader.exists(path):
 		return
 	var player := AudioStreamPlayer.new()
@@ -693,6 +698,29 @@ func _finish_round() -> void:
 func _on_all_quests_complete() -> void:
 	ReviewState.active = false
 	get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
+
+
+# Where Am I was pressed. From this instant the Quest takes no input and makes no gameplay sound:
+# a held drag is dropped on the spot (nothing is evaluated), every one-shot sound is stopped and no
+# new one can start (_play_sfx / _qt_start_music check _exiting), the Transition's face buttons are
+# disabled, and a transparent shield stops pointer taps. Only the music fade runs on.
+func _begin_exit() -> void:
+	_exiting = true
+	_busy = true
+	_qt_resolved = true
+	_qt_frozen = true
+	_dragging = false
+	_drag_face = null
+	for c in get_children():
+		if c is AudioStreamPlayer and c != _qt_music_player:
+			c.stop()
+			c.queue_free()
+	var shield := ColorRect.new()
+	shield.color        = Color(0, 0, 0, 0)
+	shield.size         = get_viewport_rect().size
+	shield.mouse_filter = Control.MOUSE_FILTER_STOP
+	shield.z_index      = 9
+	add_child(shield)
 
 
 # ─── Where Am I exit — Sound Quest must never trap the player; this is the
@@ -741,7 +769,10 @@ func _create_where_am_i_button() -> void:
 
 
 func _on_where_am_i_pressed() -> void:
-	await _qt_stop_music()
+	if _exiting:
+		return
+	_begin_exit()
+	await _qt_stop_music()   # same 1 s music fade as before; everything else is already silent and frozen
 	ReviewState.active = false
 	get_tree().change_scene_to_file("res://gnb_where_am_i.tscn")
 
@@ -805,7 +836,7 @@ func _play_quest_transition() -> void:
 
 
 func _qt_start_music() -> void:
-	if not ResourceLoader.exists(MUSIC_PATH):
+	if _exiting or not ResourceLoader.exists(MUSIC_PATH):
 		return
 	_qt_music_player           = AudioStreamPlayer.new()
 	_qt_music_player.stream    = load(MUSIC_PATH)

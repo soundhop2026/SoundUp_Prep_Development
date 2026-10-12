@@ -61,6 +61,57 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-10-12 (later) — Where Am I framework gap corrections (G2, G3, G4; G1 recorded only)
+
+### Completed
+Audit of Where Am I audio / input coverage across every gameplay scene, then three approved corrections. Windows
+only, isolated saves, not committed.
+- **G4 (confirmed with real pointer input first):** a windowed game run clicked with OS-level mouse events showed
+  that, with the Where Am I overlay open, a click in the top 100 px reached the gameplay scene's own Back button
+  (Prep, Level 1 and Level 1.5 all: round 1 → 0, and audio restarted under the overlay). Cause: the overlay's
+  background rect was `MOUSE_FILTER_IGNORE`. Fix in `gnb_where_am_i.gd`: the background is `MOUSE_FILTER_STOP`
+  when `is_overlay` (full-scene Where Am I unchanged). After the fix the same click reaches nothing underneath, while
+  the overlay's own Back and Level tiles still respond to real clicks.
+- **G2:** `sound_quest.gd` and `level1_sound_quest.gd`: pressing Where Am I now stops the Quest at once (word /
+  phoneme / success / one-shot sounds silenced, a held drag dropped without evaluation, `_busy` set, a transparent
+  full-screen shield swallows pointer taps, every play site checks `_exiting`). The existing 1 s music fade and the
+  scene change are unchanged (≈1000 ms before and after). Completion, ×N counting and navigation untouched.
+- **G3:** `prep_transition.gd`: Where Am I now stops the bounce SFX immediately (`_bounce_snd`).
+- **G1 (recorded, not changed):** `game2.gd` / `game25.gd` still use the bare overlay handler (no audio kill, no guard,
+  no round restart); the audit saw their word / vowel-walk audio continue under the overlay. Listed under Planned /
+  Pending in `CLAUDE.md`; must be aligned with `game15.gd` before Level 2 is released.
+
+### Tests
+Focused (isolated): real-pointer click-through and own-button checks; audio/input/resume/cleanup coverage for every
+gameplay scene, Set Transition, Coronation and the four Level 1.5 Quests; Sound Quest exit checks (silent at once, no
+restart, input blocked, fade timing, ×N untouched). Level 2 still shows the recorded G1 gap, as expected.
+
+---
+
+## 2026-10-12 — Free-access policy update (every Sound Quest is premium)
+
+### Completed
+Locked policy: **only Prep Sets A1 and A2 are free; all Sound Quests, including Prep Sound Quest A, require a
+valid subscription.** Windows only, isolated scratch saves, not committed. Two files changed:
+- `sound_quest.gd`: the entry guard is now the same one the Level scenes use
+  (`PremiumGameplay.level_scene_admitted()`), and the scene always joins the premium group, so an entitlement
+  loss interrupts Prep Quest A too.
+- `gnb_where_am_i.gd`: every Sound Quest card is locked without a verified subscription; `_on_replay_pressed`
+  now also checks the release boundary live (it did not before; only the Level tile lock protected Level 1.5's
+  cards), next to the existing live lock check.
+Unchanged: Sound Quest gameplay and exits, main cursor, Title → Play, Back, scoring, ×N, the generic progression
+framework, the lifecycle rules and `HIGHEST_RELEASED_LEVEL_ID = "level1"`. `PrepLevelProgress.is_group_free()` /
+`is_group_accessible()` are now unused (left in place).
+
+### Tests
+New `fp` suite (34 checks): free, active, cancelled-but-still-entitled (the store keeps saying ENTITLED), UNKNOWN,
+expired mid-Quest (interrupt, nothing written), A1/A2 still playable when expired, re-subscribed (card reopens,
+progress intact), refund (a revocation event re-asks the store; only a confirmed answer revokes), stale page, and
+the handler's release-boundary check. Existing expectations that Prep Quest A was free were updated in the C1, C4,
+C5 and C7 harnesses. Full regression and the Sound Quest verification (A–E, all nine Quests) pass.
+
+---
+
 ## 2026-10-11 (separate entry) — Generic Level-to-Level Progression Framework
 
 Kept apart from the C7 entry above; its results are independent of C7's.

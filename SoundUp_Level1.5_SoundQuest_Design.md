@@ -50,17 +50,27 @@ flagged, not started.
 
 ## Quest A / B — Initial / Final Identification
 
-`level15_sound_quest_ab.gd` / `.tscn`. Not touched 2026-08-08 (verified working). BG color: sky
-blue `Color(0.431, 0.710, 1.0, 1.0)`.
+`level15_sound_quest_ab.gd` / `.tscn`. **Redesigned 2026-10-13 after Galaxy device QA.** The earlier version
+(a hidden target picture behind background-coloured tiles at 12% opacity) gave the child no way to hear the
+target sound or see where to drop, so it was unplayable on the tablet. BG color: sky blue
+`Color(0.431, 0.710, 1.0, 1.0)`.
 
-- Faint target image (`TARGET_SIZE 220x220` at `TARGET_POS (530, 40)`, alpha 0.12) reveals via an
-  NxM patch grid as correct words are dragged in.
-- Scattered word pool (correct + distractors) below; tap a face to hear its word, drag onto the
-  faint image to check.
-- 4 Sets × 8 rounds = 32 total (Quest A); 5 Sets × 8 rounds = 40 total (Quest B).
-- Target-word selection: `Level15SoundQuestState.words_for_phoneme()` then random pick; correct
-  pool floor/ceiling 3–10 words per round (all used if ≤10, fresh random 6–10 subset if the
-  phoneme has more).
+- **Top centre: the Game 1 PlayButton** (`UI_assets/playbutton.png`), 340 x 164 px at (470, 22), drawn like Quest C/D draws it.
+  **Tap = the isolated target phoneme** (`data/phonemes.json` audio): the first sound in Quest A, the last sound in Quest B.
+- **Floating word pictures** (80 x 80, unchanged) fill a zone below it (centres x 55-1225, y 270-640). **Tap = the complete
+  word.** Placement tries 120 times before giving up (was 30) so two pictures are never left on top of each other.
+- **Drag a picture onto the PlayButton.** The drop zone is the PlayButton grown by 24 px (the dragged picture's centre).
+  - Correct: the existing chime, the picture hops in and fades, and the PlayButton reacts once. **Quest A: a small vertical
+    bounce (14 px). Quest B: a small horizontal sway (14 px).** Amounts are provisional, to be checked with a real finger.
+  - Wrong: silent resist-and-bounce back (unchanged). Empty space: glides home (unchanged).
+- The round ends when every matching picture has been delivered (then the 0.5 s hold, fade and next round, unchanged).
+  **No progress counter.** The PlayButton fades with the round so the Short / Long Transition's own Play Button never
+  shares the screen with it.
+- The round's target WORD is still picked internally (it decides the phoneme and the correct / distractor pools exactly as
+  before, and is excluded from its own correct pool) but it is never shown. Removed: the hidden target picture, the patch
+  grid and the reveal.
+- 4 Sets x 8 rounds = 32 total (Quest A); 5 Sets x 8 rounds = 40 total (Quest B). Correct pool floor / ceiling 3-10 per round
+  (all used if <= 10, a fresh random 6-10 subset if the phoneme has more).
 
 ---
 

@@ -6,14 +6,20 @@ extends Node2D
 # which word field drives the target ("initial" vs "final") and the total
 # round count. Set via Level15SoundQuestABState before this scene loads.
 #
-# Round: a faint target image sits at top, revealed one patch at a time as
-# the child drags in correct words (sharing the target's phoneme) from a
-# scattered pool below that also contains distractors. Wrong drags resist
-# and bounce back, same idiom as Level 1 Sound Quest.
+# Round (redesigned 2026-10-13 after Galaxy QA — the old hidden target picture
+# with covering tiles gave the child no way to hear the target sound or see
+# where to drop): the Game 1 PlayButton sits at top centre. Tapping it plays the
+# round's isolated target phoneme (the first sound in Quest A, the last sound in
+# Quest B). Tapping a floating word picture plays its whole word. The child drags
+# the pictures whose word has that sound onto the PlayButton: a correct drop
+# plays the existing chime and the PlayButton reacts (Quest A: small vertical
+# bounce, Quest B: small horizontal sway); a wrong drop resists and bounces back
+# silently, same idiom as Level 1 Sound Quest. The round ends when every matching
+# picture has been delivered. No progress counter.
 #
-# PATCH REVEAL: confirmed 2026-08-06 to stay simple — a plain NxM grid mask
-# sized to the correct-pool count, not bespoke per-word regions. This is the
-# real implementation, not a placeholder.
+# The round's target WORD is still picked internally (it decides the target
+# phoneme and the correct/distractor pools exactly as before and is excluded from
+# its own correct pool), but it is never shown.
 # ─────────────────────────────────────────────────────────────────────────
 
 const WORD_IMAGE_DIR : String = "res://SoundUp_level1.5_word_images/"
@@ -33,8 +39,9 @@ var _target_phoneme : String = ""
 var _correct_pool   : Array  = []   # word keys still needing collection this round
 var _collected      : int    = 0
 
-var _target_rect  : TextureRect = null
-var _patch_grid    : Array = []   # Array[ColorRect], one per patch cell
+var _all_phonemes   : Dictionary = {}   # data/phonemes.json — isolated-phoneme audio per phoneme
+var _playbutton_rect : TextureRect = null   # the PlayButton: tap = target phoneme, drop target
+var _pb_tween        : Tween = null          # the PlayButton's current bounce / sway
 var _pool_faces    : Array = []   # Array[TextureRect], this round's word images (correct+distractor)
 
 var _dragging    : bool = false
@@ -69,7 +76,7 @@ func _ready() -> void:
 		return
 	PremiumGameplay.join(self)
 	var _center_offset : float = SceneBackground.center_offset()
-	TARGET_POS.x += _center_offset
+	PLAYBUTTON_POS.x += _center_offset
 	POOL_CENTER.x += _center_offset
 	SceneBackground.set_color(BG_COLOR)
 	var bg := ColorRect.new()
@@ -85,6 +92,8 @@ func _ready() -> void:
 
 	_position = Level15SoundQuestABState.position
 	_all_words = Level15SoundQuestState.load_words()
+	_all_phonemes = Level15SoundQuestState.load_phonemes()
+	_spawn_playbutton()
 	_pool = Level15SoundQuestState.build_pool_abcd(_all_words)
 	var eligible : Dictionary = Level15SoundQuestState.eligible_target_phonemes(_all_words, _pool, _position)
 	_schedule = Level15SoundQuestState.build_target_schedule(eligible, Level15SoundQuestABState.total_rounds)
@@ -110,8 +119,6 @@ func _start_round() -> void:
 	_correct_pool = Level15SoundQuestState.build_correct_pool(_all_words, _pool, _position, _target_word)
 	_collected = 0
 
-	_spawn_target_image()
-	_spawn_patch_grid()
 	_spawn_word_pool()
 	_busy = false
 
@@ -119,12 +126,6 @@ func _start_round() -> void:
 func _clear_round() -> void:
 	_dragging = false
 	_drag_face = null
-	if _target_rect != null:
-		_target_rect.queue_free()
-		_target_rect = null
-	for p in _patch_grid:
-		p.queue_free()
-	_patch_grid.clear()
 	for f in _pool_faces:
 		var t : Tween = f.get_meta("bob_tween", null)
 		if t != null and t.is_valid():
@@ -133,57 +134,71 @@ func _clear_round() -> void:
 	_pool_faces.clear()
 
 
-# ─── Target image + patch grid reveal ────────────────────────────────────────
+# ─── PlayButton (top centre) ─────────────────────────────────────────────────
+# The Game 1 PlayButton artwork, drawn the same way Quest C/D draws it, only
+# larger so it reads clearly as the target. Taps hit-test PLAYBUTTON_POS /
+# PLAYBUTTON_SIZE (never the node's animated position), and a drop counts when
+# the dragged picture's centre lands inside the same rectangle grown by
+# DROP_MARGIN. Sizes and the reaction amounts are the approved starting values,
+# to be verified with a real finger on the Galaxy.
 
-const TARGET_SIZE : Vector2 = Vector2(220, 220)
-var TARGET_POS  : Vector2 = Vector2(530, 40)   # mobile-alignment fix — recentered in _ready()
-const TARGET_FAINT_ALPHA : float = 0.12
-
-func _spawn_target_image() -> void:
-	var tex : Texture2D = load(WORD_IMAGE_DIR + _target_word + ".png")
-	_target_rect = TextureRect.new()
-	_target_rect.texture = tex
-	_target_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_target_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_target_rect.size = TARGET_SIZE
-	_target_rect.position = TARGET_POS
-	_target_rect.modulate.a = TARGET_FAINT_ALPHA
-	add_child(_target_rect)
+const PLAYBUTTON_TEXTURE_PATH : String = "res://UI_assets/playbutton.png"
+const PLAYBUTTON_SIZE : Vector2 = Vector2(340, 164)
+var PLAYBUTTON_POS  : Vector2 = Vector2(470, 22)   # recentred in _ready() like every other scene
+const DROP_MARGIN : float = 24.0
+const PB_REACT_AMOUNT : float = 14.0   # px, small bounce / sway
+const PB_REACT_STEP   : float = 0.11   # seconds per leg
 
 
-# Nearest-rectangle grid sized to correct_pool.size() — the confirmed simple
-# approach, not per-image predefined regions.
-func _spawn_patch_grid() -> void:
-	var n : int = _correct_pool.size()
-	var cols : int = ceili(sqrt(float(n)))
-	var rows : int = ceili(float(n) / float(cols))
-	var cell : Vector2 = Vector2(TARGET_SIZE.x / cols, TARGET_SIZE.y / rows)
-	for i in range(n):
-		var r : int = i / cols
-		var c : int = i % cols
-		var patch := ColorRect.new()
-		patch.color = BG_COLOR
-		patch.size = cell - Vector2(2, 2)
-		patch.position = TARGET_POS + Vector2(c * cell.x, r * cell.y) + Vector2(1, 1)
-		patch.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(patch)
-		_patch_grid.append(patch)
+func _spawn_playbutton() -> void:
+	_playbutton_rect = TextureRect.new()
+	_playbutton_rect.texture = load(PLAYBUTTON_TEXTURE_PATH)
+	_playbutton_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_playbutton_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_playbutton_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE   # hit-testing is manual
+	_playbutton_rect.size = PLAYBUTTON_SIZE
+	_playbutton_rect.pivot_offset = PLAYBUTTON_SIZE / 2.0
+	_playbutton_rect.position = PLAYBUTTON_POS
+	add_child(_playbutton_rect)
 
 
-func _reveal_patch() -> void:
-	if _collected - 1 < _patch_grid.size():
-		var patch : ColorRect = _patch_grid[_collected - 1]
-		var t := create_tween()
-		t.tween_property(patch, "modulate:a", 0.0, 0.3)
+func _drop_zone() -> Rect2:
+	return Rect2(PLAYBUTTON_POS - Vector2(DROP_MARGIN, DROP_MARGIN), PLAYBUTTON_SIZE + Vector2(DROP_MARGIN, DROP_MARGIN) * 2.0)
+
+
+# Tapping the PlayButton plays this round's target phoneme in isolation.
+func _play_target_audio() -> void:
+	if _all_phonemes.has(_target_phoneme):
+		_play_sfx(String(_all_phonemes[_target_phoneme]["audio"]))
+
+
+# A correct picture has arrived. Quest A: one small vertical bounce. Quest B: one small
+# horizontal sway. Always ends exactly on PLAYBUTTON_POS; a quick second drop restarts it.
+func _playbutton_react() -> void:
+	if _playbutton_rect == null or not is_instance_valid(_playbutton_rect):
+		return
+	if _pb_tween != null and _pb_tween.is_valid():
+		_pb_tween.kill()
+	_playbutton_rect.position = PLAYBUTTON_POS
+	_pb_tween = create_tween()
+	if _position == "initial":
+		_pb_tween.tween_property(_playbutton_rect, "position:y", PLAYBUTTON_POS.y - PB_REACT_AMOUNT, PB_REACT_STEP).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		_pb_tween.tween_property(_playbutton_rect, "position:y", PLAYBUTTON_POS.y, PB_REACT_STEP * 1.6).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	else:
+		_pb_tween.tween_property(_playbutton_rect, "position:x", PLAYBUTTON_POS.x - PB_REACT_AMOUNT, PB_REACT_STEP).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		_pb_tween.tween_property(_playbutton_rect, "position:x", PLAYBUTTON_POS.x + PB_REACT_AMOUNT, PB_REACT_STEP * 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_pb_tween.tween_property(_playbutton_rect, "position:x", PLAYBUTTON_POS.x, PB_REACT_STEP).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
 
 # ─── Word pool (correct + distractors) ──────────────────────────────────────
 
-var POOL_CENTER       : Vector2 = Vector2(640, 480)   # mobile-alignment fix — recentered in _ready()
-const POOL_HALF_EXTENTS : Vector2 = Vector2(580, 190)
+var POOL_CENTER       : Vector2 = Vector2(640, 455)   # mobile-alignment fix — recentered in _ready()
+const POOL_HALF_EXTENTS : Vector2 = Vector2(585, 185)   # picture centres span y 270-640: clear of the drop zone (ends y=210), the flag and the screen bottom; about the same area as before the redesign so spacing stays as easy to tap
 const FACE_SCALE  : Vector2 = Vector2(80, 80)
 const MIN_SPACING : float = 90.0
-const MAX_ATTEMPTS : int = 30
+# 120 rather than 30: with 26 pictures in the zone, 30 tries occasionally gave up and left two pictures
+# almost on top of each other (about 3% of crowded rounds, measured over 6,000 simulated rounds), which is hard to tap.
+const MAX_ATTEMPTS : int = 120
 const DISTRACTOR_COUNT : int = 16
 
 func _spawn_word_pool() -> void:
@@ -271,6 +286,9 @@ func _input(event: InputEvent) -> void:
 func _try_start_drag(pos: Vector2) -> void:
 	if _busy or _dragging:
 		return
+	if Rect2(PLAYBUTTON_POS, PLAYBUTTON_SIZE).has_point(pos):
+		_play_target_audio()
+		return
 	for i in range(_pool_faces.size() - 1, -1, -1):
 		var f : TextureRect = _pool_faces[i]
 		if not is_instance_valid(f):
@@ -298,8 +316,7 @@ func _end_drag() -> void:
 		return
 
 	var face_center : Vector2 = f.position + f.size / 2.0
-	var target_rect2 : Rect2 = Rect2(TARGET_POS, TARGET_SIZE)
-	if target_rect2.has_point(face_center):
+	if _drop_zone().has_point(face_center):
 		if f.get_meta("correct"):
 			_on_correct_drop(f)
 		else:
@@ -317,15 +334,15 @@ func _on_correct_drop(f: TextureRect) -> void:
 
 	_play_sfx(GAYAGEUM_CORRECT_PATH)
 
-	var land_pos : Vector2 = TARGET_POS + TARGET_SIZE / 2.0 - f.size / 2.0
+	var land_pos : Vector2 = PLAYBUTTON_POS + PLAYBUTTON_SIZE / 2.0 - f.size / 2.0
 	var hop := create_tween()
 	hop.tween_property(f, "position", land_pos, 0.25).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	hop.tween_callback(_playbutton_react)   # the PlayButton reacts the moment the picture reaches it
 	hop.tween_property(f, "modulate:a", 0.0, 0.15)
 	await hop.finished
 	f.queue_free()
 
 	_collected += 1
-	_reveal_patch()
 
 	if _collected >= _correct_pool.size():
 		_busy = false
@@ -337,7 +354,7 @@ func _on_correct_drop(f: TextureRect) -> void:
 func _on_wrong_drop(f: TextureRect) -> void:
 	_busy = true
 	var start_pos : Vector2 = f.position
-	var target_center : Vector2 = TARGET_POS + TARGET_SIZE / 2.0
+	var target_center : Vector2 = PLAYBUTTON_POS + PLAYBUTTON_SIZE / 2.0
 	var away : Vector2 = (start_pos + f.size / 2.0) - target_center
 	if away == Vector2.ZERO:
 		away = Vector2.UP
@@ -393,7 +410,6 @@ const ROUNDS_PER_SET : int = 8
 
 func _on_round_complete() -> void:
 	_busy = true
-	_target_rect.modulate.a = 1.0
 
 	await get_tree().create_timer(ROUND_COMPLETE_HOLD, false).timeout
 	await _fade_out_round()
@@ -421,26 +437,24 @@ func _on_round_complete() -> void:
 func _fade_out_round() -> void:
 	var t := create_tween()
 	t.set_parallel(true)
-	if _target_rect != null and is_instance_valid(_target_rect):
-		t.tween_property(_target_rect, "modulate:a", 0.0, ROUND_FADE_DUR)
-	for p in _patch_grid:
-		if is_instance_valid(p):
-			t.tween_property(p, "modulate:a", 0.0, ROUND_FADE_DUR)
+	# The PlayButton fades with the round, so the Short / Long Transition's own Play Button
+	# never shares the screen with it.
+	if _playbutton_rect != null and is_instance_valid(_playbutton_rect):
+		t.tween_property(_playbutton_rect, "modulate:a", 0.0, ROUND_FADE_DUR)
 	for f in _pool_faces:
 		if is_instance_valid(f):
 			t.tween_property(f, "modulate:a", 0.0, ROUND_FADE_DUR)
 	await t.finished
 
 
-# _start_round() has just run — _target_rect/_pool_faces are the NEW round's
-# nodes. Snap them to 0 alpha and tween up, rather than touching
-# _start_round() itself, so the tested spawn logic stays untouched.
+# _start_round() has just run — _pool_faces are the NEW round's nodes. Snap them
+# (and the PlayButton, which faded out with the last round) to 0 alpha and tween up,
+# rather than touching _start_round() itself, so the tested spawn logic stays untouched.
 func _fade_in_round() -> void:
-	if _target_rect != null and is_instance_valid(_target_rect):
-		var target_alpha : float = _target_rect.modulate.a
-		_target_rect.modulate.a = 0.0
+	if _playbutton_rect != null and is_instance_valid(_playbutton_rect):
+		_playbutton_rect.modulate.a = 0.0
 		var t := create_tween()
-		t.tween_property(_target_rect, "modulate:a", target_alpha, ROUND_FADE_DUR)
+		t.tween_property(_playbutton_rect, "modulate:a", 1.0, ROUND_FADE_DUR)
 
 	var t2 := create_tween()
 	t2.set_parallel(true)

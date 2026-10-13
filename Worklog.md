@@ -87,6 +87,38 @@ New `_collected_faces` list: a picture is appended once it settles in its bin; `
 
 ---
 
+## 2026-10-13 - Level 1.5 Sound Quest A/B redesign (Galaxy QA finding)
+
+### Finding
+Galaxy QA: Quest A/B showed floating word pictures and a nearly invisible box at the top. Tapping a picture played the whole
+word; the box did nothing. Cause (not a rendering / asset / audio bug; packaged resources were fine): the design itself. The
+top object was the target word's own picture, drawn at 12% opacity under opaque background-coloured tiles, with no tap handler,
+and A/B never played the target phoneme anywhere. Quest C/D had the same gap and was rebuilt on 2026-08-08; A/B was marked
+"verified working" then and had never been played on a device.
+
+### Approved redesign (owner, 2026-10-13) and implementation
+`level15_sound_quest_ab.gd` only. The Game 1 PlayButton (340 x 164) is the top-centre target: tap = isolated target phoneme
+(first sound in A, last sound in B); tap a picture = its whole word; drag matching pictures onto the PlayButton (drop zone +24 px);
+correct = existing chime + PlayButton reaction (A: 14 px vertical bounce, B: 14 px horizontal sway); wrong = silent bounce back
+(unchanged). Hidden target picture, tiles and reveal removed. No progress counter. Round counts (32 / 40), target selection and
+pools, Short / Long transitions, progression and Quest C/D untouched.
+
+### Also changed (flag for review)
+- Floating-picture zone moved up to y 270-640 (PlayButton above it) at about the old area.
+- Placement attempts 30 -> 120: at 26 pictures the old 30 tries occasionally gave up and left two pictures nearly on top of each
+  other (about 3% of crowded rounds in 6,000 simulated rounds). With 120 the minimum spacing is exactly 90 px.
+
+### Verification (Windows, isolated saves; real save hash unchanged)
+- 56 unit checks per run: PlayButton size/art/position, drop zone, tap audio (phoneme / word), correct / wrong / empty drops,
+  motion axis and exact return, margin acceptance, busy guard, pause/resume overlay, 400 generated rounds of placement.
+- Full playthroughs: Quest A 32 rounds (Short transitions after rounds 8, 16, 24; Long after 32), hand-off into Quest B, Quest B
+  40 rounds, then Where Am I: 59 checks, 0 failures on the Android-preset package. iOS-preset package: 56 unit checks pass.
+- Regression: C1-C7, generic progression, Sound Quest counting, maze suites all pass; resource audit and package verifier clean.
+- Not done: no Galaxy build. Movement amounts, PlayButton size and drop margin are provisional until tested with a finger.
+- Release scope unchanged (`HIGHEST_RELEASED_LEVEL_ID = "level1"`); Level 1.5 stays locked in production.
+
+---
+
 ## 2026-10-12 (latest) - Prep Sound Quest Group F invisible images (manifest case mismatch)
 
 ### Root cause

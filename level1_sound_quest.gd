@@ -76,6 +76,8 @@ var _round_schedule : Array = []
 var _round_index    : int   = 0
 
 var _cloud_faces : Array = []   # Array[TextureRect], this round's Word Cloud
+var _collected_faces : Array = []   # Array[TextureRect], the faces already sorted into this round's Bins (they leave
+									# _cloud_faces on a correct drop, so they need their own list to be faded and freed)
 var _bins        : Array = []   # Array[Dictionary] {node: TextureRect, phoneme, phoneme_audio, collected, target_count, breathing}
 var _busy        : bool  = false   # guards input during round-complete fade / drag resolution
 var _exiting     : bool  = false   # Where Am I pressed: Quest frozen and silent while the music fades out
@@ -205,6 +207,10 @@ func _fade_out_round() -> void:
 		if is_instance_valid(f):
 			fade.tween_property(f, "modulate:a", 0.0, ROUND_FADE_DUR)
 			any = true
+	for f in _collected_faces:
+		if is_instance_valid(f):
+			fade.tween_property(f, "modulate:a", 0.0, ROUND_FADE_DUR)
+			any = true
 	for b in _bins:
 		if is_instance_valid(b["node"]):
 			fade.tween_property(b["node"], "modulate:a", 0.0, ROUND_FADE_DUR)
@@ -222,6 +228,13 @@ func _clear_round() -> void:
 			t.kill()
 		f.queue_free()
 	_cloud_faces.clear()
+	for f in _collected_faces:
+		if is_instance_valid(f):
+			var ct : Tween = f.get_meta("bob_tween", null)
+			if ct != null and ct.is_valid():
+				ct.kill()
+			f.queue_free()
+	_collected_faces.clear()
 	for b in _bins:
 		var bt : Tween = b["node"].get_meta("breathe_tween", null)
 		if bt != null and bt.is_valid():
@@ -507,6 +520,7 @@ func _on_correct_drop(f: TextureRect, bin_index: int) -> void:
 	# 7. Settle into gentle bobbing.
 	move_child(f, get_child_count() - 1)   # settle visually in front of the Bin
 	_start_cloud_bob(f)   # same gentle bob, now anchored at its landed spot inside the Bin
+	_collected_faces.append(f)   # so the round's fade-out and _clear_round() can remove it
 
 	var w : Dictionary = f.get_meta("word")
 	bin["collected"].append(w)

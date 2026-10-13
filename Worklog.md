@@ -61,6 +61,32 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-10-13 (urgent) - Level 1 Sound Quest: collected pictures stayed in the bins
+
+### Finding (Galaxy gameplay)
+After a round was fully sorted, the pictures from the previous round were still inside the four bins when the next round began.
+
+### Root cause
+`level1_sound_quest.gd` `_on_correct_drop()` removes a picture from `_cloud_faces` as soon as it is dropped correctly, and the
+bin keeps only the word record, not the node. `_fade_out_round()` and `_clear_round()` only handled `_cloud_faces` and the bin
+nodes, so every sorted picture was orphaned: never faded, never freed, still bobbing. They also accumulated (35, 72, 108 stray
+nodes after rounds 1-3, each with a live bob tween). Present since the drag-and-drop was added on 2026-08-04.
+
+### Fix (one file, 14 lines, no rule / animation / audio / scoring / progression change)
+New `_collected_faces` list: a picture is appended once it settles in its bin; `_fade_out_round()` fades it with the round and
+`_clear_round()` kills its bob tween and frees it.
+
+### Verification (Windows, isolated saves, real save unchanged)
+- Reproduced before the fix (screenshot: next round's bins full) and confirmed after (empty bins).
+- Rules unchanged: a wrong drop still resists and returns; a correct drop still settles in its bin at the collected scale.
+- Full 14-round Quest, then the "find the Play Button" Quest Transition, then Quest 2 round 1: every round start clean, nothing
+  left during the transition, node count flat (66-67) across 13 rounds. Same on the Android-preset package (22 checks) and the
+  iOS-preset package (14 checks).
+- Regression: C1-C7, progression, Sound Quest counting, maze and Level 1.5 A/B suites all pass; resource audit clean.
+- Not done: no Galaxy build; release scope unchanged (`level1`).
+
+---
+
 ## 2026-10-12 (latest) - Prep Sound Quest Group F invisible images (manifest case mismatch)
 
 ### Root cause

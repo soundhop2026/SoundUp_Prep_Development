@@ -22,7 +22,12 @@ enum TransactionState {
 
 signal transaction_state_changed(transaction: TransactionData)
 signal product_info_received(product_info: ProductInfo)
-signal synchronized
+# Carries the native error description: empty on a clean sync, non-empty when
+# AppStore.sync() itself failed (cancelled authentication, store unreachable).
+# The native plugin always emits this signal with one String argument, on both
+# the success and failure paths, so the callable below must accept it — a
+# zero-argument callable is rejected at emit time and never runs.
+signal synchronized(error: String)
 
 
 func _init() -> void:
@@ -55,7 +60,7 @@ func _init() -> void:
 		product_info_received.emit(info)
 	)
 
-	_store_kit.synchronized.connect(func() -> void: synchronized.emit())
+	_store_kit.synchronized.connect(func(error: String) -> void: synchronized.emit(error))
 
 
 func request_product_info(product_id: String) -> Signal:

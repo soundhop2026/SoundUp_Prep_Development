@@ -377,10 +377,19 @@ func _ios_send_queries() -> void:
 		_storekit.request_product_info(product_id)
 
 
-func _on_ios_synchronized() -> void:
-	if _ios_sync_pending and _pending_gen != 0:
-		_ios_sync_pending = false
-		_ios_send_queries()
+# iOS only (connected in _ios_init). `error` is the native AppStore.sync()
+# failure description, empty when the sync completed cleanly.
+func _on_ios_synchronized(error: String) -> void:
+	if not (_ios_sync_pending and _pending_gen != 0):
+		return
+	_ios_sync_pending = false
+	if not error.is_empty():
+		# The store could not complete the sync. That is not a clean
+		# NOT_ENTITLED answer, so nothing is known: UNKNOWN changes no state
+		# and interrupts nothing, per the existing contract.
+		deliver(_pending_gen, Result.UNKNOWN)
+		return
+	_ios_send_queries()
 
 
 # Either product purchased = ENTITLED. NOT_ENTITLED needs a clean answer for

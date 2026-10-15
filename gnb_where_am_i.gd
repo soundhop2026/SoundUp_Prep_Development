@@ -53,6 +53,10 @@ const CELL_ROW_STEP_MAX : float = 108.0
 
 # ─── State ────────────────────────────────────────────────────────────────────
 var _font      : Font      = null
+# Action role (JetBrains Mono) — used only by the ▶ replay button. Andika has no
+# U+25B6, and on iOS that codepoint falls back to a colour-bitmap emoji font, which
+# Godot suppresses (disable_embedded_bitmaps), so the glyph rendered blank there.
+var _font_act  : Font      = null
 var _levels    : Array     = []
 
 var _page      : String = "levels"   # "levels" | "groups" | "chunks" | "sets"
@@ -71,6 +75,7 @@ signal close_requested
 func _ready() -> void:
 	SceneBackground.set_color(CREAM)
 	_font = UIFonts.learning()   # learning / navigation role — whole GNB system
+	_font_act = UIFonts.action()   # action role — the ▶ replay button only
 
 	_build_level_meta()
 
@@ -921,7 +926,7 @@ func _make_completed_cell(parent: Control, sd: Dictionary,
 	rp.position     = Vector2(CELL_W - 66, 23 * k)
 	rp.size         = Vector2(60, 52 * k)
 	rp.pivot_offset = Vector2(30, 26 * k)
-	if _font: rp.add_theme_font_override("font", _font)
+	if _font_act: rp.add_theme_font_override("font", _font_act)
 	rp.add_theme_font_size_override("font_size", max(24, int(round(36 * k))))
 	rp.add_theme_color_override("font_color",         AMBER)
 	rp.add_theme_color_override("font_hover_color",   AMBER)

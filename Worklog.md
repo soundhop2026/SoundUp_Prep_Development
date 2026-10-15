@@ -61,6 +61,112 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-10-15 - Apple rejection recovery: Build 9 -> Build 10 (Xcode 26.6 / iOS SDK 26.5)
+
+### Completed
+- **Apple rejected 1.0.2 Build 9** under Guideline 2.1(a), App Completeness: crash on launch. Crash logs on
+  iPad15,3 / iPadOS 27.0 and iPhone18,2 / iOS 27.0.1, both `EXC_BREAKPOINT` (SIGTRAP, `brk 0`) in
+  `___UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption_block_invoke`, frame-for-frame identical.
+- **Root cause: UIScene lifecycle enforcement, triggered by the SDK, not by our code.** iOS/iPadOS 27 traps
+  apps built against the iOS 26+ SDK that declare no `UIApplicationSceneManifest`. Godot 4.5.1's iOS template
+  declares none. Build 8 (live, accepted) was compiled with **SDK 26.5** and is exempt; Build 9 was compiled
+  with **SDK 27.0** after the Mac was upgraded to Xcode 27. Nothing else changed: the `.pck` and the compiled
+  binary (signature stripped) were byte-identical between the iPad-verified build and the rejected one.
+  Live 1.0.1 users are unaffected.
+- **Reproduced and bounded the fix space** on the iPadOS 27.0 simulator with a minimal SDK-matched app
+  (the real app cannot be built for simulator - see Gotchas): SDK 27 + no manifest -> same crash;
+  SDK 27 + manifest -> no crash but a **black screen** (`windowScene == nil`, orphaned legacy window);
+  **SDK 26.5 + no manifest -> launches and renders full-screen.** Godot 4.7.2's engine lib carries the
+  UIScene symbols 4.5.1 lacks (`UIWindowScene` 16 vs 0, `UISceneDelegate` 6 vs 0), so upstream's fix was
+  engine-side plus the plist - the plist alone is not a backport.
+- **Decision: ship on Xcode 26.6, migrate to Godot 4.7.2 separately.** Apple requires "Xcode 26 or later
+  using an SDK for iOS 26" (in effect since 2026-04-28); SDK 26.5 satisfies it.
+- **Installed Xcode 26.6 (17F113) side-by-side** as `/Applications/Xcode_26.6.app`, expanded in staging and
+  renamed before moving so `/Applications/Xcode.app` (27.0) was never a write target. Global `xcode-select`
+  left on Xcode 27; builds select 26.6 per-command via `DEVELOPER_DIR`. It bundles iOS SDK **26.5** - the
+  same SDK Build 8 shipped with and the one `ios/plugins/godot-storekit2/PATCH_NOTES.md` records the
+  StoreKit2 plugin as verified against.
+- **Build 10 produced and verified**: only change is `application/version` 9 -> 10 in `export_presets.cfg`.
+  Compiled `sdk 26.5` (not 27.0), 1.0.2 / 10, `CFBundleDisplayName = SoundHop` (single key),
+  **zero `SceneManifest` keys**, StoreKit2 linked, Apple Distribution signing with no `ProvisionedDevices`.
+  Godot 4.5.1 unchanged; `tools/ios_fix_release_signing.py` applied as usual.
+- **Physical iPad verification (iPad A16, iPadOS 26.6.1)**: installed over Build 9 with no uninstall; save
+  file byte-identical before/after (`7021af01...`). App launched, no crash.
+- **Apple Sandbox Monthly purchase verified on device** (owner-run): purchase succeeded, `subscribed: True`,
+  all premium Prep Sets unlocked, completed-set records and play counts preserved. Observed sequence:
+  returned to A2 -> replayed A2 (10 rounds, 2nd cube danced) -> continued to A3 (3rd cube) -> app fully
+  closed -> relaunch resumed at A4 -> A4 completed (4th cube). Post-subscription progression smooth.
+  Sandbox sheet showed the Korean test-environment notice ("테스트 환경입니다...") - the localised form of
+  `[Environment: Sandbox]`; no charge possible.
+
+- **Fixed the missing Replay ▶ icons on iOS** (`gnb_where_am_i.gd`, 3 lines). The replay button drew
+  `"▶"` (U+25B6) with `UIFonts.learning()` (Andika), which has no such glyph; on iOS the codepoint falls
+  back to Apple's colour-bitmap emoji font, which Godot suppresses (`disable_embedded_bitmaps=true` on every
+  font resource), so the glyph rendered blank while the purple `StyleBoxFlat` behind it drew normally. Android
+  fell back to an outline font and looked correct, which is why it was iOS-only. Verified in Godot:
+  `UIFonts.action()` (JetBrains Mono) `has_char(U+25B6) = true`, `learning()` = false; glyph 22x48 at 36pt
+  fits the 60x52 button, so no size change. Switching this one button to the **action** role also corrects a
+  typography-role misassignment under Design Rule #11 - a replay control is action, not learning. Character,
+  amber colour, position, size, font size and behaviour all unchanged; no other control touched.
+- **Confirmed on the physical iPad** (owner-verified visually): yellow ▶ icons render. Installed over the
+  existing app with no uninstall; save byte-identical across the install (`1f9b5a19...`); five completed-set
+  records and all play counts intact.
+- **Submitted to Apple**: **1.0.2 (Build 10), 2026-10-15, status Waiting for Review.** Build 10 **replaces the
+  rejected Build 9** - 9 is permanently consumed (uploaded and reviewed), 10 had never been uploaded, so it was
+  free to use. The submitted IPA was exported from the same archive that was tested on the iPad, so its
+  `.pck` is byte-identical (`2fa384e1...`) to the build confirmed on hardware - no recompile between test and
+  submission. Final artifact: `build/ios/export-appstore-b10-REPLAYFIX/SoundHop.ipa`
+  (1.0.2 / 10, `sdk 26.5`, Apple Distribution, no `ProvisionedDevices`, zero `SceneManifest` keys).
+- **Monthly and Yearly subscriptions approved** by Apple.
+### Decisions
+- **Do not add `UIApplicationSceneManifest` under SDK 26.** It is unnecessary there and, as measured above,
+  produces an orphaned window. It becomes mandatory only as part of the 4.7.2 migration.
+- **Prep A2 cursor fix: DEFERRED, not required for Build 10** (owner decision). The proposed one-line change
+  was to persist the following Set as the cursor in `prep_transition.gd`'s `PAYWALL` branch, so a purchase
+  interrupted before `choose_plan._continue_granted()` runs still resumes at A3. Reasoning for deferring:
+  Prep is not a score-based assessment, replaying A2's 10 rounds is educationally acceptable, records and
+  counts stay intact, and observed progression A2 -> A3 -> A4 was correct. **The exact cause of the initial
+  A2 return remains unconfirmed** - an app restart during the purchase is one hypothesis, not a proven fact.
+  The current code does not guarantee against an A2 replay after a subscription purchase.
+- **Android build is under Google Play review - do not modify or resubmit.** Android post-subscription
+  navigation will be evaluated separately after that review completes.
+
+### Risks / Gotchas
+- **Two App Store IPAs on disk claim 1.0.2 (10)**: `export-appstore-b10-REPLAYFIX/` (submitted, has the
+  replay fix) and `export-appstore-b10/` (pre-fix, must never be uploaded). Only the directory name
+  distinguishes them; both report identical version and build to every tool.
+- **Verify the compiled SDK before every iOS upload**: `otool -l <app>/<binary> | grep -A4 LC_BUILD_VERSION`.
+  The Build 9 rejection was invisible in source and in git; only the SDK field showed it. Record the SDK
+  alongside the build number for each submission.
+- **The Godot 4.5.1 iOS template's simulator slice contains only `x86_64`** despite its `Info.plist`
+  declaring `arm64`, so the real app cannot be built for an Apple-silicon iOS simulator. That is why a
+  100%-reproducible launch crash reached Apple. Fix during the 4.7.2 migration; it buys simulator testing
+  back permanently.
+- **`build/` output is packed into the `.pck`** (36 -> 46 `res://build/...` paths between Builds 9 and 10,
+  mostly generated `AppIcon` PNGs). `export_filter="all_resources"` with an empty `exclude_filter` and no
+  `.gdignore` under `build/`. Pre-existing (shipped in Builds 8 and 9, both accepted) and small, but it makes
+  the `.pck` non-deterministic between builds. A one-line `.gdignore` in `build/` fixes it.
+- **The StoreKit2 plugin is `minos 15.6` while the app is `minos 15.0`** - pre-existing, shipped in 1.0.1.
+  Worth resolving during the migration.
+- Sandbox sign-in for a development-signed app appears in **Settings > Developer**, and only *after* the
+  first purchase attempt in the app. No need to sign out of the production Apple Account (that requirement
+  is TestFlight-only). Confirmed against Apple's StoreKit sandbox documentation.
+- Monthly product displayed **₩17,000/month** on the Korean sandbox storefront; confirm the Korea price tier
+  in App Store Connect before release if that was not intended.
+
+### Next Session
+- Remaining Apple subscription verification: **Restore Purchases**, **entitlement persistence across relaunch**,
+  **offline/UNKNOWN behaviour**, and **subscription expiry -> `interrupt_for_entitlement_loss()`** (the last has
+  never run on real hardware). Take a durable save backup before any delete/reinstall test.
+- Build 10 is built and verified locally but **not uploaded**. App Store Connect already has version 1.0.2;
+  Build 10 attaches to the existing version - do not create another.
+- App Store Connect API key still not configured on the Mac, so version/build upload remains owner-driven.
+- Godot 4.7.2 migration prerequisites (not started): rebuild the StoreKit2 plugin against 4.7.2 and verify it
+  in isolation first; establish a validated C7 baseline on 4.5.1; fix the simulator slice; full regression
+  across Prep/L1/L1.5/L2 and Sound Quest; Android toolchain (JDK 21 / AGP 8.6.1) on Windows.
+
+---
+
 ## 2026-10-13 (urgent) - Level 1 Sound Quest: collected pictures stayed in the bins
 
 ### Finding (Galaxy gameplay)

@@ -139,25 +139,48 @@ fixed at 20 total (distractor count = 20 − target count).
 
 ## Quest E — Build the Word
 
-`level15_sound_quest_e.gd` / `.tscn`. Minor fixes only 2026-08-08. BG color: cream/tan
+`level15_sound_quest_e.gd` / `.tscn`. **Cube keyboard redesign 2026-11-09** (visual/UX only — phoneme
+content, matching rules, wrong-drop, scoring and progression unchanged). BG color: cream/tan
 `Color(0.996, 0.918, 0.729, 1.0)`.
 
 - Target image top (`TARGET_POS (560, 20)`, `TARGET_SIZE 140x110`) — **tap anytime to hear the
-  word** (fixed 2026-08-08; was previously wired for nothing, no-op on tap).
-- Ladder (two stretched rail instances + rung images filling in) on the left, Play Button waiting
-  below it; 12-branch bobbing phoneme pool on the right — correct = the word's own ordered
-  `phonemes[]`, one branch per occurrence (e.g. "skunk" spawns two separate k-branches).
-- Order enforced live: a mismatched branch (distractor OR a correct-word phoneme out of turn)
-  bounces back, never destroyed.
-- Round-complete: Play Button climbs the ladder rung-by-rung
-  (`CLIMB_HOP_DUR 0.8`, slowed twice from an original `0.3` per live feedback — "each rung climb
-  should read clearly, not flash by"), touches the image (word audio plays), hops beside it, and
-  they walk off together (`WALK_OFF_DUR 2.2`, slowed from `1.1` — "shouldn't feel rushed"). Play
-  Button's size stays fixed to the target image's size for the whole round (visually paired once
-  walking).
+  word** (not during the automatic completion sequence, which locks input).
+- **Keyboard** on the left: one pure-white rounded-rectangle key per phoneme (`KEY_SIZE 165 x 73.5`), stacked
+  bottom to top on the old slot pitch (`SLOT_HEIGHT 76` → keys sit **2.5 px apart**, like piano keys), **no
+  contour line**. Built from the existing cube artwork (`preplevel_set_counting_cube_empty.png`, 9-slice so
+  the corners stay round at any width) — no new art, no new colour system. The old ladder rails / rung bars
+  and the Play Button are gone from Quest E (the PNGs stay on disk, unused here).
+- **Pool** on the right: 12 bobbing small white keys (`PIECE_SIZE 108 x 48`, same proportions), correct = the
+  word's own ordered `phonemes[]`, one key per occurrence (e.g. "skunk" spawns two separate k-keys). Placement
+  spacing is checked per axis (`MIN_GAP_X/Y`), because the keys are wider than tall. Phonemes are told apart
+  by tap-to-hear only (audio-only, same as Quest C/D bubbles).
+- Order enforced live: a mismatched key (distractor OR a correct-word phoneme out of turn) bounces back,
+  never destroyed.
+- **Dragging:** the key stays white and carries a soft drop shadow (stacked low-alpha copies, 5 px down), which
+  keeps it visible over the white keyboard. The shadow is removed on a rejected drop.
+- **Placing (t = 0 = the moment the key lands on its slot, after the existing 0.25 s glide):** the next note of
+  the five-note rising Gayageum scale plays; over `MERGE_DUR 0.20 s` the key grows from 108 x 48 to the full
+  key (ease-out cubic), turns Emerald Mint `#20BFA9` (white → mint, starting at t = 0) and the shadow lifts
+  away. A soft mint glow (`GLOW_COLOR (0.58, 0.93, 0.85)`, 6 stacked low-alpha copies of the key shape drawn
+  behind all keys) builds in and then **stays on** for the rest of the round (`GLOW_SOFT 0.80`).
+- **Audio:** `quest_e_gayageum_1_E5 … _5_B5.wav` (E5, F#5, G#5, A5, B5 — a bright rising scale, cut from the
+  shared `gayageum_correct.wav` at 0.496 s, 0.42 s long, 2 ms fade-in / 70 ms fade-out, with the source
+  resampled 1.000 / 1.122 / 1.260 / 1.335 / 1.498×). The shared `gayageum_correct.wav` is **not modified**
+  (other quests still use it). Note N = number of keys already placed; every word starts from note 1. Words have
+  3–5 phonemes (130 words: 70 / 47 / 13), so five notes are enough; the index is clamped to the last note as a
+  safeguard.
+- **Completion (no Play Button), input locked throughout, every step waits on the sound's own `finished`:**
+  1. the last key's note finishes (so the first phoneme never overlaps it);
+  2. the phonemes play automatically, bottom key to top, **no Gayageum notes**. The playing key's glow rises to
+     `GLOW_PLAYING 1.70` over `GLOW_RAMP_DUR 0.20 s`, the other keys stay at `GLOW_SOFT`;
+  3. the whole word plays once and every key's glow rises together to `GLOW_WORD 1.25`, held until the word
+     audio ends;
+  4. keyboard, glow, target picture and the leftover pool keys fade out together over `ROUND_FADE_DUR 0.3 s`,
+     then the next round (or Set / Quest transition) starts.
+- If the entitlement is lost mid-sequence, `interrupt_for_entitlement_loss()` stops the audio and routes to the
+  subscription flow; the sequence never advances the round.
 - Structure: 10 Sets × 10 rounds = 100 rounds, covering all four word structures (CVC–CCVCC),
-  drawn from the ~130-word pool. No-letters/audio-only confirmed for the ladder rungs (generic
-  shape, phoneme told apart by tap-to-hear only, same as Quest C/D's bubbles).
+  drawn from the ~130-word pool.
 
 ---
 
@@ -341,7 +364,7 @@ misrouted into Where Am I instead of the Set Transition. Review-count behaviour
 - **Pop/consume feedback**: quick scale-up + fade (Quest C/D's bubble pop, `POP_SCALE`/`POP_DUR`)
   reads better than a fade-only removal for something being "consumed."
 - **Hop-while-advancing**: alternate up/down `Vector2` position tweens per discrete step (used in
-  Quest E's ladder climb history, Quest F's exit hop tier, and the Short Transition) — simpler and
+  Quest E's former ladder climb (removed 2026-11-09), Quest F's exit hop tier, and the Short Transition) — simpler and
   more reliable than trying to sync a continuous hop curve to a continuous horizontal tween.
   The one exception is the rebuilt Long Transition (2026-09-17), which *does* run a continuous
   linear `position:x` tween with a separate looping `position:y` hop tween — that works cleanly

@@ -61,6 +61,46 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-11-09 - Level 1.5 Sound Quest E: cube keyboard + automatic phoneme/word playback
+
+### Completed
+- **Quest E redesigned (visual/UX only)** in `level15_sound_quest_e.gd`: the ladder rails, rung bars and Play Button are
+  replaced by a **cube keyboard**. One white rounded-rectangle key per phoneme (165 x 73.5, 2.5 px apart, no contour line),
+  drawn from the existing cube artwork with a 9-slice; the 12 pool pieces are small white keys (108 x 48). A dragged key
+  carries a soft drop shadow. On landing (t = 0) the key turns Emerald Mint `#20BFA9` and grows into the full key over 0.20 s
+  while the next Gayageum note plays; a soft mint glow then stays on.
+- **New completion sequence (no Play Button):** the last note finishes, then the phonemes play bottom to top (the playing key
+  glow intensifies, no Gayageum), then the whole word plays once with the whole keyboard brighter; keyboard + glow + picture +
+  leftover keys then fade together (existing `ROUND_FADE_DUR 0.3`) and the next round starts. Each step waits on the sound's own
+  `finished` (no invented delays); `_play_sfx` now returns its player.
+- **Five new note files** `BGM&effect/SoundUp_feedback/quest_e_gayageum_1_E5 … _5_B5.wav` (E5 F#5 G#5 A5 B5), cut from the existing
+  recording and byte-checked against the audition samples the owner approved. Shared `gayageum_correct.wav` untouched (sha256
+  unchanged), so the other quests are unaffected.
+- **Verified** with a focused, isolated Quest E run (real scene and audio, scripted drags, real save + log hash-checked unchanged
+  by `iso_godot.sh`): 31 checks, all pass — layout/spacing/sizes, shadow, 0.20 s merge + glow, note at t = 0, rejected drops,
+  last note → 5 phonemes in order → word with no overlap and no Gayageum during playback, per-key glow levels, fade → next
+  round, picture tap, and an entitlement interruption mid-sequence (left to `premium_intro.tscn`, round not advanced).
+  **No regression suites were run** (owner instruction).
+
+### Decisions (owner, 2026-11-09)
+- Word audio plays automatically after the last phoneme; the full-keyboard glow holds until it ends.
+- Round end = one simple 0.3 s fade of everything, then straight to the next round (the picture no longer walks off).
+- Play Button removed from Quest E only; other quests keep theirs.
+- Glow strengths as mocked: soft 0.80, playing key 1.70, whole word 1.25 (not to be increased).
+- Five tones (words have 3-5 phonemes); the 6th/7th-note extension was dropped.
+
+### Risks / Gotchas
+- Not yet checked on a real device: touch dragging with the larger 108 x 48 hit area, and how the glow reads on the Galaxy / iPad
+  screens. Quest E is still behind `ReleaseScope.HIGHEST_RELEASED_LEVEL_ID = "level1"` and the subscription gate (unchanged).
+- A sound stopped by `PremiumGameplay.stop_audio()` never emits `finished`; the completion coroutine then simply never resumes
+  (the scene is leaving), and every step also checks `_entitlement_interrupted` / `is_inside_tree()` after each await.
+- The old ladder PNGs (`soundquest/assets/ladder_*_level15_soundquest_E.png`) are now unreferenced; left on disk.
+
+### Next Session
+- Galaxy / iPad play-test of Quest E (touch feel, glow visibility, tone of the five notes at device volume).
+
+---
+
 ## 2026-10-15 - Apple rejection recovery: Build 9 -> Build 10 (Xcode 26.6 / iOS SDK 26.5)
 
 ### Completed

@@ -7,26 +7,38 @@ extends Node2D
 # the 130 words (all 4 structures, CVC through CCVCC) is fair game, and the
 # correct branches are literally the target word's own ordered phonemes[].
 #
-# Layout: target image top; ladder (stacked reusable frame segments) on the
-# left with Play Button waiting below it; bobbing branch pool (single
-# reusable rung texture, phonemes told apart only by tap-to-hear audio) on
-# the right. Order is enforced live — only the current next-needed phoneme
-# is ever accepted, dropped anywhere else (even a later-needed correct
-# phoneme) bounces back, same idiom as Quest A/B's wrong-drop.
+# Layout (cube keyboard, redesigned 2026-11): target image top; a column of
+# white rounded-rectangle "piano keys" on the left (one per phoneme, 2.5 px
+# apart, no contour line) built from the existing cube artwork; bobbing pool
+# of small white keys on the right (phonemes told apart only by tap-to-hear
+# audio). Order is enforced live — only the current next-needed phoneme is
+# ever accepted, dropped anywhere else (even a later-needed correct phoneme)
+# bounces back, same idiom as Quest A/B's wrong-drop.
 #
-# Completion: once every rung is placed, Play Button climbs the ladder rung
-# by rung, touches the target image (word audio plays once), hops to the
-# image's right side, then both walk off together — Play Button's size
-# matches the target image's size for the ENTIRE round, no scaling at any
-# point (locked: it's visually paired with the image once they walk off).
+# Placement: a dragged key carries a soft shadow (white on white stays
+# visible). When it lands on its slot (t = 0) the next Gayageum note of the
+# five-note rising scale plays and, over 0.20 s, the key turns Emerald Mint and
+# grows into the full-size key; its soft mint glow then stays on.
+#
+# Completion (no Play Button): once every key is placed, the phonemes play
+# automatically bottom to top — the playing key's glow intensifies, the others
+# stay softly lit, no Gayageum notes — then the whole word plays once while the
+# whole keyboard glows brighter. Keys, glow, picture and the leftover pool keys
+# then fade together (ROUND_FADE_DUR) and the next round starts.
 # ─────────────────────────────────────────────────────────────────────────
 
 const WORD_IMAGE_DIR : String = "res://SoundUp_level1.5_word_images/"
 const WORD_AUDIO_DIR : String = "res://BGM&effect/SoundUp_level1.5_word_sounds/"
-const LADDER_FRAME_PATH : String = "res://soundquest/assets/ladder_frame_level15_soundquest_E.png"
-const LADDER_RUNG_PATH  : String = "res://soundquest/assets/ladder_rung_level15_soundquest_E.png"
-const PLAYBUTTON_TEXTURE_PATH : String = "res://UI_assets/playbutton.png"
-const GAYAGEUM_CORRECT_PATH   : String = "res://BGM&effect/SoundUp_feedback/gayageum_correct.wav"
+const CUBE_TEXTURE_PATH : String = "res://UI_assets/preplevel_set_counting_cube_empty.png"
+# Quest E's own five rising Gayageum notes (E5 F#5 G#5 A5 B5), cut from the
+# shared gayageum_correct.wav (which stays untouched for the other quests).
+const NOTE_PATHS : Array[String] = [
+	"res://BGM&effect/SoundUp_feedback/quest_e_gayageum_1_E5.wav",
+	"res://BGM&effect/SoundUp_feedback/quest_e_gayageum_2_Fsharp5.wav",
+	"res://BGM&effect/SoundUp_feedback/quest_e_gayageum_3_Gsharp5.wav",
+	"res://BGM&effect/SoundUp_feedback/quest_e_gayageum_4_A5.wav",
+	"res://BGM&effect/SoundUp_feedback/quest_e_gayageum_5_B5.wav",
+]
 
 const BG_COLOR : Color = Color(0.996, 0.918, 0.729, 1.0)
 
@@ -41,13 +53,17 @@ var _target_phonemes  : Array  = []   # ordered, e.g. ["f","r","short_o","s","t"
 var _filled_count     : int    = 0
 
 var _target_rect     : TextureRect = null
-var _frame_segments   : Array = []   # Array[TextureRect], static ladder scaffold
-var _placed_rungs     : Array = []   # Array[TextureRect], rungs placed on the ladder so far
-var _branch_pool      : Array = []   # Array[TextureRect], this round's bobbing branches
-var _playbutton_rect  : TextureRect = null
+var _branch_pool      : Array = []   # Array[Control], this round's bobbing pool keys
+var _glow_layer       : Node2D = null  # soft glow copies, behind every key
+var _key_layer        : Node2D = null  # the keyboard (one key per phoneme)
+var _slot_keys        : Array = []   # Array[Control], keyboard keys, index 0 = bottom
+var _slot_glows       : Array = []   # Array[Control], one glow group per key
+var _glow_strength    : Array = []   # Array[float], current glow strength per key
+var _glow_tweens      : Array = []   # Array[Tween], the running glow tween per key
+var _cube_tex         : Texture2D = null
 
 var _dragging     : bool = false
-var _drag_branch  : TextureRect = null
+var _drag_branch  : Control = null
 var _drag_offset  : Vector2 = Vector2.ZERO
 var _drag_pos     : Vector2 = Vector2.ZERO
 var _busy         : bool = false
@@ -117,8 +133,7 @@ func _start_round() -> void:
 	_filled_count = 0
 
 	_spawn_target_image()
-	_spawn_ladder()
-	_spawn_playbutton()
+	_spawn_keyboard()
 	_spawn_branch_pool()
 	_busy = false
 
@@ -129,21 +144,25 @@ func _clear_round() -> void:
 	if _target_rect != null:
 		_target_rect.queue_free()
 		_target_rect = null
-	for f in _frame_segments:
-		f.queue_free()
-	_frame_segments.clear()
-	for r in _placed_rungs:
-		r.queue_free()
-	_placed_rungs.clear()
+	for t in _glow_tweens:
+		if t != null and t.is_valid():
+			t.kill()
+	_glow_tweens.clear()
+	_slot_keys.clear()
+	_slot_glows.clear()
+	_glow_strength.clear()
+	if _glow_layer != null:
+		_glow_layer.queue_free()
+		_glow_layer = null
+	if _key_layer != null:
+		_key_layer.queue_free()
+		_key_layer = null
 	for b in _branch_pool:
 		var t : Tween = b.get_meta("bob_tween", null)
 		if t != null and t.is_valid():
 			t.kill()
 		b.queue_free()
 	_branch_pool.clear()
-	if _playbutton_rect != null:
-		_playbutton_rect.queue_free()
-		_playbutton_rect = null
 
 
 # ─── Target image ─────────────────────────────────────────────────────────
@@ -163,69 +182,169 @@ func _spawn_target_image() -> void:
 	add_child(_target_rect)
 
 
-# ─── Ladder (two vertical rails, stretched to match the word's phoneme ─────
-# ─── count; rungs get placed crossing between them as they're collected) ───
-# ladder_frame_level15_soundquest_E.png is a single straight vertical bar —
-# the ladder is TWO of them side by side (the two rails), each stretched to
-# the needed height, not N copies stacked into one line.
+# ─── Cube keyboard (replaces the old ladder rails + rung bars) ─────────────
+# One white rounded-rectangle key per phoneme, stacked bottom to top on the
+# same slot positions the ladder used (SLOT_HEIGHT pitch, so keys sit 2.5 px
+# apart like piano keys), drawn from the existing cube artwork with a 9-slice
+# so the corner radius stays round at any width. No contour line anywhere.
 
 var LADDER_X          : float = 170.0   # mobile-alignment fix — recentered in _ready()
-const LADDER_RAIL_WIDTH : float = 10.0
-const LADDER_RAIL_GAP   : float = 70.0    # distance between the two rails
-const SLOT_HEIGHT       : float = 76.0    # vertical space per rung level
-const LADDER_BASE_Y     : float = 580.0   # bottom edge of the ladder
+const SLOT_HEIGHT       : float = 76.0    # vertical space per key level
+const LADDER_BASE_Y     : float = 580.0   # bottom edge of the keyboard
 
-func _spawn_ladder() -> void:
-	var tex : Texture2D = load(LADDER_FRAME_PATH)
-	var n : int = _target_phonemes.size()
-	var ladder_height : float = n * SLOT_HEIGHT
-	for side in [-1.0, 1.0]:
-		var rail := TextureRect.new()
-		rail.texture = tex
-		rail.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		rail.stretch_mode = TextureRect.STRETCH_SCALE
-		rail.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		rail.size = Vector2(LADDER_RAIL_WIDTH, ladder_height)
-		rail.position = Vector2(
-			LADDER_X + side * LADDER_RAIL_GAP / 2.0 - LADDER_RAIL_WIDTH / 2.0,
-			LADDER_BASE_Y - ladder_height)
-		add_child(rail)
-		_frame_segments.append(rail)
+const KEY_SIZE      : Vector2 = Vector2(165.0, 73.5)    # 2.24 : 1, leaves a 2.5 px gap at the 76 px pitch
+const KEY_EMPTY     : Color   = Color(1.0, 1.0, 1.0, 1.0)             # empty keys: pure white
+const KEY_MINT      : Color   = Color("#20BFA9")                      # Emerald Mint
+const GLOW_COLOR    : Color   = Color(0.58, 0.93, 0.85, 1.0)          # soft, lighter mint
+# [extra px beyond the key edge, alpha at strength 1.0]: stacked low-alpha copies of the key shape
+const GLOW_STEPS    : Array   = [[4.0, 0.20], [9.0, 0.16], [15.0, 0.12], [22.0, 0.085], [30.0, 0.055], [39.0, 0.03]]
+const SHADOW_COLOR  : Color   = Color(0.30, 0.22, 0.10, 1.0)
+const SHADOW_STEPS  : Array   = [[2.0, 0.10], [5.0, 0.075], [9.0, 0.05], [14.0, 0.03]]
+const SHADOW_OFFSET : Vector2 = Vector2(0.0, 5.0)
+
+const MERGE_DUR      : float = 0.20   # landed key -> full-size mint key
+const GLOW_RAMP_DUR  : float = 0.20   # a key's glow stepping between strengths
+const GLOW_SOFT      : float = 0.80   # every completed key
+const GLOW_PLAYING   : float = 1.70   # the key whose phoneme is playing
+const GLOW_WORD      : float = 1.25   # whole keyboard while the word plays
+
+# The visible rounded square inside the 1254 px cube canvas (it is not centred in it).
+const CUBE_SRC_RECT   : Rect2 = Rect2(185, 173, 872, 884)
+const CUBE_SRC_MARGIN : int   = 160
 
 
-# Center position of the level-i rung slot (0 = bottom).
+# One rounded rectangle. The returned holder is an ordinary Control whose size/position are the VISIBLE
+# rectangle, so hit-tests and tweens can use size and position as for any other Control; its single child
+# draws the (scaled) 9-slice. center is in the parent's coordinates.
+func _rrect(parent: Node, center: Vector2, w: float, h: float, color: Color) -> Control:
+	var holder := Control.new()
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var n := NinePatchRect.new()
+	n.texture = _cube_tex
+	n.region_rect = CUBE_SRC_RECT
+	n.patch_margin_left = CUBE_SRC_MARGIN
+	n.patch_margin_right = CUBE_SRC_MARGIN
+	n.patch_margin_top = CUBE_SRC_MARGIN
+	n.patch_margin_bottom = CUBE_SRC_MARGIN
+	n.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	n.modulate = color
+	holder.add_child(n)
+	parent.add_child(holder)
+	_rrect_set(holder, center, w, h)
+	return holder
+
+
+func _rrect_set(holder: Control, center: Vector2, w: float, h: float) -> void:
+	var n := holder.get_child(0) as NinePatchRect
+	var k : float = h / CUBE_SRC_RECT.size.y
+	holder.size = Vector2(w, h)
+	holder.position = center - Vector2(w, h) / 2.0
+	n.scale = Vector2(k, k)
+	n.size = Vector2(w / k, CUBE_SRC_RECT.size.y)
+
+
+func _rrect_color(holder: Control, color: Color) -> void:
+	(holder.get_child(0) as CanvasItem).modulate = color
+
+
+# Center position of the level-i key slot (0 = bottom).
 func _rung_slot_center(level: int) -> Vector2:
 	var y : float = LADDER_BASE_Y - (level + 0.5) * SLOT_HEIGHT
 	return Vector2(LADDER_X, y)
 
 
-# ─── Play Button (fixed size == TARGET_SIZE for the whole round, no scaling) ─
+func _spawn_keyboard() -> void:
+	if _cube_tex == null:
+		_cube_tex = load(CUBE_TEXTURE_PATH)
+	_glow_layer = Node2D.new()
+	_glow_layer.z_index = 1
+	add_child(_glow_layer)
+	_key_layer = Node2D.new()
+	_key_layer.z_index = 2
+	add_child(_key_layer)
+	for i in range(_target_phonemes.size()):
+		var center : Vector2 = _rung_slot_center(i)
+		_slot_keys.append(_rrect(_key_layer, center, KEY_SIZE.x, KEY_SIZE.y, KEY_EMPTY))
+		# the glow group exists from the start (invisible at strength 0), drawn behind all keys
+		var g := Control.new()
+		g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_glow_layer.add_child(g)
+		for s in GLOW_STEPS:
+			var c : Color = GLOW_COLOR
+			c.a = 0.0
+			_rrect(g, center, KEY_SIZE.x + 2.0 * s[0], KEY_SIZE.y + 2.0 * s[0], c)
+		_slot_glows.append(g)
+		_glow_strength.append(0.0)
+		_glow_tweens.append(null)
 
-const PLAYBUTTON_SIZE : Vector2 = TARGET_SIZE
 
-func _spawn_playbutton() -> void:
-	var tex : Texture2D = load(PLAYBUTTON_TEXTURE_PATH)
-	_playbutton_rect = TextureRect.new()
-	_playbutton_rect.texture = tex
-	_playbutton_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_playbutton_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_playbutton_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_playbutton_rect.size = PLAYBUTTON_SIZE
-	_playbutton_rect.pivot_offset = PLAYBUTTON_SIZE / 2.0
-	var wait_center : Vector2 = Vector2(LADDER_X, LADDER_BASE_Y + 80.0)
-	_playbutton_rect.position = wait_center - _playbutton_rect.pivot_offset
-	add_child(_playbutton_rect)
+func _set_glow(i: int, strength: float) -> void:
+	if i >= _slot_glows.size() or not is_instance_valid(_slot_glows[i]):
+		return
+	_glow_strength[i] = strength
+	var g : Control = _slot_glows[i]
+	for j in range(GLOW_STEPS.size()):
+		var c : Color = GLOW_COLOR
+		c.a = GLOW_STEPS[j][1] * strength
+		_rrect_color(g.get_child(j), c)
 
 
-# ─── Branch pool (correct rungs, one per target phoneme occurrence, + ───────
+# Ramp key i's glow to `target`; any ramp already running on that key is replaced.
+func _tween_glow(i: int, target: float) -> void:
+	if i >= _glow_tweens.size():
+		return
+	var old : Tween = _glow_tweens[i]
+	if old != null and old.is_valid():
+		old.kill()
+	var tw := create_tween()
+	_glow_tweens[i] = tw
+	tw.tween_method(func(s: float) -> void: _set_glow(i, s), float(_glow_strength[i]), target, GLOW_RAMP_DUR)
+
+
+# Soft drop shadow that makes the white dragged key visible over the white keyboard.
+# A child of the key (drawn behind it), laid out in the key's own coordinates.
+func _add_shadow(piece: Control) -> void:
+	if piece.has_meta("shadow"):
+		return
+	var g := Control.new()
+	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	g.show_behind_parent = true
+	piece.add_child(g)
+	for s in SHADOW_STEPS:
+		_rrect(g, Vector2.ZERO, 1.0, 1.0, Color(SHADOW_COLOR.r, SHADOW_COLOR.g, SHADOW_COLOR.b, 0.0))
+	piece.set_meta("shadow", g)
+	_layout_shadow(piece, 1.0)
+
+
+func _layout_shadow(piece: Control, strength: float) -> void:
+	var g : Control = piece.get_meta("shadow", null)
+	if g == null or not is_instance_valid(g):
+		return
+	var center : Vector2 = piece.size / 2.0 + SHADOW_OFFSET
+	for j in range(SHADOW_STEPS.size()):
+		var grow : float = SHADOW_STEPS[j][0]
+		var holder : Control = g.get_child(j)
+		_rrect_set(holder, center, piece.size.x + 2.0 * grow, piece.size.y + 2.0 * grow)
+		_rrect_color(holder, Color(SHADOW_COLOR.r, SHADOW_COLOR.g, SHADOW_COLOR.b, SHADOW_STEPS[j][1] * strength))
+
+
+func _remove_shadow(piece: Control) -> void:
+	var g : Control = piece.get_meta("shadow", null)
+	if g != null and is_instance_valid(g):
+		g.queue_free()
+	piece.remove_meta("shadow")
+
+
+# ─── Branch pool (correct keys, one per target phoneme occurrence, + ────────
 # ─── distractors, 12 total per round) ───────────────────────────────────────
 
-const RUNG_SIZE     : Vector2 = Vector2(90, 34)
+const PIECE_SIZE    : Vector2 = Vector2(108, 48)   # small white key, same proportions as the keyboard keys
 const BRANCH_TOTAL  : int     = 12
 var POOL_CENTER       : Vector2 = Vector2(870, 420)   # mobile-alignment fix — recentered in _ready()
 const POOL_HALF_EXTENTS : Vector2 = Vector2(330, 230)
-const MIN_SPACING  : float = 60.0
-const MAX_ATTEMPTS : int   = 30
+const MIN_GAP_X    : float = 14.0   # keys are wider than tall, so spacing is checked per axis, not by distance
+const MIN_GAP_Y    : float = 22.0   # (includes the +-5 px bob)
+const MAX_ATTEMPTS : int   = 200
 
 func _spawn_branch_pool() -> void:
 	var correct_count : int = _target_phonemes.size()
@@ -240,25 +359,17 @@ func _spawn_branch_pool() -> void:
 		entries.append({"phoneme": ph, "correct": false})
 	entries.shuffle()
 
-	var tex : Texture2D = load(LADDER_RUNG_PATH)
+	if _cube_tex == null:
+		_cube_tex = load(CUBE_TEXTURE_PATH)
 	var placed : Array = []
 	for entry in entries:
-		var r := TextureRect.new()
-		r.texture = tex
-		r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		r.size = RUNG_SIZE
-		r.pivot_offset = RUNG_SIZE / 2.0
-
 		var center : Vector2 = _pick_pool_center(placed)
 		placed.append(center)
-		r.position = center - r.pivot_offset
+		var r : Control = _rrect(self, center, PIECE_SIZE.x, PIECE_SIZE.y, KEY_EMPTY)
+		r.z_index = 3                       # above the keyboard (and its glow)
 		r.set_meta("base_pos", r.position)
 		r.set_meta("phoneme", entry["phoneme"])
 		r.set_meta("correct", entry["correct"])
-
-		add_child(r)
 		_branch_pool.append(r)
 		_start_bob(r)
 
@@ -271,7 +382,7 @@ func _pick_pool_center(placed: Array) -> Vector2:
 			randf_range(-1.0, 1.0) * POOL_HALF_EXTENTS.y)
 		var far_enough := true
 		for p in placed:
-			if candidate.distance_to(p) < MIN_SPACING:
+			if absf(candidate.x - p.x) < PIECE_SIZE.x + MIN_GAP_X and absf(candidate.y - p.y) < PIECE_SIZE.y + MIN_GAP_Y:
 				far_enough = false
 				break
 		if far_enough:
@@ -291,9 +402,8 @@ func _start_bob(node: Control) -> void:
 
 # ─── Drag & drop ─────────────────────────────────────────────────────────────
 
-# Generous vertical strip covering the ladder (at any of its 3-5 heights)
-# and Play Button's waiting spot — dropping anywhere in it counts as
-# "placing on the ladder."
+# Generous vertical strip covering the keyboard (at any of its 3-5 keys) —
+# dropping anywhere in it counts as "placing on the keyboard."
 const LADDER_DROP_ZONE : Rect2 = Rect2(Vector2(60, 20), Vector2(220, 700))
 
 func _process(_delta: float) -> void:
@@ -323,7 +433,7 @@ func _try_start_drag(pos: Vector2) -> void:
 		_play_sfx(WORD_AUDIO_DIR + _target_word + ".wav")
 		return
 	for i in range(_branch_pool.size() - 1, -1, -1):
-		var b : TextureRect = _branch_pool[i]
+		var b : Control = _branch_pool[i]
 		if not is_instance_valid(b):
 			continue
 		if Rect2(b.position, b.size).has_point(pos):
@@ -335,6 +445,7 @@ func _try_start_drag(pos: Vector2) -> void:
 			if t != null and t.is_valid():
 				t.pause()
 			move_child(b, get_child_count() - 1)
+			_add_shadow(b)
 			var ph : String = String(b.get_meta("phoneme"))
 			_play_sfx(String(_all_phonemes[ph]["audio"]))
 			return
@@ -344,7 +455,7 @@ func _end_drag() -> void:
 	if not _dragging:
 		return
 	_dragging = false
-	var b : TextureRect = _drag_branch
+	var b : Control = _drag_branch
 	_drag_branch = null
 	if b == null or not is_instance_valid(b):
 		return
@@ -360,36 +471,65 @@ func _end_drag() -> void:
 		_on_drop_empty_space(b)
 
 
-func _on_correct_drop(b: TextureRect) -> void:
+func _on_correct_drop(b: Control) -> void:
 	_busy = true
 	_branch_pool.erase(b)
 	var old_bob : Tween = b.get_meta("bob_tween", null)
 	if old_bob != null and old_bob.is_valid():
 		old_bob.kill()
 
-	_play_sfx(GAYAGEUM_CORRECT_PATH)
-
-	var slot_center : Vector2 = _rung_slot_center(_filled_count)
+	var slot_index : int = _filled_count
+	var slot_center : Vector2 = _rung_slot_center(slot_index)
 	var hop := create_tween()
-	hop.tween_property(b, "position", slot_center - b.size / 2.0, 0.25) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	hop.tween_property(b, "position", slot_center - b.size / 2.0, 0.25) 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	await hop.finished
 
-	_placed_rungs.append(b)
+	# t = 0: the key has landed on its slot. The next note of the rising scale
+	# plays now and the key merges into the keyboard.
+	var note : AudioStreamPlayer = _play_sfx(NOTE_PATHS[mini(slot_index, NOTE_PATHS.size() - 1)])
 	_filled_count += 1
+	var merge : Tween = _merge_key(b, slot_index)
 
 	if _filled_count >= _target_phonemes.size():
-		_busy = false
-		await _on_round_complete_climb()
+		await merge.finished
+		await _on_round_complete_sequence(note)
 	else:
 		_busy = false
+
+
+# Landed key -> full-size Emerald Mint key over MERGE_DUR: the colour change, the
+# growth (ease-out cubic) and the glow (building to its soft level) all start at t = 0,
+# and the drag shadow lifts away. The keyboard key underneath takes over at the end.
+func _merge_key(piece: Control, slot_index: int) -> Tween:
+	var center : Vector2 = _rung_slot_center(slot_index)
+	var start_size : Vector2 = piece.size
+	var tw := create_tween()
+	tw.tween_method(func(e: float) -> void:
+		if not is_instance_valid(piece):
+			return
+		var grown : float = 1.0 - pow(1.0 - e, 3.0)       # ease-out cubic
+		var tint : float = 1.0 - pow(1.0 - e, 2.0)        # white -> mint, starting exactly at t = 0
+		var sz : Vector2 = start_size.lerp(KEY_SIZE, grown)
+		_rrect_set(piece, center, sz.x, sz.y)
+		_rrect_color(piece, KEY_EMPTY.lerp(KEY_MINT, tint))
+		_layout_shadow(piece, 1.0 - e)
+		_set_glow(slot_index, GLOW_SOFT * grown * grown),
+		0.0, 1.0, MERGE_DUR)
+	tw.tween_callback(func() -> void:
+		if slot_index < _slot_keys.size() and is_instance_valid(_slot_keys[slot_index]):
+			_rrect_color(_slot_keys[slot_index], KEY_MINT)
+		_set_glow(slot_index, GLOW_SOFT)
+		if is_instance_valid(piece):
+			piece.queue_free())
+	return tw
 
 
 # Same resist-twice-bounce-back idiom as Quest A/B — a mismatch (wrong
 # phoneme OR a correct-word phoneme presented out of turn) is rejected
 # outright, no partial credit, no destination reached.
-func _on_wrong_drop(b: TextureRect) -> void:
+func _on_wrong_drop(b: Control) -> void:
 	_busy = true
+	_remove_shadow(b)
 	var start_pos : Vector2 = b.position
 	var ladder_center : Vector2 = Vector2(LADDER_X, LADDER_BASE_Y)
 	var away : Vector2 = (start_pos + b.size / 2.0) - ladder_center
@@ -412,8 +552,9 @@ func _on_wrong_drop(b: TextureRect) -> void:
 	_busy = false
 
 
-func _on_drop_empty_space(b: TextureRect) -> void:
+func _on_drop_empty_space(b: Control) -> void:
 	_busy = true
+	_remove_shadow(b)
 	var base_pos : Vector2 = b.get_meta("base_pos")
 	var glide := create_tween()
 	glide.tween_property(b, "position", base_pos, 0.25).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
@@ -422,54 +563,55 @@ func _on_drop_empty_space(b: TextureRect) -> void:
 	_busy = false
 
 
-func _resume_bob(b: TextureRect) -> void:
+func _resume_bob(b: Control) -> void:
 	var t : Tween = b.get_meta("bob_tween", null)
 	if t != null and t.is_valid():
 		t.play()
 
 
-# ─── Round-complete: climb -> touch image -> hop beside -> walk off ────────
+# ─── Round-complete: automatic phoneme playback -> the whole word -> fade ───
+# Everything here waits on the sounds themselves (their `finished` signals), never
+# on fixed delays. Input stays locked (_busy) for the whole sequence.
 
-const CLIMB_HOP_DUR   : float = 0.8   # slowed further from 0.55 per feedback
-const TOUCH_HOLD      : float = 0.3
-const STAGE_HOP_DUR   : float = 0.25
-const WALK_OFF_X      : float = 1450.0
-const WALK_OFF_DUR    : float = 2.2    # slowed from 1.1 — walking the image off should feel unhurried, not rushed
+# A sound that was stopped (entitlement loss stops all audio) never emits `finished`;
+# the scene is leaving anyway, so that coroutine simply never resumes.
+func _await_sound(player: AudioStreamPlayer) -> void:
+	if player == null or not is_instance_valid(player) or not player.playing:
+		return
+	await player.finished
 
-func _on_round_complete_climb() -> void:
-	_busy = true
 
-	for level in range(_target_phonemes.size()):
-		var slot_center : Vector2 = _rung_slot_center(level)
-		var climb := create_tween()
-		climb.tween_property(_playbutton_rect, "position", slot_center - _playbutton_rect.pivot_offset, CLIMB_HOP_DUR) \
-			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		await climb.finished
+func _sequence_aborted() -> bool:
+	return _entitlement_interrupted or not is_inside_tree()
 
-	var touch_center : Vector2 = TARGET_POS + TARGET_SIZE / 2.0
-	var to_image := create_tween()
-	to_image.tween_property(_playbutton_rect, "position", touch_center - _playbutton_rect.pivot_offset, CLIMB_HOP_DUR) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	await to_image.finished
 
-	_play_sfx(WORD_AUDIO_DIR + _target_word + ".wav")
-	await get_tree().create_timer(TOUCH_HOLD, false).timeout
+func _on_round_complete_sequence(last_note: AudioStreamPlayer) -> void:
+	# 1. let the last key's Gayageum note finish, so the first phoneme never overlaps it
+	await _await_sound(last_note)
+	if _sequence_aborted():
+		return
 
-	var stage_center : Vector2 = TARGET_POS + Vector2(TARGET_SIZE.x + _playbutton_rect.size.x / 2.0 + 10.0, TARGET_SIZE.y / 2.0)
-	var to_stage := create_tween()
-	to_stage.tween_property(_playbutton_rect, "position", stage_center - _playbutton_rect.pivot_offset, STAGE_HOP_DUR) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	await to_stage.finished
+	# 2. phonemes, bottom key to top key; no Gayageum notes here
+	var n : int = _target_phonemes.size()
+	for i in range(n):
+		_tween_glow(i, GLOW_PLAYING)
+		var ph_player : AudioStreamPlayer = _play_sfx(String(_all_phonemes[_target_phonemes[i]]["audio"]))
+		await _await_sound(ph_player)
+		if _sequence_aborted():
+			return
+		if i < n - 1:
+			_tween_glow(i, GLOW_SOFT)
 
-	var walk := create_tween()
-	walk.set_parallel(true)
-	walk.tween_property(_playbutton_rect, "position:x", WALK_OFF_X, WALK_OFF_DUR) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	walk.tween_property(_target_rect, "position:x", WALK_OFF_X, WALK_OFF_DUR) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	await walk.finished
+	# 3. the whole word, once, with the whole keyboard glowing brighter until it ends
+	for i in range(n):
+		_tween_glow(i, GLOW_WORD)
+	var word_player : AudioStreamPlayer = _play_sfx(WORD_AUDIO_DIR + _target_word + ".wav")
+	await _await_sound(word_player)
+	if _sequence_aborted():
+		return
 
-	_on_round_complete()
+	# 4. fade everything out together and go on to the next round
+	await _on_round_complete()
 
 
 const ROUND_FADE_DUR : float = 0.3
@@ -479,15 +621,18 @@ const ROUNDS_PER_SET : int = 10
 const TOTAL_ROUNDS    : int = 100
 
 func _on_round_complete() -> void:
-	# Remaining (unused distractor) branches fade out; the walk-off already
-	# carried Play Button + target image away, no separate fade needed for
-	# those two.
+	# Keyboard, glow, target picture and the leftover pool keys fade out together.
 	var t := create_tween()
 	t.set_parallel(true)
+	for node in [_key_layer, _glow_layer, _target_rect]:
+		if node != null and is_instance_valid(node):
+			t.tween_property(node, "modulate:a", 0.0, ROUND_FADE_DUR)
 	for b in _branch_pool:
 		if is_instance_valid(b):
 			t.tween_property(b, "modulate:a", 0.0, ROUND_FADE_DUR)
 	await t.finished
+	if _sequence_aborted():
+		return
 
 	var rounds_done : int = _round_index + 1
 	_round_index += 1
@@ -584,7 +729,7 @@ func _create_gnb_flag() -> void:
 
 func _cancel_drag() -> void:
 	if _dragging and _drag_branch != null and is_instance_valid(_drag_branch):
-		var b : TextureRect = _drag_branch
+		var b : Control = _drag_branch
 		_dragging    = false
 		_drag_branch = null
 		_on_drop_empty_space(b)
@@ -618,11 +763,13 @@ func _exit_tree() -> void:
 	get_tree().paused = false
 
 
-func _play_sfx(path: String) -> void:
+# Returns the player (null if the file is missing) so callers can await `finished`.
+func _play_sfx(path: String) -> AudioStreamPlayer:
 	if path == "" or not ResourceLoader.exists(path):
-		return
+		return null
 	var player := AudioStreamPlayer.new()
 	player.stream = load(path)
 	add_child(player)
 	player.play()
 	player.finished.connect(player.queue_free)
+	return player

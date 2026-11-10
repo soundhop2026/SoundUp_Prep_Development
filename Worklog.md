@@ -78,6 +78,13 @@ locked design rules; this file is for session-by-session history and handoff not
   1 and mid-Level 1.5 saves resume; all-complete goes to a new Prep cycle, never Level 2; a non-subscriber lands in free Prep.
   Where Am I's Level 1.5 pages (13 Sets, groups A-F, six Sound Quest cards) were checked against the real screens.
 - No regression suites were run (owner instruction).
+- **Signed AAB built from release commit `58e8025`** (clean tree, checked by the build script) with the production upload keystore;
+  the owner typed the password at a hidden prompt. Bundle: `C:\Users\user\Documents\SoundHop_Releases\v1.1.0\SoundHop-1.1.0-vc9.aab`
+  (83.5 MB, outside the repo), SHA-256 `CB0C899B431FA331DB6BC24391C81D952860D9B8EAC7E4BF76E0261C5DA0C4C5`. Verified from the artifact itself:
+  package `com.acron.learningsounds`, versionCode **9**, versionName **1.1.0**, minSdk 24, targetSdk **36**, arm64-v8a, `jar verified`,
+  signer `CN=Learning Sounds, OU=SoundHop, O=Acron` with cert SHA-256 `5C:8C:2B:C1:9F:25:0D:54:E4:D7:A5:7C:04:19:46:1B:FC:41:3E:EB:CE:A9:F7:FB:0C:E9:71:3C:51:7B:86:6D`
+  (the same upload certificate as 1.0.2). The real save file hash was unchanged by the build and no keystore variable was left set.
+  **Not uploaded** to Google Play Console.
 
 ### Decisions
 - GNB Home / What's SoundHop are left unchanged (they list no Levels). Level 1.5 group titles, goal lines and Sound Quest

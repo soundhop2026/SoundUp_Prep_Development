@@ -18,7 +18,7 @@ class_name ReleaseScope
 const PROGRESSION_ORDER : Array[String] = ["prep", "level1", "level15", "level2", "level25"]
 
 # The last entry in PROGRESSION_ORDER that is publicly released in this build.
-const HIGHEST_RELEASED_LEVEL_ID : String = "level1"
+const HIGHEST_RELEASED_LEVEL_ID : String = "level15"
 
 # Runtime copy of the boundary. Always starts at the constant above; tests assign
 # it to simulate a later release (e.g. "level15") without editing the constant.

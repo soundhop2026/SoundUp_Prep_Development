@@ -61,6 +61,41 @@ locked design rules; this file is for session-by-session history and handoff not
 
 ---
 
+## 2026-11-10 - SoundHop 1.1.0 (versionCode 9): Level 1.5 public release, Android
+
+### Completed
+- **Release authorized by the owner after a personal Galaxy play-test** of all 13 Level 1.5 Sets and Sound Quests A-F (including
+  the redesigned Quest E): everything worked well. The owner's QA APK (`com.acron.learningsounds.debug`, local-only DEBUG_MODE /
+  entitlement bypass / gate patch, never committed) was used for that test.
+- **`ReleaseScope.HIGHEST_RELEASED_LEVEL_ID` "level1" -> "level15"** (one-line change, nothing else in the framework touched).
+  Level 2 and Level 2.5 stay locked automatically (they follow level15 in `PROGRESSION_ORDER`). Subscription logic, GNB content and
+  the save format are unchanged.
+- **Android release preset (preset 0 only): `version/code` 8 -> 9, `version/name` 1.0.2 -> 1.1.0.** The testing / emulator presets
+  were not touched. Android versionCode and iOS Build are separate counters; iOS Build 11 is handled separately on the Mac.
+- **Release navigation verified** (isolated check with the 1.1.0 scope, 12/12): Level 1 Coronation -> Level 1.5 Intro directly;
+  Level 1.5 final Coronation -> Title; Level 2 and higher locked. **Upgrade path verified** (isolated, 15/15): 1.0.1-era and
+  1.0.2 saves keep their progress; a player who finished Level 1 meets the Level 1.5 Intro first, with no second Coronation; mid-Level
+  1 and mid-Level 1.5 saves resume; all-complete goes to a new Prep cycle, never Level 2; a non-subscriber lands in free Prep.
+  Where Am I's Level 1.5 pages (13 Sets, groups A-F, six Sound Quest cards) were checked against the real screens.
+- No regression suites were run (owner instruction).
+
+### Decisions
+- GNB Home / What's SoundHop are left unchanged (they list no Levels). Level 1.5 group titles, goal lines and Sound Quest
+  descriptions are kept as-is.
+- Not uploaded to Google Play Console: the owner authorizes upload separately.
+
+### Risks / Gotchas
+- `DebugConfig.DEBUG_MODE` and `DEBUG_FAST` are both false in this commit; the QA-only entitlement bypass exists only in the
+  uncommitted local patch.
+- Level 1.5's final Coronation returns to Title because Level 2 is not released; completion is recorded, so a later release that
+  raises the gate unlocks Level 2 immediately with no migration.
+- Before upload, confirm in Play Console that versionCode 9 is unused (1.0.2 / versionCode 8 is the last one submitted).
+
+### Next Session
+- Owner uploads the signed AAB to Google Play Console (separate authorization). Mac: iOS 1.1.0 Build 11.
+
+---
+
 ## 2026-11-09 - Level 1.5 Sound Quest E: cube keyboard + automatic phoneme/word playback
 
 ### Completed
